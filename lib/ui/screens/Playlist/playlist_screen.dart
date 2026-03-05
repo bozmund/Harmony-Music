@@ -5,9 +5,10 @@ import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
-import '/models/playling_from.dart';
+import '/models/playing_from.dart';
 import '/models/thumbnail.dart';
 import '/ui/widgets/playlist_album_scroll_behaviour.dart';
+import '../../../services/constant.dart';
 import '../../../services/downloader.dart';
 import '../../navigator.dart';
 import '../../player/player_controller.dart';
@@ -315,10 +316,10 @@ class PlaylistScreen extends StatelessWidget {
                                                         playlistController
                                                             .songList),
                                                     0,
-                                                    playfrom: PlaylingFrom(
+                                                    playfrom: PlayingFrom(
                                                         name: playlistController
                                                             .playlist.value.title,
-                                                        type: PlaylingFromType
+                                                        type: PlayingFromType
                                                             .PLAYLIST));
                                               },
                                               icon: Icon(
@@ -368,10 +369,10 @@ class PlaylistScreen extends StatelessWidget {
                                                 songsToplay.shuffle();
                                                 playerController.playPlayListSong(
                                                     songsToplay, 0,
-                                                    playfrom: PlaylingFrom(
+                                                    playfrom: PlayingFrom(
                                                         name: playlistController
                                                             .playlist.value.title,
-                                                        type: PlaylingFromType
+                                                        type: PlayingFromType
                                                             .PLAYLIST));
                                               },
                                               icon: Icon(
@@ -627,19 +628,19 @@ class PlaylistScreen extends StatelessWidget {
                                               .playlist.value.playlistId,
                                           screenController: playlistController,
                                           isSearchFeatureRequired: true,
-                                          isPlaylistRearrageFeatureRequired: !playlistController
-                                                  .playlist
-                                                  .value
-                                                  .isCloudPlaylist &&
-                                              playlistController.playlist.value
-                                                      .playlistId !=
-                                                  "LIBRP" &&
-                                              playlistController.playlist.value
-                                                      .playlistId !=
-                                                  "SongDownloads" &&
-                                              playlistController.playlist.value
-                                                      .playlistId !=
-                                                  "SongsCache",
+                                           isPlaylistRearrageFeatureRequired: !playlistController
+                                                   .playlist
+                                                   .value
+                                                   .isCloudPlaylist &&
+                                               playlistController.playlist.value
+                                                       .playlistId !=
+                                                   BoxNames.libRP &&
+                                               playlistController.playlist.value
+                                                       .playlistId !=
+                                                   BoxNames.songDownloads &&
+                                               playlistController.playlist.value
+                                                       .playlistId !=
+                                                   BoxNames.songsCache,
                                           isSongDeletetioFeatureRequired:
                                               !playlistController.playlist.value
                                                   .isCloudPlaylist,
@@ -697,10 +698,10 @@ class PlaylistScreen extends StatelessWidget {
                                         List<MediaItem>.from(
                                             playlistController.songList),
                                         index - 3,
-                                        playfrom: PlaylingFrom(
+                                        playfrom: PlayingFrom(
                                             name: playlistController
                                                 .playlist.value.title,
-                                            type: PlaylingFromType.PLAYLIST));
+                                            type: PlayingFromType.PLAYLIST));
                                   },
                                   song: playlistController.songList[index - 3],
                                   isPlaylistOrAlbum: true,

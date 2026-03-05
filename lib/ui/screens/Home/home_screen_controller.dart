@@ -6,6 +6,7 @@ import 'package:hive/hive.dart';
 import '/models/media_Item_builder.dart';
 import '/ui/player/player_controller.dart';
 import '../../../utils/update_check_flag_file.dart';
+import '/services/constant.dart';
 import '../../../utils/helper.dart';
 import '/models/album.dart';
 import '/models/playlist.dart';
@@ -36,15 +37,15 @@ class HomeScreenController extends GetxController {
   }
 
   Future<void> loadContent() async {
-    final box = Hive.box("AppPrefs");
+    final box = Hive.box(BoxNames.appPrefs);
     final isCachedHomeScreenDataEnabled =
-        box.get("cacheHomeScreenData") ?? true;
+        box.get(PrefKeys.cacheHomeScreenData) ?? true;
     if (isCachedHomeScreenDataEnabled) {
       final loaded = await loadContentFromDb();
 
       if (loaded) {
         final currTimeSecsDiff = DateTime.now().millisecondsSinceEpoch -
-            (box.get("homeScreenDataTime") ??
+            (box.get(PrefKeys.homeScreenDataTime) ??
                 DateTime.now().millisecondsSinceEpoch);
         if (currTimeSecsDiff / 1000 > 3600 * 8) {
           loadContentFromNetwork(silent: true);
@@ -58,7 +59,7 @@ class HomeScreenController extends GetxController {
   }
 
   Future<bool> loadContentFromDb() async {
-    final homeScreenData = await Hive.openBox("homeScreenData");
+    final homeScreenData = await Hive.openBox(BoxNames.homeScreenData);
     if (homeScreenData.keys.isNotEmpty) {
       final String quickPicksType = homeScreenData.get("quickPicksType");
       final List quickPicksData = homeScreenData.get("quickPicks");
@@ -86,8 +87,8 @@ class HomeScreenController extends GetxController {
   }
 
   Future<void> loadContentFromNetwork({bool silent = false}) async {
-    final box = Hive.box("AppPrefs");
-    String contentType = box.get("discoverContentType") ?? "QP";
+    final box = Hive.box(BoxNames.appPrefs);
+    String contentType = box.get(PrefKeys.discoverContentType) ?? "QP";
 
     networkError.value = false;
     try {
@@ -135,7 +136,7 @@ class HomeScreenController extends GetxController {
         }
       } else if (contentType == "BOLI") {
         try {
-          final songId = box.get("recentSongId");
+          final songId = box.get(PrefKeys.recentSongId);
           if (songId != null) {
             final rel = (await _musicServices.getContentRelatedToSong(
                 songId, getContentHlCode()));
@@ -165,8 +166,8 @@ class HomeScreenController extends GetxController {
 
       // set home content last update time
       cachedHomeScreenData(updateAll: true);
-      await Hive.box("AppPrefs")
-          .put("homeScreenDataTime", DateTime.now().millisecondsSinceEpoch);
+      await Hive.box(BoxNames.appPrefs)
+          .put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
       // ignore: unused_catch_stack
     } on NetworkError catch (r, e) {
       printERROR("Home Content not loaded due to ${r.message}");
@@ -221,16 +222,16 @@ class HomeScreenController extends GetxController {
             "Seems ${val == "TMV" ? "Top music videos" : "Trending songs"} currently not available!");
       }
     } else {
-      songId ??= Hive.box("AppPrefs").get("recentSongId");
+      songId ??= Hive.box(BoxNames.appPrefs).get(PrefKeys.recentSongId);
       if (songId != null) {
         try {
           final value = await _musicServices.getContentRelatedToSong(
               songId, getContentHlCode());
           middleContent.value = _setContentList(value);
           if (value.isNotEmpty && (value[0]['title']).contains("like")) {
-            quickPicks_ =
+            quickPicks.value =
                 QuickPicks(List<MediaItem>.from(value[0]["contents"]));
-            Hive.box("AppPrefs").put("recentSongId", songId);
+            Hive.box(BoxNames.appPrefs).put(PrefKeys.recentSongId, songId);
           }
           // ignore: empty_catches
         } catch (e) {}
@@ -242,8 +243,8 @@ class HomeScreenController extends GetxController {
 
     // set home content last update time
     cachedHomeScreenData(updateQuickPicksNMiddleContent: true);
-    await Hive.box("AppPrefs")
-        .put("homeScreenDataTime", DateTime.now().millisecondsSinceEpoch);
+    await Hive.box(BoxNames.appPrefs)
+        .put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
   }
 
   String getContentHlCode() {
@@ -265,7 +266,7 @@ class HomeScreenController extends GetxController {
 
   void _checkNewVersion() {
     showVersionDialog.value =
-        Hive.box("AppPrefs").get("newVersionVisibility") ?? true;
+        Hive.box(BoxNames.appPrefs).get(PrefKeys.newVersionVisibility) ?? true;
     if (showVersionDialog.isTrue) {
       newVersionCheck(Get.find<SettingsScreenController>().currentVersion)
           .then((value) {
@@ -279,7 +280,7 @@ class HomeScreenController extends GetxController {
   }
 
   void onChangeVersionVisibility(bool val) {
-    Hive.box("AppPrefs").put("newVersionVisibility", !val);
+    Hive.box(BoxNames.appPrefs).put(PrefKeys.newVersionVisibility, !val);
     showVersionDialog.value = !val;
   }
 
@@ -321,7 +322,7 @@ class HomeScreenController extends GetxController {
       return;
     }
 
-    final homeScreenData = Hive.box("homeScreenData");
+    final homeScreenData = Hive.box(BoxNames.homeScreenData);
 
     if (updateQuickPicksNMiddleContent) {
       await homeScreenData.putAll({

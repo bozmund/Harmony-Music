@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
+import '/services/constant.dart';
 import '../ui/screens/Album/album_screen_controller.dart';
 import '../ui/screens/Playlist/playlist_screen_controller.dart';
 import '/services/stream_service.dart';
@@ -136,7 +137,7 @@ class Downloader extends GetxService {
         return;
       }
 
-      if (!Hive.box("SongDownloads").containsKey(song.id)) {
+      if (!Hive.box(BoxNames.songDownloads).containsKey(song.id)) {
         currentSong = song;
         songDownloadingProgress.value = 0;
         await writeFileStream(song);
@@ -233,7 +234,7 @@ class Downloader extends GetxService {
         // [playbility status, info map]
         songJson["streamInfo"] = [true, streamInfoJson];
 
-        Hive.box("SongDownloads").put(song.id, songJson);
+        Hive.box(BoxNames.songDownloads).put(song.id, songJson);
         Get.find<LibrarySongsController>().librarySongsList.add(song);
         printINFO("Downloaded successfully");
 

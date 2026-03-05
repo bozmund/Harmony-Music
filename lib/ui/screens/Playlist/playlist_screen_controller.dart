@@ -11,6 +11,7 @@ import 'package:harmonymusic/utils/helper.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 
+import '../../../services/constant.dart';
 import '../../../base_class/playlist_album_screen_con_base.dart';
 import '../../../mixins/additional_opeartion_mixin.dart';
 import '../../../models/album.dart' show Album;
@@ -76,10 +77,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   void fetchPlaylistDetails(Playlist? playlist_, String playlistId) async {
     final isIdOnly = playlist_ == null;
     final isPipedPlaylist = playlist_?.isPipedPlaylist ?? false;
-    isDefaultPlaylist.value = (playlistId == "SongDownloads" ||
-        playlistId == "SongsCache" ||
-        playlistId == "LIBRP" ||
-        playlistId == "LIBFAV");
+    isDefaultPlaylist.value = (playlistId == BoxNames.songDownloads ||
+        playlistId == BoxNames.songsCache ||
+        playlistId == BoxNames.libRP ||
+        playlistId == BoxNames.libFav);
 
     if (!isIdOnly && !playlist_.isCloudPlaylist) {
       playlist.value = playlist_;
@@ -154,7 +155,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
   @override
   Future<bool> checkIfAddedToLibrary(String id) async {
-    final box = await Hive.openBox("LibraryPlaylists");
+    final box = await Hive.openBox(BoxNames.libraryPlaylists);
     isAddedToLibrary.value = box.containsKey(id);
     if (isAddedToLibrary.value) playlist.value = Playlist.fromJson(box.get(id));
     await box.close();
@@ -171,7 +172,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         Get.find<LibraryPlaylistsController>().syncPipedPlaylist();
         return (res.code == 1);
       } else {
-        final box = await Hive.openBox("LibraryPlaylists");
+        final box = await Hive.openBox(BoxNames.libraryPlaylists);
         final id = content.playlistId;
         if (add) {
           box.put(id, content.toJson());
@@ -203,7 +204,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     for (int i = 0; i < songListCopy.length; i++) {
       await songsBox.put(i, MediaItemBuilder.toJson(songListCopy[i]));
     }
-    if (playlist.value.playlistId != "SongDownloads") await songsBox.close();
+    if (playlist.value.playlistId != BoxNames.songDownloads) await songsBox.close();
 
     // Update the playlist thumbnail based on the first song's thumbnail
     _updatePlaylistThumbSongBased();
@@ -212,7 +213,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   @override
   Future<void> deleteMultipleSongs(List<MediaItem> songs) async {
     final id = playlist.value.playlistId;
-    final isoffline = id == "SongsCache" || id == "SongDownloads";
+    final isoffline = id == BoxNames.songsCache || id == BoxNames.songDownloads;
 
     final box_ = await Hive.openBox(id);
     for (MediaItem element in songs) {
@@ -223,7 +224,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
       if (isoffline) {
         await Get.find<LibrarySongsController>()
-            .removeSong(element, id == "SongDownloads");
+            .removeSong(element, id == BoxNames.songDownloads);
       }
 
       songList.removeWhere((song) => song.id == element.id);

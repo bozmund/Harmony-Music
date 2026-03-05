@@ -8,6 +8,7 @@ import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 
+import '../../services/constant.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
 import '/utils/helper.dart';
 import '../../services/permission_service.dart';
@@ -175,7 +176,7 @@ class RestoreDialogController extends GetxController {
     restoreRunning.value = true;
     for (final file in archive) {
       final filename = file.name;
-      printINFO(filename);
+      printINFO(filename, tag: LogTags.backup);
       if (file.isFile) {
         final data = file.content as List<int>;
         final targetFileDir =
@@ -201,7 +202,7 @@ class RestoreDialogController extends GetxController {
     // change file download path to support dir path in songs if system is windows or linux
     if (GetPlatform.isWindows || GetPlatform.isLinux) {
       // open the restored box
-      final newSongBox = await Hive.openBox("SongDownloads");
+      final newSongBox = await Hive.openBox(BoxNames.songDownloads);
       final downloadedSongs = newSongBox.values.toList();
       for(final song in downloadedSongs) {
         final songPath = song["url"];

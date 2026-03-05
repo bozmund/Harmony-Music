@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 
+import '/services/constant.dart';
 import '/ui/screens/Search/search_screen_controller.dart';
 import '/utils/get_localization.dart';
 import '/services/downloader.dart';
@@ -48,7 +49,7 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         translations: Languages(),
         locale:
-            Locale(Hive.box("AppPrefs").get('currentAppLanguageCode') ?? "en"),
+            Locale(Hive.box(BoxNames.appPrefs).get(PrefKeys.currentAppLanguageCode) ?? "en"),
         fallbackLocale: const Locale("en"),
         builder: (context, child) {
           final mQuery = MediaQuery.of(context);
@@ -109,24 +110,24 @@ initHive() async {
         (await getApplicationDocumentsDirectory()).path;
   }
   await Hive.initFlutter(applicationDataDirectoryPath);
-  await Hive.openBox("SongsCache");
-  await Hive.openBox("SongDownloads");
-  await Hive.openBox('SongsUrlCache');
-  await Hive.openBox("AppPrefs");
+  await Hive.openBox(BoxNames.songsCache);
+  await Hive.openBox(BoxNames.songDownloads);
+  await Hive.openBox(BoxNames.songsUrlCache);
+  await Hive.openBox(BoxNames.appPrefs);
 }
 
 void _setAppInitPrefs() {
-  final appPrefs = Hive.box("AppPrefs");
+  final appPrefs = Hive.box(BoxNames.appPrefs);
   if (appPrefs.isEmpty) {
     appPrefs.putAll({
-      'themeModeType': 0,
-      "cacheSongs": false,
-      "skipSilenceEnabled": false,
-      'streamingQuality': 1,
-      'themePrimaryColor': 4278199603,
-      'discoverContentType': "QP",
-      'newVersionVisibility': updateCheckFlag,
-      "cacheHomeScreenData": true
+      PrefKeys.themeModeType: 0,
+      PrefKeys.cacheSongs: false,
+      PrefKeys.skipSilenceEnabled: false,
+      PrefKeys.streamingQuality: 1,
+      PrefKeys.themePrimaryColor: 4278199603,
+      PrefKeys.discoverContentType: "QP",
+      PrefKeys.newVersionVisibility: updateCheckFlag,
+      PrefKeys.cacheHomeScreenData: true
     });
   }
 }

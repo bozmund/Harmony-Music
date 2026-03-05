@@ -19,10 +19,12 @@ import '../Home/home_screen_controller.dart';
 import '/ui/utils/theme_controller.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '/services/constant.dart';
+
 class SettingsScreenController extends GetxController {
   late String _supportDir;
   final cacheSongs = false.obs;
-  final setBox = Hive.box("AppPrefs");
+  final setBox = Hive.box(BoxNames.appPrefs);
   final themeModetype = ThemeType.dynamic.obs;
   final skipSilenceEnabled = false.obs;
   final loudnessNormalizationEnabled = false.obs;
@@ -78,48 +80,48 @@ class SettingsScreenController extends GetxController {
 
   Future<void> _setInitValue() async {
     final isDesktop = GetPlatform.isDesktop;
-    final appLang = setBox.get('currentAppLanguageCode') ?? "en";
+    final appLang = setBox.get(PrefKeys.currentAppLanguageCode) ?? "en";
     currentAppLanguageCode.value = appLang == "zh_Hant"
         ? "zh-TW"
         : appLang == "zh_Hans"
             ? "zh-CN"
             : appLang;
     isBottomNavBarEnabled.value =
-        isDesktop ? false : (setBox.get("isBottomNavBarEnabled") ?? false);
-    noOfHomeScreenContent.value = setBox.get("noOfHomeScreenContent") ?? 3;
+        isDesktop ? false : (setBox.get(PrefKeys.isBottomNavBarEnabled) ?? false);
+    noOfHomeScreenContent.value = setBox.get(PrefKeys.noOfHomeScreenContent) ?? 3;
     isTransitionAnimationDisabled.value =
-        setBox.get("isTransitionAnimationDisabled") ?? false;
-    cacheSongs.value = setBox.get('cacheSongs') ?? false;
-    themeModetype.value = ThemeType.values[setBox.get('themeModeType') ?? 0];
+        setBox.get(PrefKeys.isTransitionAnimationDisabled) ?? false;
+    cacheSongs.value = setBox.get(PrefKeys.cacheSongs) ?? false;
+    themeModetype.value = ThemeType.values[setBox.get(PrefKeys.themeModeType) ?? 0];
     skipSilenceEnabled.value =
-        isDesktop ? false : setBox.get("skipSilenceEnabled");
+        isDesktop ? false : setBox.get(PrefKeys.skipSilenceEnabled);
     loudnessNormalizationEnabled.value = isDesktop
         ? false
-        : (setBox.get("loudnessNormalizationEnabled") ?? false);
-    autoOpenPlayer.value = (setBox.get("autoOpenPlayer") ?? true);
+        : (setBox.get(PrefKeys.loudnessNormalizationEnabled) ?? false);
+    autoOpenPlayer.value = (setBox.get(PrefKeys.autoOpenPlayer) ?? true);
     restorePlaybackSession.value =
-        setBox.get("restrorePlaybackSession") ?? false;
-    cacheHomeScreenData.value = setBox.get("cacheHomeScreenData") ?? true;
+        setBox.get(PrefKeys.restorePlaybackSession) ?? false;
+    cacheHomeScreenData.value = setBox.get(PrefKeys.cacheHomeScreenData) ?? true;
     streamingQuality.value =
-        AudioQuality.values[setBox.get('streamingQuality')];
-    playerUi.value = isDesktop ? 0 : (setBox.get('playerUi') ?? 0);
-    backgroundPlayEnabled.value = setBox.get("backgroundPlayEnabled") ?? true;
+        AudioQuality.values[setBox.get(PrefKeys.streamingQuality)];
+    playerUi.value = isDesktop ? 0 : (setBox.get(PrefKeys.playerUi) ?? 0);
+    backgroundPlayEnabled.value = setBox.get(PrefKeys.backgroundPlayEnabled) ?? true;
     keepScreenAwake.value =
-        setBox.get("keepScreenAwake") ?? GetPlatform.isDesktop ? true : false;
+        setBox.get(PrefKeys.keepScreenAwake) ?? GetPlatform.isDesktop ? true : false;
     final downloadPath =
-        setBox.get('downloadLocationPath') ?? await _createInAppSongDownDir();
+        setBox.get(PrefKeys.downloadLocationPath) ?? await _createInAppSongDownDir();
     downloadLocationPath.value =
         (isDesktop && downloadPath.contains("emulated"))
             ? await _createInAppSongDownDir()
             : downloadPath;
 
     exportLocationPath.value =
-        setBox.get("exportLocationPath") ?? "/storage/emulated/0/Music";
-    downloadingFormat.value = setBox.get('downloadingFormat') ?? "m4a";
-    discoverContentType.value = setBox.get('discoverContentType') ?? "QP";
-    slidableActionEnabled.value = setBox.get('slidableActionEnabled') ?? true;
-    if (setBox.containsKey("piped")) {
-      isLinkedWithPiped.value = setBox.get("piped")['isLoggedIn'];
+        setBox.get(PrefKeys.exportLocationPath) ?? "/storage/emulated/0/Music";
+    downloadingFormat.value = setBox.get(PrefKeys.downloadingFormat) ?? "m4a";
+    discoverContentType.value = setBox.get(PrefKeys.discoverContentType) ?? "QP";
+    slidableActionEnabled.value = setBox.get(PrefKeys.slidableActionEnabled) ?? true;
+    if (setBox.containsKey(PrefKeys.piped)) {
+      isLinkedWithPiped.value = setBox.get(PrefKeys.piped)['isLoggedIn'];
     }
     stopPlyabackOnSwipeAway.value =
         setBox.get('stopPlyabackOnSwipeAway') ?? false;
@@ -128,7 +130,7 @@ class SettingsScreenController extends GetxController {
           (await Permission.ignoreBatteryOptimizations.isGranted);
     }
     autoDownloadFavoriteSongEnabled.value =
-        setBox.get("autoDownloadFavoriteSongEnabled") ?? false;
+        setBox.get(PrefKeys.autoDownloadFavoriteSongEnabled) ?? false;
   }
 
   void setAppLanguage(String? val) {
@@ -136,22 +138,22 @@ class SettingsScreenController extends GetxController {
     Get.find<MusicServices>().hlCode = val;
     Get.find<HomeScreenController>().loadContentFromNetwork(silent: true);
     currentAppLanguageCode.value = val;
-    setBox.put('currentAppLanguageCode', val);
+    setBox.put(PrefKeys.currentAppLanguageCode, val);
   }
 
   void setContentNumber(int? no) {
     noOfHomeScreenContent.value = no!;
-    setBox.put("noOfHomeScreenContent", no);
+    setBox.put(PrefKeys.noOfHomeScreenContent, no);
   }
 
   void setStreamingQuality(dynamic val) {
-    setBox.put("streamingQuality", AudioQuality.values.indexOf(val));
+    setBox.put(PrefKeys.streamingQuality, AudioQuality.values.indexOf(val));
     streamingQuality.value = val;
   }
 
   void setPlayerUi(dynamic val) {
     final playerCon = Get.find<PlayerController>();
-    setBox.put("playerUi", val);
+    setBox.put(PrefKeys.playerUi, val);
     if (val == 1 && playerCon.gesturePlayerStateAnimationController == null) {
       playerCon.initGesturePlayerStateAnimationController();
     }
@@ -173,16 +175,16 @@ class SettingsScreenController extends GetxController {
       playerCon.playerPanelMinHeight.value =
           val ? 75.0 : 75.0 + Get.mediaQuery.viewPadding.bottom;
     }
-    setBox.put("isBottomNavBarEnabled", val);
+    setBox.put(PrefKeys.isBottomNavBarEnabled, val);
   }
 
   void toggleSlidableAction(bool val) {
-    setBox.put("slidableActionEnabled", val);
+    setBox.put(PrefKeys.slidableActionEnabled, val);
     slidableActionEnabled.value = val;
   }
 
   void changeDownloadingFormat(String? val) {
-    setBox.put("downloadingFormat", val);
+    setBox.put(PrefKeys.downloadingFormat, val);
     downloadingFormat.value = val!;
   }
 
@@ -197,7 +199,7 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    setBox.put("exportLocationPath", pickedFolderPath);
+    setBox.put(PrefKeys.exportLocationPath, pickedFolderPath);
     exportLocationPath.value = pickedFolderPath;
   }
 
@@ -212,12 +214,12 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    setBox.put("downloadLocationPath", pickedFolderPath);
+    setBox.put(PrefKeys.downloadLocationPath, pickedFolderPath);
     downloadLocationPath.value = pickedFolderPath;
   }
 
   void disableTransitionAnimation(bool val) {
-    setBox.put('isTransitionAnimationDisabled', val);
+    setBox.put(PrefKeys.isTransitionAnimationDisabled, val);
     isTransitionAnimationDisabled.value = val;
   }
 
@@ -235,70 +237,70 @@ class SettingsScreenController extends GetxController {
 
   void resetDownloadLocation() {
     final defaultPath = "$_supportDir/Music";
-    setBox.put("downloadLocationPath", defaultPath);
+    setBox.put(PrefKeys.downloadLocationPath, defaultPath);
     downloadLocationPath.value = defaultPath;
   }
 
   void onThemeChange(dynamic val) {
-    setBox.put('themeModeType', ThemeType.values.indexOf(val));
+    setBox.put(PrefKeys.themeModeType, ThemeType.values.indexOf(val));
     themeModetype.value = val;
     Get.find<ThemeController>().changeThemeModeType(val);
   }
 
   void onContentChange(dynamic value) {
-    setBox.put('discoverContentType', value);
+    setBox.put(PrefKeys.discoverContentType, value);
     discoverContentType.value = value;
     Get.find<HomeScreenController>().changeDiscoverContent(value);
   }
 
   void toggleCachingSongsValue(bool value) {
-    setBox.put("cacheSongs", value);
+    setBox.put(PrefKeys.cacheSongs, value);
     cacheSongs.value = value;
   }
 
   void toggleSkipSilence(bool val) {
     Get.find<PlayerController>().toggleSkipSilence(val);
-    setBox.put('skipSilenceEnabled', val);
+    setBox.put(PrefKeys.skipSilenceEnabled, val);
     skipSilenceEnabled.value = val;
   }
 
   void toggleLoudnessNormalization(bool val) {
     Get.find<PlayerController>().toggleLoudnessNormalization(val);
-    setBox.put("loudnessNormalizationEnabled", val);
+    setBox.put(PrefKeys.loudnessNormalizationEnabled, val);
     loudnessNormalizationEnabled.value = val;
   }
 
   void toggleRestorePlaybackSession(bool val) {
-    setBox.put("restrorePlaybackSession", val);
+    setBox.put(PrefKeys.restorePlaybackSession, val);
     restorePlaybackSession.value = val;
   }
 
   Future<void> toggleCacheHomeScreenData(bool val) async {
-    setBox.put("cacheHomeScreenData", val);
+    setBox.put(PrefKeys.cacheHomeScreenData, val);
     cacheHomeScreenData.value = val;
     if (!val) {
-      Hive.openBox("homeScreenData").then((box) async {
+      Hive.openBox(BoxNames.homeScreenData).then((box) async {
         await box.clear();
         await box.close();
       });
     } else {
-      await Hive.openBox("homeScreenData");
+      await Hive.openBox(BoxNames.homeScreenData);
       Get.find<HomeScreenController>().cachedHomeScreenData(updateAll: true);
     }
   }
 
   void toggleAutoDownloadFavoriteSong(bool val) {
-    setBox.put("autoDownloadFavoriteSongEnabled", val);
+    setBox.put(PrefKeys.autoDownloadFavoriteSongEnabled, val);
     autoDownloadFavoriteSongEnabled.value = val;
   }
 
   void toggleBackgroundPlay(bool val) {
-    setBox.put('backgroundPlayEnabled', val);
+    setBox.put(PrefKeys.backgroundPlayEnabled, val);
     backgroundPlayEnabled.value = val;
   }
 
   void toggleKeepScreenAwake(bool val) {
-    setBox.put('keepScreenAwake', val);
+    setBox.put(PrefKeys.keepScreenAwake, val);
     keepScreenAwake.value = val;
     try {
         if (val) {
@@ -323,7 +325,7 @@ class SettingsScreenController extends GetxController {
   }
 
   void toggleAutoOpenPlayer(bool val) {
-    setBox.put('autoOpenPlayer', val);
+    setBox.put(PrefKeys.autoOpenPlayer, val);
     autoOpenPlayer.value = val;
   }
 
@@ -359,3 +361,4 @@ class SettingsScreenController extends GetxController {
     }
   }
 }
+

@@ -6,6 +6,7 @@ import 'package:ionicons/ionicons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../services/constant.dart';
 import '../../services/downloader.dart';
 import '../screens/Playlist/playlist_screen_controller.dart';
 import '../screens/Settings/settings_screen_controller.dart';
@@ -211,8 +212,8 @@ class SongInfoBottomSheet extends StatelessWidget {
                 : const SizedBox.shrink(),
             Obx(
               () => (songInfoController.isDownloaded.isTrue &&
-                      (playlist?.playlistId != "SongDownloads" &&
-                          playlist?.playlistId != "SongsCache"))
+                      (playlist?.playlistId != BoxNames.songDownloads &&
+                          playlist?.playlistId != BoxNames.songsCache))
                   ? ListTile(
                       contentPadding: const EdgeInsets.only(left: 15),
                       visualDensity: const VisualDensity(vertical: -1),
@@ -220,7 +221,7 @@ class SongInfoBottomSheet extends StatelessWidget {
                       title: Text("deleteDownloadData".tr),
                       onTap: () {
                         Navigator.of(context).pop();
-                        final box = Hive.box("SongDownloads");
+                        final box = Hive.box(BoxNames.songDownloads);
                         Get.find<LibrarySongsController>()
                             .removeSong(song, true,
                                 url: box.get(song.id)['url'])
@@ -356,9 +357,9 @@ class SongInfoController extends GetxController
     _setInitStatus(song);
   }
   _setInitStatus(MediaItem song) async {
-    isDownloaded.value = Hive.box("SongDownloads").containsKey(song.id);
+    isDownloaded.value = Hive.box(BoxNames.songDownloads).containsKey(song.id);
     isCurrentSongFav.value =
-        (await Hive.openBox("LIBFAV")).containsKey(song.id);
+        (await Hive.openBox(BoxNames.libFav)).containsKey(song.id);
     final artists = song.extras!['artists'];
     if (artists != null) {
       for (dynamic each in artists) {
@@ -383,7 +384,7 @@ class SongInfoController extends GetxController
         return;
       }
     }
-    final box = await Hive.openBox("LIBFAV");
+    final box = await Hive.openBox(BoxNames.libFav);
     isCurrentSongFav.isFalse
         ? box.put(song.id, MediaItemBuilder.toJson(song))
         : box.delete(song.id);
@@ -401,15 +402,15 @@ mixin RemoveSongFromPlaylistMixin {
   Future<void> removeSongFromPlaylist(MediaItem item, Playlist playlist) async {
     final box = await Hive.openBox(playlist.playlistId);
     //Library songs case
-    if (playlist.playlistId == "SongsCache") {
+    if (playlist.playlistId == BoxNames.songsCache) {
       if (!box.containsKey(item.id)) {
-        Hive.box("SongDownloads").delete(item.id);
+        Hive.box(BoxNames.songDownloads).delete(item.id);
         Get.find<LibrarySongsController>().removeSong(item, true);
       } else {
         Get.find<LibrarySongsController>().removeSong(item, false);
         box.delete(item.id);
       }
-    } else if (playlist.playlistId == "SongDownloads") {
+    } else if (playlist.playlistId == BoxNames.songDownloads) {
       box.delete(item.id);
       Get.find<LibrarySongsController>().removeSong(item, true);
     } else if (!playlist.isPipedPlaylist) {
@@ -445,8 +446,8 @@ mixin RemoveSongFromPlaylistMixin {
       printERROR("Some Error in removeSongFromPlaylist (might irrelavant): $e");
     }
 
-    if (playlist.playlistId == "SongDownloads" ||
-        playlist.playlistId == "SongsCache") {
+    if (playlist.playlistId == BoxNames.songDownloads ||
+        playlist.playlistId == BoxNames.songsCache) {
       return;
     }
     box.close();
