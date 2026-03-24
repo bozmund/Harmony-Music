@@ -19,10 +19,23 @@ This document provides essential information for AI agents working on the Harmon
 - **Testing (All)**: `flutter test`
 - **Single Test**: `flutter test test/path_to_test_file.dart`
 
-### Building (Informational Only)
-- **Android**: `flutter build apk`
-- **Windows**: `flutter build windows`
-- **Linux**: `flutter build linux`
+## Playback & State Management
+- **Transition Safety**: Always call `_player.stop()` before `_playList.clear()` in `AudioHandler` to prevent `just_audio` race conditions that lead to "stuck loading" states.
+- **Loading Indicators**: Ensure `isSongLoading` is reset to `false` in `try-catch` blocks during playback initialization.
+- **Testing Playback**: Use `MockAudioPlayer` for playback logic tests to avoid hardware dependency in headless environments.
+
+## Commit Message Guidelines
+- **Format**: Always start commit messages with an **Uppercase** letter.
+- **Style**: Avoid prefixes like `feat:`, `fix:`, or `refactor:`.
+- **Detail**: Focus on the "why" and provide a concise summary of key changes.
+
+## Smart Filter Syntax (Library/Collection)
+- **Union (OR)**: Use `,` to search for multiple terms (e.g., `Artist A, Artist B`). Matches if any term is found.
+- **Exclusion (NOT)**: Use `!` prefix to exclude terms (e.g., `!live`). Overrides inclusions.
+- **Scoped Search**: Use prefixes to target specific fields:
+  - `a:` or `artist:` for artist names (e.g., `a:Linkin Park`).
+  - `t:` or `title:` for song/album titles (e.g., `t:Numb`).
+- **Combined**: Combine for advanced filtering (e.g., `Rock, !live, t:Numb`).
 
 ## Code Style & Architecture
 
@@ -73,3 +86,6 @@ This document provides essential information for AI agents working on the Harmon
 2. **No Breaking Changes**: Maintain compatibility with the custom `youtube_explode_dart` fork.
 3. **Open Source**: Harmony Music is GPL v3.0; keep all code open.
 4. **Performance**: Optimize for low resource usage in music streaming and caching.
+    *   **I/O Streaming**: Always use streaming (Streams/Isolates) for backups or large file operations to maintain a small memory footprint (<100MB).
+    *   **User Feedback**: Any background task exceeding 1 second must provide granular progress updates via GetX observables and reactive UI (Obx).
+    *   **Memory Safety**: Avoid reading large files into memory using `readAsBytesSync` on the main thread; use Isolates for data-heavy operations.

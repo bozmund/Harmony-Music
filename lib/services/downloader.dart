@@ -171,13 +171,12 @@ class Downloader extends GetxService {
     if (!playerResponse.playable) {
       ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
           Get.context!,
-          playerResponse.statusMSG == "networkError"
-              ? playerResponse.statusMSG.tr
-              : playerResponse.statusMSG,
+          "${song.title}: ${playerResponse.statusMSG == "networkError" ? playerResponse.statusMSG.tr : playerResponse.statusMSG}",
           size: SanckBarSize.BIG,
           duration: const Duration(seconds: 2),
           top: !GetPlatform.isDesktop));
-      printINFO("Requested song is not downloadable. You may try again");
+      printINFO(
+          "Requested song ${song.title} is not downloadable. You may try again");
       complete.complete();
       return complete.future;
     }
@@ -273,12 +272,12 @@ class Downloader extends GetxService {
     ).onError(
       (error, stackTrace) {
         ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-            Get.context!, "downloadError3".tr,
+            Get.context!, "${song.title}: ${"downloadError3".tr}",
             size: SanckBarSize.BIG,
             duration: const Duration(seconds: 2),
             top: !GetPlatform.isDesktop));
         printINFO(
-            "Downloading failed due to network/stream error! Please try again");
+            "Downloading ${song.title} failed due to network/stream error! Please try again");
         complete.complete();
       },
     );

@@ -462,6 +462,11 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         isSongLoading = true;
         playbackState.add(playbackState.value
             .copyWith(processingState: AudioProcessingState.loading));
+
+        if (_player.playing) {
+          await _player.stop();
+        }
+
         if (_playList.children.isNotEmpty) {
           await _playList.clear();
         }
@@ -485,11 +490,6 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
             .add(playbackState.value.copyWith(queueIndex: currentIndex));
         await _playList.add(_createAudioSource(currentSong));
 
-        isSongLoading = false;
-        if (loudnessNormalizationEnabled && GetPlatform.isAndroid) {
-          _normalizeVolume(streamInfo.audio!.loudnessDb);
-        }
-
         if (restoreSession) {
           if (!GetPlatform.isDesktop) {
             final position = extras['position'];
@@ -499,15 +499,21 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
                 milliseconds: position,
               ),
             );
-            await _player.seek(
-              Duration(
-                milliseconds: position,
-              ),
-            );
           }
         } else {
-          await _player.play();
+          try {
+            await _player.load();
+            isSongLoading = false;
+            await _player.play();
+          } catch (e) {
+            printERROR("Error loading player: $e", tag: LogTags.audioHandler);
+            isSongLoading = false;
+            playbackState.add(playbackState.value.copyWith(
+                processingState: AudioProcessingState.error,
+                errorMessage: e.toString()));
+          }
         }
+        isSongLoading = false;
         break;
 
       case 'checkWithCacheDb':

@@ -14,6 +14,7 @@ import '/models/quick_picks.dart';
 import '/services/music_service.dart';
 import '../Settings/settings_screen_controller.dart';
 import '/ui/widgets/new_version_dialog.dart';
+import '../../navigator.dart';
 
 class HomeScreenController extends GetxController {
   final MusicServices _musicServices = Get.find<MusicServices>();
@@ -166,8 +167,8 @@ class HomeScreenController extends GetxController {
 
       // set home content last update time
       cachedHomeScreenData(updateAll: true);
-      await Hive.box(BoxNames.appPrefs)
-          .put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
+      await Hive.box(BoxNames.appPrefs).put(
+          PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
       // ignore: unused_catch_stack
     } on NetworkError catch (r, e) {
       printERROR("Home Content not loaded due to ${r.message}");
@@ -181,7 +182,7 @@ class HomeScreenController extends GetxController {
   ) {
     List contentTemp = [];
     for (var content in contents) {
-      if((content["contents"]).isEmpty) continue;
+      if ((content["contents"]).isEmpty) continue;
       if ((content["contents"][0]).runtimeType == Playlist) {
         final tmp = PlaylistContent(
             playlistList: (content["contents"]).whereType<Playlist>().toList(),
@@ -243,8 +244,8 @@ class HomeScreenController extends GetxController {
 
     // set home content last update time
     cachedHomeScreenData(updateQuickPicksNMiddleContent: true);
-    await Hive.box(BoxNames.appPrefs)
-        .put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
+    await Hive.box(BoxNames.appPrefs).put(
+        PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
   }
 
   String getContentHlCode() {
@@ -255,13 +256,23 @@ class HomeScreenController extends GetxController {
   }
 
   void onSideBarTabSelected(int index) {
-    reverseAnimationtransiton = index > tabIndex.value;
-    tabIndex.value = index;
+    if (tabIndex.value != index) {
+      Get.nestedKey(ScreenNavigationSetup.id)
+          ?.currentState
+          ?.popUntil((route) => route.isFirst);
+      reverseAnimationtransiton = index > tabIndex.value;
+      tabIndex.value = index;
+    }
   }
 
   void onBottonBarTabSelected(int index) {
-    reverseAnimationtransiton = index > tabIndex.value;
-    tabIndex.value = index;
+    if (tabIndex.value != index) {
+      Get.nestedKey(ScreenNavigationSetup.id)
+          ?.currentState
+          ?.popUntil((route) => route.isFirst);
+      reverseAnimationtransiton = index > tabIndex.value;
+      tabIndex.value = index;
+    }
   }
 
   void _checkNewVersion() {

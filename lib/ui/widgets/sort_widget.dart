@@ -297,21 +297,21 @@ class SortWidget extends StatelessWidget {
                       },
                       cursorColor:
                           Theme.of(context).textTheme.titleSmall!.color,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.all(8),
-                        filled: true,
-                        border: const OutlineInputBorder(),
-                        hintText: "search".tr,
-                        suffixIconColor:
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.all(8),
+                          filled: true,
+                          border: const OutlineInputBorder(),
+                          hintText: "searchHint".tr,
+                          suffixIconColor:
                             Theme.of(context).colorScheme.secondary,
                         suffixIcon: IconButton(
                           splashRadius: 10,
                           iconSize: 20,
                           icon: const Icon(Icons.cancel),
                           onPressed: () {
-                            controller.toggleSearch();
                             onSearchClose!(tag);
+                            controller.toggleSearch();
                           },
                         ),
                       ),

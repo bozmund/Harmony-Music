@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 
+import '/utils/search_filter.dart';
 import '/services/constant.dart';
 import '../../../utils/house_keeping.dart';
 import '../../widgets/add_to_playlist.dart';
@@ -90,15 +91,21 @@ class LibrarySongsController extends GetxController {
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where((element) =>
-            element.title.toLowerCase().contains(value.toLowerCase()))
-        .toList();
-    librarySongsList.value = songlist;
+    librarySongsList.value = tempListContainer.where((song) {
+      return SearchFilter.matches(
+          {'title': song.title, 'artist': song.artist}, value);
+    }).toList();
   }
 
   void onSearchClose(String? tag) {
     librarySongsList.value = tempListContainer.toList();
+    // Clear search bar text when closing
+    final sortWidgetController = Get.isRegistered<SortWidgetController>(tag: tag) 
+        ? Get.find<SortWidgetController>(tag: tag) 
+        : null;
+    sortWidgetController?.textEditingController.clear();
+    // onSearch is called with empty string via widget logic indirectly, 
+    // but here we ensure internal state is clean
     tempListContainer.clear();
   }
 
@@ -441,15 +448,18 @@ class LibraryPlaylistsController extends GetxController
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where((element) =>
-            element.title.toLowerCase().contains(value.toLowerCase()))
+    libraryPlaylists.value = tempListContainer
+        .where((element) => SearchFilter.matches({'title': element.title}, value))
         .toList();
-    libraryPlaylists.value = songlist;
   }
 
   void onSearchClose(String? tag) {
     libraryPlaylists.value = tempListContainer.toList();
+    // Clear search bar text when closing
+    final sortWidgetController = Get.isRegistered<SortWidgetController>(tag: tag) 
+        ? Get.find<SortWidgetController>(tag: tag) 
+        : null;
+    sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
 
@@ -664,15 +674,18 @@ class LibraryAlbumsController extends GetxController {
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where((element) =>
-            element.title.toLowerCase().contains(value.toLowerCase()))
+    libraryAlbums.value = tempListContainer
+        .where((element) => SearchFilter.matches({'title': element.title}, value))
         .toList();
-    libraryAlbums.value = songlist;
   }
 
   void onSearchClose(String? tag) {
     libraryAlbums.value = tempListContainer.toList();
+    // Clear search bar text when closing
+    final sortWidgetController = Get.isRegistered<SortWidgetController>(tag: tag) 
+        ? Get.find<SortWidgetController>(tag: tag) 
+        : null;
+    sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
 }
@@ -709,15 +722,18 @@ class LibraryArtistsController extends GetxController {
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where((element) =>
-            element.name.toLowerCase().contains(value.toLowerCase()))
+    libraryArtists.value = tempListContainer
+        .where((element) => SearchFilter.matches({'title': element.name}, value))
         .toList();
-    libraryArtists.value = songlist;
   }
 
   void onSearchClose(String? tag) {
     libraryArtists.value = tempListContainer.toList();
+    // Clear search bar text when closing
+    final sortWidgetController = Get.isRegistered<SortWidgetController>(tag: tag) 
+        ? Get.find<SortWidgetController>(tag: tag) 
+        : null;
+    sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
 }

@@ -2000,6 +2000,7 @@ Map<String, Map<String, String>> get keys => {
     "processFiles": "Processing files...",
     "includeDownloadedFiles": "Include downloded songs files",
     "backupInProgress": "Backup in progress...",
+    "finalizingBackup": "Finalizing backup (compressing files)... This may take some time",
     "restoreAppData": "Restore App data",
     "restoreSettingsAndPlaylistsDes": "Restores all settings, login data and playlists from a backup file. Overwrites all current data",
     "backupMsg": "Backup successfully saved!",

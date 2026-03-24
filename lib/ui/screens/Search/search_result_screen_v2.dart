@@ -77,6 +77,54 @@ class SearchResultScreenBN extends StatelessWidget {
                           ],
                         ),
                       );
+                    } else if (searchResScrController.networkError.isTrue) {
+                      return Center(
+                        child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "networkError1".tr,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(
+                                height: 10,
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 15, vertical: 10),
+                                decoration: BoxDecoration(
+                                    color: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge!
+                                        .color,
+                                    borderRadius: BorderRadius.circular(10)),
+                                child: InkWell(
+                                  onTap: () {
+                                    final currentTabName =
+                                        searchResScrController.railItems[
+                                            searchResScrController
+                                                .navigationRailCurrentIndex
+                                                .value];
+                                    if (currentTabName == 'Results') {
+                                      searchResScrController
+                                          .queryString.refresh();
+                                    } else {
+                                      searchResScrController
+                                          .onDestinationSelected(
+                                              searchResScrController
+                                                  .navigationRailCurrentIndex
+                                                  .value);
+                                    }
+                                  },
+                                  child: Text(
+                                    "retry".tr,
+                                    style: TextStyle(
+                                        color: Theme.of(context).canvasColor),
+                                  ),
+                                ),
+                              ),
+                            ]),
+                      );
                     } else if (searchResScrController
                         .isResultContentFetced.isTrue) {
                       return Column(
@@ -113,16 +161,14 @@ class SearchResultScreenBN extends StatelessWidget {
                                 fontWeight: FontWeight.bold,
                               ),
                               // Add your tabs here
-                              tabs: [
-                                Tab(text: "results".tr),
-                                ...searchResScrController.railItems
-                                    .map((item) => Tab(
-                                          text: item
-                                              .toLowerCase()
-                                              .removeAllWhitespace
-                                              .tr,
-                                        ))
-                              ],
+                              tabs: searchResScrController.railItems
+                                  .map((item) => Tab(
+                                        text: item
+                                            .toLowerCase()
+                                            .removeAllWhitespace
+                                            .tr,
+                                      ))
+                                  .toList(),
                             ),
                           ),
                           Expanded(
@@ -131,34 +177,33 @@ class SearchResultScreenBN extends StatelessWidget {
                               child: TabBarView(
                                 controller:
                                     searchResScrController.tabController,
-                                children: [
-                                  const ResultWidget(
-                                    isv2Used: true,
-                                  ),
-                                  ...searchResScrController.railItems
-                                      .map((tabName) {
-                                    if (tabName == "Songs" ||
-                                        tabName == "Videos") {
-                                      return SeparateTabItemWidget(
-                                        isResultWidget: true,
-                                        hideTitle: true,
-                                        items: const [],
-                                        title: tabName,
-                                        isCompleteList: true,
-                                        scrollController: searchResScrController
-                                            .scrollControllers[tabName],
-                                      );
-                                    } else {
-                                      return SeparateTabItemWidget(
-                                        title: tabName,
-                                        hideTitle: true,
-                                        items: const [],
-                                        scrollController: searchResScrController
-                                            .scrollControllers[tabName],
-                                      );
-                                    }
-                                  }),
-                                ],
+                                children: searchResScrController.railItems
+                                    .map((tabName) {
+                                  if (tabName == "Results") {
+                                    return const ResultWidget(
+                                      isv2Used: true,
+                                    );
+                                  } else if (tabName == "Songs" ||
+                                      tabName == "Videos") {
+                                    return SeparateTabItemWidget(
+                                      isResultWidget: true,
+                                      hideTitle: true,
+                                      items: const [],
+                                      title: tabName,
+                                      isCompleteList: true,
+                                      scrollController: searchResScrController
+                                          .scrollControllers[tabName],
+                                    );
+                                  } else {
+                                    return SeparateTabItemWidget(
+                                      title: tabName,
+                                      hideTitle: true,
+                                      items: const [],
+                                      scrollController: searchResScrController
+                                          .scrollControllers[tabName],
+                                    );
+                                  }
+                                }).toList(),
                               ),
                             ),
                           ),
