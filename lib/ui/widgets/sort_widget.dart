@@ -176,8 +176,7 @@ class SortWidget extends StatelessWidget {
                     ),
                     Obx(
                       () => _customIconButton(
-                        isSelected:
-                            controller.sortType.value == SortType.Name,
+                        isSelected: controller.sortType.value == SortType.Name,
                         icon: Icons.sort_by_alpha,
                         tooltip: "sortByName".tr,
                         onPressed: () {
@@ -251,12 +250,11 @@ class SortWidget extends StatelessWidget {
                                     screenController: screenController,
                                     controller: controller,
                                   ));
-                
+
                           controller.setActiveMode(mode);
                           startAdditionalOperation!(controller, mode);
                         },
-                        itemBuilder: (BuildContext context) =>
-                            <PopupMenuEntry>[
+                        itemBuilder: (BuildContext context) => <PopupMenuEntry>[
                           if (isPlaylistRearrageFeatureRequired)
                             PopupMenuItem(
                               value: OperationMode.arrange,
@@ -294,27 +292,90 @@ class SortWidget extends StatelessWidget {
                       autofocus: true,
                       onChanged: (value) {
                         onSearch!(value, tag);
+                        controller.updateSuggestions(value, tag);
                       },
                       cursorColor:
                           Theme.of(context).textTheme.titleSmall!.color,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.all(8),
-                          filled: true,
-                          border: const OutlineInputBorder(),
-                          hintText: "searchHint".tr,
-                          suffixIconColor:
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.all(8),
+                        filled: true,
+                        border: const OutlineInputBorder(),
+                        hintText: "searchHint".tr,
+                        suffixIconColor:
                             Theme.of(context).colorScheme.secondary,
-                        suffixIcon: IconButton(
-                          splashRadius: 10,
-                          iconSize: 20,
-                          icon: const Icon(Icons.cancel),
-                          onPressed: () {
-                            onSearchClose!(tag);
-                            controller.toggleSearch();
-                          },
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (controller
+                                .textEditingController.text.isNotEmpty)
+                              IconButton(
+                                splashRadius: 10,
+                                iconSize: 20,
+                                icon: const Icon(Icons.save),
+                                onPressed: () {
+                                  Get.find<LibrarySearchesController>()
+                                      .saveSearch(controller
+                                          .textEditingController.text);
+                                  Get.snackbar("searchSaved".tr,
+                                      controller.textEditingController.text);
+                                },
+                              ),
+                            IconButton(
+                              splashRadius: 10,
+                              iconSize: 20,
+                              icon: const Icon(Icons.cancel),
+                              onPressed: () {
+                                onSearchClose!(tag);
+                                controller.toggleSearch();
+                              },
+                            ),
+                          ],
                         ),
                       ),
+                    ),
+                  ),
+                ),
+              if (controller.isSearchingEnabled.value &&
+                  controller.suggestions.isNotEmpty)
+                Positioned(
+                  top: 40,
+                  left: 5,
+                  right: 20,
+                  child: Container(
+                    constraints: const BoxConstraints(maxHeight: 200),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).canvasColor,
+                      border: Border.all(
+                          color: Theme.of(context).colorScheme.secondary),
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(8),
+                        bottomRight: Radius.circular(8),
+                      ),
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: controller.suggestions.length,
+                      itemBuilder: (context, index) {
+                        final suggestion = controller.suggestions[index];
+                        return ListTile(
+                          dense: true,
+                          title: Text(suggestion),
+                          onTap: () {
+                            final currentText =
+                                controller.textEditingController.text;
+                            String newText = suggestion;
+                            if (currentText.contains(',')) {
+                              final parts = currentText.split(',');
+                              parts.removeLast();
+                              newText = "${parts.join(',')},$suggestion";
+                            }
+                            controller.textEditingController.text = newText;
+                            onSearch!(newText, tag);
+                            controller.updateSuggestions(newText, tag);
+                          },
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -354,7 +415,69 @@ class SortWidgetController extends GetxController {
   final isDeletionEnabled = false.obs;
   final isAddtoPlaylistEnabled = false.obs;
   final isAllSelected = false.obs;
+  final suggestions = RxList<String>();
   TextEditingController textEditingController = TextEditingController();
+
+  void updateSuggestions(String query, String tag) {
+    if (query.isEmpty) {
+      suggestions.clear();
+      return;
+    }
+
+    final terms = query.split(',').map((e) => e.trim().toLowerCase()).toList();
+    final currentTerm = terms.last;
+
+    if (currentTerm.startsWith('a:') || currentTerm.startsWith('artist:')) {
+      final artistQuery = currentTerm.contains(':')
+          ? currentTerm.split(':').last.trim()
+          : currentTerm;
+      final artists = <String>{};
+
+      // Extract from library songs if possible
+      if (Get.isRegistered<LibrarySongsController>()) {
+        final songs = Get.find<LibrarySongsController>().librarySongsList;
+        for (var song in songs) {
+          final artist = song.artist?.toLowerCase();
+          if (artist != null && artist.contains(artistQuery)) {
+            artists.add(song.artist!);
+          }
+        }
+      }
+
+      // Also check library artists
+      if (Get.isRegistered<LibraryArtistsController>()) {
+        final libArtists = Get.find<LibraryArtistsController>().libraryArtists;
+        for (var artist in libArtists) {
+          if (artist.name.toLowerCase().contains(artistQuery)) {
+            artists.add(artist.name);
+          }
+        }
+      }
+
+      suggestions.value = artists.take(5).map((name) => "a:$name").toList();
+    } else if (currentTerm.startsWith('t:') ||
+        currentTerm.startsWith('title:')) {
+      final titleQuery = currentTerm.contains(':')
+          ? currentTerm.split(':').last.trim()
+          : currentTerm;
+      final titles = <String>{};
+
+      if (Get.isRegistered<LibrarySongsController>()) {
+        final songs = Get.find<LibrarySongsController>().librarySongsList;
+        for (var song in songs) {
+          if (song.title.toLowerCase().contains(titleQuery)) {
+            titles.add(song.title);
+          }
+        }
+      }
+
+      suggestions.value = titles.take(5).map((title) => "t:$title").toList();
+    } else if (currentTerm.isEmpty) {
+      suggestions.value = ['a:', 't:', '!'];
+    } else {
+      suggestions.clear();
+    }
+  }
 
   void setActiveMode(OperationMode mode) {
     isAddtoPlaylistEnabled.value = OperationMode.addToPlaylist == mode;

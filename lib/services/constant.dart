@@ -16,6 +16,7 @@ class BoxNames {
   static const String libraryPlaylists = 'LibraryPlaylists';
   static const String libraryAlbums = 'LibraryAlbums';
   static const String libraryArtists = 'LibraryArtists';
+  static const String librarySearches = 'LibrarySearches';
   static const String songsUrlCache = 'SongsUrlCache';
 }
 
@@ -32,9 +33,11 @@ class PrefKeys {
   static const String autoOpenPlayer = 'autoOpenPlayer';
   static const String isBottomNavBarEnabled = 'isBottomNavBarEnabled';
   static const String noOfHomeScreenContent = 'noOfHomeScreenContent';
-  static const String isTransitionAnimationDisabled = 'isTransitionAnimationDisabled';
+  static const String isTransitionAnimationDisabled =
+      'isTransitionAnimationDisabled';
   static const String skipSilenceEnabled = 'skipSilenceEnabled';
-  static const String loudnessNormalizationEnabled = 'loudnessNormalizationEnabled';
+  static const String loudnessNormalizationEnabled =
+      'loudnessNormalizationEnabled';
   static const String cacheHomeScreenData = 'cacheHomeScreenData';
   static const String backgroundPlayEnabled = 'backgroundPlayEnabled';
   static const String keepScreenAwake = 'keepScreenAwake';
@@ -42,7 +45,8 @@ class PrefKeys {
   static const String downloadLocationPath = 'downloadLocationPath';
   static const String downloadingFormat = 'downloadingFormat';
   static const String piped = 'piped';
-  static const String autoDownloadFavoriteSongEnabled = 'autoDownloadFavoriteSongEnabled';
+  static const String autoDownloadFavoriteSongEnabled =
+      'autoDownloadFavoriteSongEnabled';
   static const String slidableActionEnabled = 'slidableActionEnabled';
   static const String cacheSongs = 'cacheSongs';
   static const String homeScreenDataTime = 'homeScreenDataTime';

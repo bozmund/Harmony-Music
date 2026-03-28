@@ -89,3 +89,9 @@ This document provides essential information for AI agents working on the Harmon
     *   **I/O Streaming**: Always use streaming (Streams/Isolates) for backups or large file operations to maintain a small memory footprint (<100MB).
     *   **User Feedback**: Any background task exceeding 1 second must provide granular progress updates via GetX observables and reactive UI (Obx).
     *   **Memory Safety**: Avoid reading large files into memory using `readAsBytesSync` on the main thread; use Isolates for data-heavy operations.
+5. **UI & Layout**:
+    *   **Dynamic Bottom Navigation**: When placing UI elements at the bottom, account for both the `BottomNavBar` (~120dp) and the `SlidingUpPanel` (mini-player, ~200dp). Use `playerController.playerPanelMinHeight` for dynamic offsets.
+    *   **Stack vs Column**: Prefer `Stack` with `Positioned` for complex bottom-anchored UI components (like library tabs) to prevent them from being clipped by `Scaffold` body constraints or parent navigators.
+6. **Agent Maintenance**:
+    *   **Self-Documentation**: Always update `AGENTS.md` with any new architectural discoveries, critical logic changes, or workflow improvements identified during a task.
+    *   **Value Addition**: Proactively identify and document "value-add" patterns that simplify future development or improve code maintainability.

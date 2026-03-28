@@ -100,11 +100,12 @@ class LibrarySongsController extends GetxController {
   void onSearchClose(String? tag) {
     librarySongsList.value = tempListContainer.toList();
     // Clear search bar text when closing
-    final sortWidgetController = Get.isRegistered<SortWidgetController>(tag: tag) 
-        ? Get.find<SortWidgetController>(tag: tag) 
-        : null;
+    final sortWidgetController =
+        Get.isRegistered<SortWidgetController>(tag: tag)
+            ? Get.find<SortWidgetController>(tag: tag)
+            : null;
     sortWidgetController?.textEditingController.clear();
-    // onSearch is called with empty string via widget logic indirectly, 
+    // onSearch is called with empty string via widget logic indirectly,
     // but here we ensure internal state is clean
     tempListContainer.clear();
   }
@@ -272,7 +273,8 @@ class LibraryPlaylistsController extends GetxController
 
     final appPrefsBox = Hive.box(BoxNames.appPrefs);
     if (appPrefsBox.containsKey(PrefKeys.piped)) {
-      if (appPrefsBox.get(PrefKeys.piped)['isLoggedIn']) await syncPipedPlaylist();
+      if (appPrefsBox.get(PrefKeys.piped)['isLoggedIn'])
+        await syncPipedPlaylist();
     }
 
     isContentFetched.value = true;
@@ -449,16 +451,18 @@ class LibraryPlaylistsController extends GetxController
 
   void onSearch(String value, String? tag) {
     libraryPlaylists.value = tempListContainer
-        .where((element) => SearchFilter.matches({'title': element.title}, value))
+        .where(
+            (element) => SearchFilter.matches({'title': element.title}, value))
         .toList();
   }
 
   void onSearchClose(String? tag) {
     libraryPlaylists.value = tempListContainer.toList();
     // Clear search bar text when closing
-    final sortWidgetController = Get.isRegistered<SortWidgetController>(tag: tag) 
-        ? Get.find<SortWidgetController>(tag: tag) 
-        : null;
+    final sortWidgetController =
+        Get.isRegistered<SortWidgetController>(tag: tag)
+            ? Get.find<SortWidgetController>(tag: tag)
+            : null;
     sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
@@ -675,16 +679,18 @@ class LibraryAlbumsController extends GetxController {
 
   void onSearch(String value, String? tag) {
     libraryAlbums.value = tempListContainer
-        .where((element) => SearchFilter.matches({'title': element.title}, value))
+        .where(
+            (element) => SearchFilter.matches({'title': element.title}, value))
         .toList();
   }
 
   void onSearchClose(String? tag) {
     libraryAlbums.value = tempListContainer.toList();
     // Clear search bar text when closing
-    final sortWidgetController = Get.isRegistered<SortWidgetController>(tag: tag) 
-        ? Get.find<SortWidgetController>(tag: tag) 
-        : null;
+    final sortWidgetController =
+        Get.isRegistered<SortWidgetController>(tag: tag)
+            ? Get.find<SortWidgetController>(tag: tag)
+            : null;
     sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
@@ -723,17 +729,56 @@ class LibraryArtistsController extends GetxController {
 
   void onSearch(String value, String? tag) {
     libraryArtists.value = tempListContainer
-        .where((element) => SearchFilter.matches({'title': element.name}, value))
+        .where(
+            (element) => SearchFilter.matches({'title': element.name}, value))
         .toList();
   }
 
   void onSearchClose(String? tag) {
     libraryArtists.value = tempListContainer.toList();
     // Clear search bar text when closing
-    final sortWidgetController = Get.isRegistered<SortWidgetController>(tag: tag) 
-        ? Get.find<SortWidgetController>(tag: tag) 
-        : null;
+    final sortWidgetController =
+        Get.isRegistered<SortWidgetController>(tag: tag)
+            ? Get.find<SortWidgetController>(tag: tag)
+            : null;
     sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
+  }
+}
+
+class LibrarySearchesController extends GetxController {
+  final RxList<String> savedSearches = RxList();
+  final isContentFetched = false.obs;
+
+  @override
+  void onInit() {
+    refreshLib();
+    super.onInit();
+  }
+
+  void refreshLib() async {
+    final box = await Hive.openBox(BoxNames.librarySearches);
+    savedSearches.value = box.values.whereType<String>().toList();
+    isContentFetched.value = true;
+    box.close();
+  }
+
+  Future<void> saveSearch(String query) async {
+    if (query.trim().isEmpty || savedSearches.contains(query)) return;
+    final box = await Hive.openBox(BoxNames.librarySearches);
+    await box.add(query);
+    savedSearches.add(query);
+    await box.close();
+  }
+
+  Future<void> deleteSearch(String query) async {
+    final box = await Hive.openBox(BoxNames.librarySearches);
+    final key =
+        box.keys.firstWhere((k) => box.get(k) == query, orElse: () => null);
+    if (key != null) {
+      await box.delete(key);
+      savedSearches.remove(query);
+    }
+    await box.close();
   }
 }
