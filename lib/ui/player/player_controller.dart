@@ -112,7 +112,8 @@ class PlayerController extends GetxController
     _setInitLyricsMode();
     final appPrefs = Hive.box(BoxNames.appPrefs);
     isLoopModeEnabled.value = appPrefs.get(PrefKeys.isLoopModeEnabled) ?? false;
-    isShuffleModeEnabled.value = appPrefs.get(PrefKeys.isShuffleModeEnabled) ?? false;
+    isShuffleModeEnabled.value =
+        appPrefs.get(PrefKeys.isShuffleModeEnabled) ?? false;
     isQueueLoopModeEnabled.value =
         appPrefs.get(PrefKeys.queueLoopModeEnabled) ?? false;
 
@@ -143,7 +144,8 @@ class PlayerController extends GetxController
   }
 
   void _setInitLyricsMode() {
-    lyricsMode.value = Hive.box(BoxNames.appPrefs).get(PrefKeys.lyricsMode) ?? 0;
+    lyricsMode.value =
+        Hive.box(BoxNames.appPrefs).get(PrefKeys.lyricsMode) ?? 0;
   }
 
   void panellistener(double x) {
@@ -293,7 +295,8 @@ class PlayerController extends GetxController
 
   Future<void> _restorePrevSession() async {
     final restorePrevSessionEnabled =
-        Hive.box(BoxNames.appPrefs).get(PrefKeys.restorePlaybackSession) ?? false;
+        Hive.box(BoxNames.appPrefs).get(PrefKeys.restorePlaybackSession) ??
+            false;
     if (restorePrevSessionEnabled) {
       final prevSessionData = await Hive.openBox(BoxNames.prevSessionData);
       if (prevSessionData.keys.isNotEmpty) {
@@ -358,7 +361,8 @@ class PlayerController extends GetxController
         _playerPanelCheck();
         await _audioHandler.customAction("playByIndex", {"index": 0});
       } else {
-        if (Hive.box(BoxNames.appPrefs).get(PrefKeys.discoverContentType) == "BOLI") {
+        if (Hive.box(BoxNames.appPrefs).get(PrefKeys.discoverContentType) ==
+            "BOLI") {
           Get.find<HomeScreenController>()
               .changeDiscoverContent("BOLI", songId: mediaItem!.id);
         }
@@ -374,13 +378,6 @@ class PlayerController extends GetxController
     _playerPanelCheck();
     await _audioHandler
         .customAction("setSourceNPlay", {'mediaItem': mediaItem});
-
-    // disable queue loop mode when radio is started
-    if (radio &&
-        isQueueLoopModeEnabled.isTrue &&
-        isShuffleModeEnabled.isFalse) {
-      toggleQueueLoopMode();
-    }
   }
 
   Future<void> playPlayListSong(List<MediaItem> mediaItems, int index,
@@ -394,7 +391,8 @@ class PlayerController extends GetxController
 
     //for changing home content based on last interation
     Future.delayed(const Duration(seconds: 3), () {
-      if (Hive.box(BoxNames.appPrefs).get(PrefKeys.discoverContentType) == "BOLI") {
+      if (Hive.box(BoxNames.appPrefs).get(PrefKeys.discoverContentType) ==
+          "BOLI") {
         Get.find<HomeScreenController>()
             .changeDiscoverContent("BOLI", songId: mediaItems[index].id);
       }
@@ -504,7 +502,8 @@ class PlayerController extends GetxController
 
   void _playerPanelCheck({bool restoreSession = false}) {
     final isWideScreen = Get.size.width > 800;
-    final autoOpenPlayer = Hive.box(BoxNames.appPrefs).get(PrefKeys.autoOpenPlayer) ?? true;
+    final autoOpenPlayer =
+        Hive.box(BoxNames.appPrefs).get(PrefKeys.autoOpenPlayer) ?? true;
     if ((!isWideScreen && autoOpenPlayer && playerPanelController.isAttached) &&
         !restoreSession) {
       playerPanelController.open();
@@ -541,14 +540,8 @@ class PlayerController extends GetxController
         ? _audioHandler.setShuffleMode(AudioServiceShuffleMode.none)
         : _audioHandler.setShuffleMode(AudioServiceShuffleMode.all);
     isShuffleModeEnabled.value = !shuffleModeEnabled;
-    await Hive.box(BoxNames.appPrefs).put(PrefKeys.isShuffleModeEnabled, !shuffleModeEnabled);
-    // restrict queue loop mode when shuffle mode is enabled
-    if (isShuffleModeEnabled.isTrue && isQueueLoopModeEnabled.isFalse) {
-      isQueueLoopModeEnabled.value = true;
-    } else if (isShuffleModeEnabled.isFalse) {
-      isQueueLoopModeEnabled.value =
-          Hive.box(BoxNames.appPrefs).get(PrefKeys.queueLoopModeEnabled, defaultValue: false);
-    }
+    await Hive.box(BoxNames.appPrefs)
+        .put(PrefKeys.isShuffleModeEnabled, !shuffleModeEnabled);
   }
 
   void onReorder(int oldIndex, int newIndex) {
@@ -619,27 +612,14 @@ class PlayerController extends GetxController
   }
 
   Future<void> toggleQueueLoopMode({bool showMessage = true}) async {
-    if (isShuffleModeEnabled.isTrue && isQueueLoopModeEnabled.isTrue) {
-      if (!showMessage) return;
+    // Queue loop is now mandatory and always true.
+    // This method is kept for API compatibility but does nothing to the state.
+    if (showMessage) {
       ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-          Get.context!, "queueLoopNotDisMsg1".tr,
-          size: SanckBarSize.BIG, duration: const Duration(seconds: 2)));
-      return;
+          Get.context!, "Queue looping is always enabled.",
+          size: SanckBarSize.SMALL, duration: const Duration(seconds: 1)));
     }
-
-    if (isRadioModeOn && isQueueLoopModeEnabled.isFalse) {
-      if (!showMessage) return;
-      ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-          Get.context!, "queueLoopNotDisMsg2".tr,
-          size: SanckBarSize.BIG, duration: const Duration(seconds: 2)));
-      return;
-    }
-
-    isQueueLoopModeEnabled.value = !isQueueLoopModeEnabled.value;
-    await _audioHandler.customAction(
-        "toggleQueueLoopMode", {"enable": isQueueLoopModeEnabled.value});
-    await Hive.box(BoxNames.appPrefs)
-        .put(PrefKeys.queueLoopModeEnabled, isQueueLoopModeEnabled.value);
+    return;
   }
 
   Future<void> setVolume(int value) async {
@@ -653,7 +633,8 @@ class PlayerController extends GetxController
     if (volume.value != 0) {
       vol = 0;
     } else {
-      vol = await Hive.box(BoxNames.appPrefs).get(PrefKeys.volume, defaultValue: 10);
+      vol = await Hive.box(BoxNames.appPrefs)
+          .get(PrefKeys.volume, defaultValue: 10);
       if (vol == 0) {
         vol = 10;
         await Hive.box(BoxNames.appPrefs).put(PrefKeys.volume, vol);
@@ -664,8 +645,8 @@ class PlayerController extends GetxController
   }
 
   Future<void> _checkFav() async {
-    isCurrentSongFav.value =
-        (await Hive.openBox(BoxNames.libFav)).containsKey(currentSong.value!.id);
+    isCurrentSongFav.value = (await Hive.openBox(BoxNames.libFav))
+        .containsKey(currentSong.value!.id);
   }
 
   Future<void> toggleFavourite() async {
@@ -836,6 +817,5 @@ class PlayerController extends GetxController
     super.dispose();
   }
 }
-
 
 enum PlayButtonState { paused, playing, loading }

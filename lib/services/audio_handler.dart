@@ -4,7 +4,6 @@ import 'dart:math';
 
 import 'package:flutter/services.dart';
 
-
 import 'package:hive/hive.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
@@ -91,7 +90,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     _player.setSkipSilenceEnabled(
         appPrefsBox.get(PrefKeys.skipSilenceEnabled) ?? false);
     loopModeEnabled = appPrefsBox.get(PrefKeys.isLoopModeEnabled) ?? false;
-    shuffleModeEnabled = appPrefsBox.get(PrefKeys.isShuffleModeEnabled) ?? false;
+    shuffleModeEnabled =
+        appPrefsBox.get(PrefKeys.isShuffleModeEnabled) ?? false;
     queueLoopModeEnabled =
         Hive.box(BoxNames.appPrefs).get(PrefKeys.queueLoopModeEnabled) ?? false;
     loudnessNormalizationEnabled =
@@ -213,12 +213,13 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 
   Future<void> _triggerNext() async {
     if (loopModeEnabled) {
-      await _player.seek(Duration.zero);
+      await _player.seek(Duration.zero, index: currentIndex);
       if (!_player.playing) {
         _player.play();
       }
       return;
     }
+    // No longer checking queueLoopModeEnabled, always skip to next (which loops)
     skipToNext();
   }
 
@@ -247,6 +248,9 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     final newQueue = queue.value..addAll(mediaItems);
     queue.add(newQueue);
 
+    // sync just_audio playlist
+    await _playList.addAll(mediaItems.map(_createAudioSource).toList());
+
     if (shuffleModeEnabled) {
       final mediaItemsIds = mediaItems.toList().map((item) => item.id).toList();
       final notPlayedshuffledQueue = shuffledQueue.isNotEmpty
@@ -264,6 +268,10 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     final newQueue = this.queue.value
       ..replaceRange(0, this.queue.value.length, queue);
     this.queue.add(newQueue);
+
+    // sync just_audio playlist
+    await _playList.clear();
+    await _playList.addAll(queue.map(_createAudioSource).toList());
   }
 
   @override
@@ -275,6 +283,9 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     // notify system
     final newQueue = queue.value..add(mediaItem);
     queue.add(newQueue);
+
+    // sync just_audio playlist
+    await _playList.add(_createAudioSource(mediaItem));
   }
 
   AudioSource _createAudioSource(MediaItem mediaItem) {
@@ -314,6 +325,12 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     final currentQueue = queue.value;
     final currentSong = mediaItem.value;
     final itemIndex = currentQueue.indexOf(mediaItem_);
+
+    // sync just_audio playlist
+    if (itemIndex != -1) {
+      await _playList.removeAt(itemIndex);
+    }
+
     if (currentIndex > itemIndex) {
       currentIndex -= 1;
     }
@@ -360,7 +377,6 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   int _getNextSongIndex() {
     if (shuffleModeEnabled) {
       if (currentShuffleIndex + 1 >= shuffledQueue.length) {
-        shuffledQueue.shuffle();
         currentShuffleIndex = 0;
       } else {
         currentShuffleIndex += 1;
@@ -371,17 +387,14 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 
     if (queue.value.length > currentIndex + 1) {
       return currentIndex + 1;
-    } else if (queueLoopModeEnabled) {
-      return 0;
     } else {
-      return currentIndex;
+      return 0; // Always loop back to start
     }
   }
 
   int _getPrevSongIndex() {
     if (shuffleModeEnabled) {
       if (currentShuffleIndex - 1 < 0) {
-        shuffledQueue.shuffle();
         currentShuffleIndex = shuffledQueue.length - 1;
       } else {
         currentShuffleIndex -= 1;
@@ -393,33 +406,28 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     if (currentIndex - 1 >= 0) {
       return currentIndex - 1;
     } else {
-      return currentIndex;
+      return queue.value.length - 1; // Always loop back to end
     }
   }
 
   @override
   Future<void> skipToNext() async {
     final index = _getNextSongIndex();
-    if (index != currentIndex) {
-      if (_player.position != Duration.zero) _player.seek(Duration.zero);
-      await customAction("playByIndex", {'index': index});
-    } else {
-      _player.seek(Duration.zero);
-      _player.pause();
+    if (_player.position != Duration.zero) {
+      await _player.seek(Duration.zero, index: index);
     }
+    await customAction("playByIndex", {'index': index});
   }
 
   @override
   Future<void> skipToPrevious() async {
     if (_player.position.inMilliseconds > 5000) {
-      _player.seek(Duration.zero);
+      await _player.seek(Duration.zero, index: currentIndex);
       return;
     }
-    _player.seek(Duration.zero);
     final index = _getPrevSongIndex();
-    if (index != currentIndex) {
-      await customAction("playByIndex", {'index': index});
-    }
+    await _player.seek(Duration.zero, index: index);
+    await customAction("playByIndex", {'index': index});
   }
 
   @override
@@ -445,7 +453,6 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) async {
     switch (name) {
-
       case 'dispose':
         await _player.dispose();
         super.stop();
@@ -462,14 +469,6 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         isSongLoading = true;
         playbackState.add(playbackState.value
             .copyWith(processingState: AudioProcessingState.loading));
-
-        if (_player.playing) {
-          await _player.stop();
-        }
-
-        if (_playList.children.isNotEmpty) {
-          await _playList.clear();
-        }
 
         mediaItem.add(currentSong);
         final streamInfo = await futureStreamInfo;
@@ -488,7 +487,27 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         currentSongUrl = currentSong.extras!['url'] = streamInfo.audio!.url;
         playbackState
             .add(playbackState.value.copyWith(queueIndex: currentIndex));
-        await _playList.add(_createAudioSource(currentSong));
+
+        // update the specific item in just_audio playlist to reflect new URL
+        if (_playList.length > currentIndex) {
+          // Check if the current audio source at this index is already correct
+          // to avoid unnecessary re-loading if the URL hasn't changed
+          final currentSource = _playList.children[currentIndex];
+          bool needsUpdate = true;
+          if (currentSource is UriAudioSource) {
+            if (currentSource.uri.toString() == currentSongUrl) {
+              needsUpdate = false;
+            }
+          }
+
+          if (needsUpdate || isNewUrlReq) {
+            await _playList.removeAt(currentIndex);
+            await _playList.insert(
+                currentIndex, _createAudioSource(currentSong));
+          }
+        } else {
+          await _playList.add(_createAudioSource(currentSong));
+        }
 
         if (restoreSession) {
           if (!GetPlatform.isDesktop) {
@@ -498,12 +517,14 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
               Duration(
                 milliseconds: position,
               ),
+              index: currentIndex,
             );
           }
         } else {
           try {
             await _player.load();
             isSongLoading = false;
+            await _player.seek(Duration.zero, index: currentIndex);
             await _player.play();
           } catch (e) {
             printERROR("Error loading player: $e", tag: LogTags.audioHandler);
@@ -531,10 +552,11 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
             jsonData['streamInfo'] = dbStreamData != null
                 ? [
                     true,
-                    dbStreamData[
-                        Hive.box(BoxNames.appPrefs).get(PrefKeys.streamingQuality) == 0
-                            ? 'lowQualityAudio'
-                            : "highQualityAudio"]
+                    dbStreamData[Hive.box(BoxNames.appPrefs)
+                                .get(PrefKeys.streamingQuality) ==
+                            0
+                        ? 'lowQualityAudio'
+                        : "highQualityAudio"]
                   ]
                 : null;
             songsCacheBox.put(song.id, jsonData);
@@ -553,7 +575,11 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         final futureStreamInfo = checkNGetUrl(currMed.id);
         isSongLoading = true;
         currentIndex = 0;
+
+        // sync just_audio playlist
         await _playList.clear();
+        await _playList.add(_createAudioSource(currMed));
+
         mediaItem.add(currMed);
         queue.add([currMed]);
         final streamInfo = (await futureStreamInfo);
@@ -567,7 +593,12 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         }
         currentSongUrl = currMed.extras!['url'] = streamInfo.audio!.url;
 
-        await _playList.add(_createAudioSource(currMed));
+        // The source is already added, but we might need to update the URL if it wasn't available before
+        if (_playList.length > 0) {
+          await _playList.removeAt(0);
+          await _playList.add(_createAudioSource(currMed));
+        }
+
         isSongLoading = false;
 
         // Normalize audio
@@ -575,6 +606,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           _normalizeVolume(streamInfo.audio!.loudnessDb);
         }
 
+        await _player.seek(Duration.zero, index: 0);
         await _player.play();
         break;
 
@@ -594,14 +626,15 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           try {
             final currentSongId = (queue.value[currentIndex]).id;
             if (Hive.box(BoxNames.songsUrlCache).containsKey(currentSongId)) {
-              final songJson = Hive.box(BoxNames.songsUrlCache).get(currentSongId);
+              final songJson =
+                  Hive.box(BoxNames.songsUrlCache).get(currentSongId);
               _normalizeVolume((songJson)["highQualityAudio"]["loudnessDb"]);
               return;
             }
 
             if (Hive.box(BoxNames.songDownloads).containsKey(currentSongId)) {
-              final streamInfo =
-                  (Hive.box(BoxNames.songDownloads).get(currentSongId))["streamInfo"];
+              final streamInfo = (Hive.box(BoxNames.songDownloads)
+                  .get(currentSongId))["streamInfo"];
 
               _normalizeVolume(
                   streamInfo == null ? 0 : streamInfo[1]["loudnessDb"]);
@@ -637,6 +670,10 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           oldIndex,
         );
         currentQueue.insert(newIndex, item);
+
+        // sync just_audio playlist
+        await _playList.move(oldIndex, newIndex);
+
         currentIndex = currentQueue.indexOf(currentItem);
         queue.add(currentQueue);
         mediaItem.add(currentItem);
@@ -647,6 +684,10 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         final currentQueue = queue.value;
         currentQueue.insert(currentIndex + 1, song);
         queue.add(currentQueue);
+
+        // sync just_audio playlist
+        await _playList.insert(currentIndex + 1, _createAudioSource(song));
+
         if (shuffleModeEnabled) {
           shuffledQueue.insert(currentShuffleIndex + 1, song.id);
         }
@@ -685,6 +726,12 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         final newQueue = queue.value;
         newQueue.removeRange(1, newQueue.length);
         queue.add(newQueue);
+
+        // sync just_audio playlist
+        if (_playList.length > 1) {
+          await _playList.removeRange(1, _playList.length);
+        }
+
         if (shuffleModeEnabled) {
           shuffledQueue.clear();
           shuffledQueue.add(newQueue[0].id);
@@ -789,7 +836,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         (await Hive.openBox(BoxNames.songsCache)).containsKey(songId)) {
       printINFO("Got Song from cachedbox ($songId)", tag: LogTags.audioHandler);
       // if contains stream Info
-      final streamInfo = Hive.box(BoxNames.songsCache).get(songId)["streamInfo"];
+      final streamInfo =
+          Hive.box(BoxNames.songsCache).get(songId)["streamInfo"];
       Audio? cacheAudioPlaceholder;
       if (streamInfo != null && streamInfo.isNotEmpty) {
         streamInfo[1]['url'] = "file://$_cacheDir/cachedSongs/$songId.mp3";
@@ -848,7 +896,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     } else {
       //check if song stream url is cached and allocate url accordingly
       final songsUrlCacheBox = Hive.box(BoxNames.songsUrlCache);
-      final qualityIndex = Hive.box(BoxNames.appPrefs).get(PrefKeys.streamingQuality) ?? 1;
+      final qualityIndex =
+          Hive.box(BoxNames.appPrefs).get(PrefKeys.streamingQuality) ?? 1;
       HMStreamingData? streamInfo;
       if (songsUrlCacheBox.containsKey(songId) && !generateNewUrl) {
         final streamInfoJson = songsUrlCacheBox.get(songId);
@@ -876,7 +925,6 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 class UrlError extends Error {
   String message() => 'Unable to fetch url';
 }
-
 
 // for Android Auto
 class MediaLibrary {
