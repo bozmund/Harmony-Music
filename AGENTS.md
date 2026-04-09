@@ -23,6 +23,12 @@ This document provides essential information for AI agents working on the Harmon
 - **Transition Safety**: Always call `_player.stop()` before `_playList.clear()` in `AudioHandler` to prevent `just_audio` race conditions that lead to "stuck loading" states.
 - **Loading Indicators**: Ensure `isSongLoading` is reset to `false` in `try-catch` blocks during playback initialization.
 - **Testing Playback**: Use `MockAudioPlayer` for playback logic tests to avoid hardware dependency in headless environments.
+- **State Synchronization Bug Pattern**: When playing a song directly (e.g., from search/album/quick-picks), the UI can appear stuck even though the player service is working. This happens when:
+  1. Internal state (`isSongLoading`) is updated but NOT immediately broadcast to the UI
+  2. `_playList.clear()` is called without `_player.stop()` first, causing race conditions in `just_audio`
+  3. The `playbackState` stream doesn't emit (player stuck), so the UI never receives the loading state
+  
+  **Solution**: Always follow `playByIndex` pattern when playing songs - update `playbackState.add()` IMMEDIATELY after setting internal flags, and always call `await _player.stop()` before `await _playList.clear()`. See `audio_handler.dart:setSourceNPlay` and `audio_handler.dart:updateQueue()` for examples.
 
 ## Commit Message Guidelines
 - **Format**: Always start commit messages with an **Uppercase** letter.

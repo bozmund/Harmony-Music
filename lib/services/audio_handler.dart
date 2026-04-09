@@ -164,6 +164,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 
       //print("set ${playbackState.value.queueIndex},${event.currentIndex}");
     }, onError: (Object e, StackTrace st) async {
+      isSongLoading = false;
       if (e is PlayerException) {
         printERROR('Error code: ${e.code}', tag: LogTags.audioHandler);
         printERROR('Error message: ${e.message}', tag: LogTags.audioHandler);
@@ -270,6 +271,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     this.queue.add(newQueue);
 
     // sync just_audio playlist
+    await _player.stop();
     await _playList.clear();
     await _playList.addAll(queue.map(_createAudioSource).toList());
   }
@@ -473,6 +475,9 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         mediaItem.add(currentSong);
         final streamInfo = await futureStreamInfo;
         if (songIndex != currentIndex) {
+          isSongLoading = false;
+          playbackState.add(playbackState.value
+              .copyWith(processingState: AudioProcessingState.idle));
           return;
         } else if (!streamInfo.playable) {
           currentSongUrl = null;
@@ -574,9 +579,13 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         final currMed = (extras!['mediaItem'] as MediaItem);
         final futureStreamInfo = checkNGetUrl(currMed.id);
         isSongLoading = true;
+        // Immediately notify frontend that loading has started
+        playbackState.add(playbackState.value
+            .copyWith(processingState: AudioProcessingState.loading));
         currentIndex = 0;
 
         // sync just_audio playlist
+        await _player.stop();
         await _playList.clear();
         await _playList.add(_createAudioSource(currMed));
 
@@ -606,8 +615,16 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           _normalizeVolume(streamInfo.audio!.loudnessDb);
         }
 
-        await _player.seek(Duration.zero, index: 0);
-        await _player.play();
+        try {
+          await _player.seek(Duration.zero, index: 0);
+          await _player.play();
+        } catch (e) {
+          printERROR("Error starting playback: $e", tag: LogTags.audioHandler);
+          isSongLoading = false;
+          playbackState.add(playbackState.value.copyWith(
+              processingState: AudioProcessingState.error,
+              errorMessage: e.toString()));
+        }
         break;
 
       case 'toggleSkipSilence':
