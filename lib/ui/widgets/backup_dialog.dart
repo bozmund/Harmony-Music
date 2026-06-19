@@ -1,15 +1,13 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
-import '/services/constant.dart';
+import '../../services/constant.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
 import '/ui/widgets/loader.dart';
 import '/utils/helper.dart';
@@ -54,61 +52,25 @@ class BackupDialog extends StatelessWidget {
                       Column(
                         children: [
                           Obx(() => Text(
-                                backupDialogController.scanning.isTrue
-                                    ? "scanning".tr
-                                    : backupDialogController
-                                            .isFinalizing.isTrue
-                                        ? "finalizingBackup".tr
-                                        : backupDialogController
-                                                .backupRunning.isTrue
-                                            ? "backupInProgress".tr
-                                            : backupDialogController
-                                                    .isbackupCompleted.isTrue
-                                                ? "backupMsg".tr
-                                                : "letsStrart".tr,
+                                backupDialogController.statusText,
                                 textAlign: TextAlign.center,
                               )),
-                          const SizedBox(height: 10),
-                          Obx(() => Visibility(
-                                visible: backupDialogController
-                                    .backupRunning.isTrue,
-                                child: Column(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: LinearProgressIndicator(
-                                        value: backupDialogController
-                                            .backupProgress.value,
-                                        backgroundColor: Theme.of(context)
-                                            .dividerColor
-                                            .withOpacity(0.1),
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                Theme.of(context).primaryColor),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      "${backupDialogController.processedCount.value} / ${backupDialogController.totalFilesCount.value}",
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall,
-                                    ),
-                                    Text(
-                                      backupDialogController
-                                          .currentFileName.value,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall!
-                                          .copyWith(
-                                              color: Theme.of(context)
-                                                  .hintColor),
-                                    ),
-                                  ],
-                                ),
-                              )),
+                          Obx(() => backupDialogController
+                                      .currentBackupFileName.value.isNotEmpty &&
+                                  backupDialogController.backupRunning.isTrue
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 6.0),
+                                  child: Text(
+                                    backupDialogController
+                                        .currentBackupFileName.value,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                )
+                              : const SizedBox.shrink()),
                           if (GetPlatform.isAndroid)
                             Obx(() => (backupDialogController
                                     .isDownloadedfilesSeclected.isTrue)
@@ -212,40 +174,80 @@ class BackupDialogController extends GetxController {
   final scanning = false.obs;
   final isbackupCompleted = false.obs;
   final backupRunning = false.obs;
-  final isFinalizing = false.obs;
   final isDownloadedfilesSeclected = false.obs;
-  final backupProgress = 0.0.obs;
-  final currentFileName = "".obs;
-  final processedCount = 0.obs;
-  final totalFilesCount = 0.obs;
-
+  final backupProgress = 0.obs;
+  final filesToBackup = 0.obs;
+  final currentBackupFileName = "".obs;
+  final backupError = "".obs;
   List<String> filesToExport = [];
   final supportDirPath = Get.find<SettingsScreenController>().supportDirPath;
 
+  String get statusText {
+    if (backupError.value.isNotEmpty) {
+      return backupError.value;
+    }
+    if (scanning.isTrue) {
+      return "scanning".tr;
+    }
+    if (backupRunning.isTrue) {
+      return "${"backupInProgress".tr}\n${backupProgress.value}/${filesToBackup.value}";
+    }
+    if (isbackupCompleted.isTrue) {
+      return "backupMsg".tr;
+    }
+    return "letsStrart".tr;
+  }
+
   Future<void> scanFilesToBackup() async {
+    filesToExport = [];
+    final seenPaths = <String>{};
+    var totalBackupBytes = 0;
+
+    void addIfValid(String? path) {
+      final normalizedPath = _normalizeFilePath(path);
+      if (normalizedPath == null || normalizedPath.isEmpty) return;
+      final file = File(normalizedPath);
+      if (!file.existsSync()) {
+        printWarning("Skipping missing backup file: $normalizedPath",
+            tag: LogTags.backup);
+        return;
+      }
+      final absolutePath = file.absolute.path;
+      if (seenPaths.add(absolutePath)) {
+        final fileLength = file.lengthSync();
+        filesToExport.add(absolutePath);
+        totalBackupBytes += fileLength;
+      }
+    }
+
     final dbDir = await Get.find<SettingsScreenController>().dbDir;
-    filesToExport.clear();
-    filesToExport.addAll(await processDirectoryInIsolate(dbDir));
+    for (final filePath in await processDirectoryInIsolate(dbDir)) {
+      addIfValid(filePath);
+    }
+
     if (isDownloadedfilesSeclected.value) {
-      List<String> downlodedSongFilePaths = Hive.box(BoxNames.songDownloads)
+      final downlodedSongFilePaths = Hive.box(BoxNames.songDownloads)
           .values
-          .map<String>((data) => data['url'])
+          .map<String?>((data) => data['url']?.toString())
           .toList();
-      filesToExport.addAll(downlodedSongFilePaths);
+      for (final filePath in downlodedSongFilePaths) {
+        addIfValid(filePath);
+      }
       try {
-        filesToExport.addAll(await processDirectoryInIsolate(
-            "$supportDirPath/Music",
-            extensionFilter: "")); // Include all music files
-        filesToExport.addAll(await processDirectoryInIsolate(
+        for (final filePath in await processDirectoryInIsolate(
             "$supportDirPath/thumbnails",
-            extensionFilter: ".png"));
+            extensionFilter: ".png")) {
+          addIfValid(filePath);
+        }
       } catch (e) {
         printERROR(e, tag: LogTags.backup);
       }
     }
-    // Remove duplicates and non-existent files
-    filesToExport = filesToExport.toSet().where((path) => File(path).existsSync()).toList();
-    totalFilesCount.value = filesToExport.length;
+
+    filesToBackup.value = filesToExport.length;
+    printINFO(
+        "Found ${filesToExport.length} files for backup (${totalBackupBytes} bytes)",
+        tag: LogTags.backup);
   }
 
   Future<void> backup() async {
@@ -259,119 +261,150 @@ class BackupDialogController extends GetxController {
       return;
     }
 
-    scanning.value = true;
-    await scanFilesToBackup();
-    scanning.value = false;
-
-    if (filesToExport.isEmpty) {
-      printERROR("No files to backup", tag: LogTags.backup);
-      return;
-    }
-
-    backupRunning.value = true;
-    isFinalizing.value = false;
-    backupProgress.value = 0.0;
-    processedCount.value = 0;
-    
-    final exportDirPath = pickedFolderPath.toString();
-    final zipFilePath = '$exportDirPath/${DateTime.now().millisecondsSinceEpoch.toString()}.hmb';
+    backupError.value = "";
+    isbackupCompleted.value = false;
+    backupProgress.value = 0;
+    filesToBackup.value = 0;
+    currentBackupFileName.value = "";
 
     try {
-      final receivePort = ReceivePort();
-      await Isolate.spawn(_compressFilesIsolate, {
-        'filePaths': filesToExport,
-        'zipFilePath': zipFilePath,
-        'sendPort': receivePort.sendPort,
+      scanning.value = true;
+      await scanFilesToBackup();
+      scanning.value = false;
+      if (filesToExport.isEmpty) {
+        throw StateError("No files to backup");
+      }
+
+      backupRunning.value = true;
+      final exportDirPath = pickedFolderPath.toString();
+      final outputPath =
+          '$exportDirPath/${DateTime.now().millisecondsSinceEpoch.toString()}.hmb';
+
+      await compressFilesInBackground(filesToExport, outputPath, (progress) {
+        backupProgress.value = progress.current;
+        filesToBackup.value = progress.total;
+        currentBackupFileName.value = progress.fileName;
       });
 
-      await for (final message in receivePort) {
-        if (message is Map) {
-          processedCount.value = message['index'] + 1;
-          currentFileName.value = message['fileName'];
-          backupProgress.value = (message['index'] + 1) / filesToExport.length;
-        } else if (message == 'finalizing') {
-          isFinalizing.value = true;
-        } else if (message == 'done') {
-          receivePort.close();
-          backupRunning.value = false;
-          isFinalizing.value = false;
-          isbackupCompleted.value = true;
-          break;
-        } else if (message is String && message.startsWith('error:')) {
-          receivePort.close();
-          backupRunning.value = false;
-          isFinalizing.value = false;
-          printERROR(message, tag: LogTags.backup);
-          break;
-        }
-      }
-    } catch (e) {
-      backupRunning.value = false;
-      isFinalizing.value = false;
+      isbackupCompleted.value = true;
+      final outputFileSize = await File(outputPath).length();
+      printINFO("Backup saved to $outputPath ($outputFileSize bytes)",
+          tag: LogTags.backup);
+    } catch (e, stackTrace) {
+      backupError.value = "Backup failed";
       printERROR('Error during backup: $e', tag: LogTags.backup);
+      printERROR(stackTrace, tag: LogTags.backup);
+    } finally {
+      scanning.value = false;
+      backupRunning.value = false;
     }
   }
 }
 
-void _compressFilesIsolate(Map<String, dynamic> params) async {
-  final List<String> filePaths = params['filePaths'];
-  final String zipFilePath = params['zipFilePath'];
-  final SendPort sendPort = params['sendPort'];
+class BackupProgress {
+  const BackupProgress({
+    required this.current,
+    required this.total,
+    required this.fileName,
+  });
 
+  final int current;
+  final int total;
+  final String fileName;
+}
+
+typedef BackupProgressCallback = void Function(BackupProgress progress);
+
+Future<void> compressFilesInBackground(List<String> filePaths,
+    String zipFilePath, BackupProgressCallback onProgress) async {
+  final encoder = ZipFileEncoder();
+  final usedArchiveNames = <String>{};
+
+  encoder.create(zipFilePath);
   try {
-    final archive = Archive();
-    final encoder = ZipEncoder();
-    final zipFile = File(zipFilePath);
-    
-    // We use a custom stream-like approach by adding files one by one to the archive
-    // and encoding at the end, but to be truly memory efficient with 'archive' library,
-    // we should ideally use a library that supports streaming directly to disk.
-    // For now, we optimize by ensuring we don't pre-load all bytes in the main thread.
-    
-    for (int i = 0; i < filePaths.length; i++) {
-      final path = filePaths[i];
-      final file = File(path);
-      if (file.existsSync()) {
-        final fileName = path.split(Platform.isWindows ? '\\' : '/').last;
-        final fileData = file.readAsBytesSync();
-        archive.addFile(ArchiveFile(fileName, fileData.length, fileData));
-        
-        // Notify progress
-        sendPort.send({
-          'index': i,
-          'fileName': fileName,
-        });
+    for (var i = 0; i < filePaths.length; i++) {
+      final file = File(filePaths[i]);
+      if (!await file.exists()) {
+        printWarning("Skipping missing backup file: ${file.path}",
+            tag: LogTags.backup);
+        continue;
+      }
+
+      final archiveName = _uniqueArchiveName(file.path, usedArchiveNames);
+      final level = _shouldStoreWithoutCompression(file.path)
+          ? ZipFileEncoder.STORE
+          : ZipFileEncoder.GZIP;
+      onProgress(BackupProgress(
+          current: i + 1, total: filePaths.length, fileName: archiveName));
+      printINFO("Adding $archiveName to backup (${i + 1}/${filePaths.length})",
+          tag: LogTags.backup);
+      try {
+        await encoder.addFile(file, archiveName, level);
+      } catch (e) {
+        if (!await file.exists()) {
+          printWarning("Skipping removed backup file: ${file.path}",
+              tag: LogTags.backup);
+          continue;
+        }
+        rethrow;
       }
     }
+  } finally {
+    await encoder.close();
+  }
+}
 
-    sendPort.send('finalizing');
+String? _normalizeFilePath(String? path) {
+  if (path == null) return null;
+  final trimmedPath = path.trim();
+  if (trimmedPath.startsWith("file://")) {
+    return Uri.parse(trimmedPath).toFilePath();
+  }
+  return trimmedPath;
+}
 
-    final encodedArchive = encoder.encode(archive);
-    if (encodedArchive != null) {
-      zipFile.writeAsBytesSync(encodedArchive);
-    }
-    sendPort.send('done');
-  } catch (e) {
-    sendPort.send('error: $e');
+bool _shouldStoreWithoutCompression(String path) {
+  final lowerPath = path.toLowerCase();
+  return lowerPath.endsWith(".m4a") ||
+      lowerPath.endsWith(".opus") ||
+      lowerPath.endsWith(".png");
+}
+
+String _uniqueArchiveName(String filePath, Set<String> usedArchiveNames) {
+  final fileName = filePath.split(RegExp(r'[\\/]')).last;
+  if (usedArchiveNames.add(fileName)) return fileName;
+
+  final extensionIndex = fileName.lastIndexOf('.');
+  final baseName =
+      extensionIndex == -1 ? fileName : fileName.substring(0, extensionIndex);
+  final extension =
+      extensionIndex == -1 ? "" : fileName.substring(extensionIndex);
+  var counter = 2;
+  while (true) {
+    final candidate = "$baseName ($counter)$extension";
+    if (usedArchiveNames.add(candidate)) return candidate;
+    counter++;
   }
 }
 
 Future<List<String>> processDirectoryInIsolate(String dbDir,
     {String extensionFilter = ".hive"}) async {
+  // Use Isolate.run to execute the function in a new isolate
   return await Isolate.run(() async {
     final dir = Directory(dbDir);
     if (!dir.existsSync()) return <String>[];
-    
-    final filesEntityList =
-        await dir.list(recursive: false).toList();
 
+    // List files in the directory
+    final filesEntityList = await dir.list(recursive: false).toList();
+
+    // Filter out .hive files
     final filesPath = filesEntityList
-        .whereType<File>()
+        .whereType<File>() // Ensure we only work with files
         .map((entity) {
-          if (extensionFilter.isEmpty || entity.path.endsWith(extensionFilter)) {
+          if (extensionFilter.isEmpty ||
+              entity.path.endsWith(extensionFilter)) {
             return entity.path;
           }
-          return null;
         })
         .whereType<String>()
         .toList();

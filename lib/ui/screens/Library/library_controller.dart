@@ -233,6 +233,11 @@ class LibraryPlaylistsController extends GetxController
         thumbnailUrl: Playlist.thumbPlaceholderUrl,
         isCloudPlaylist: false),
     Playlist(
+        title: "Liked not downloaded",
+        playlistId: BoxNames.libFavNotDownloaded,
+        thumbnailUrl: Playlist.thumbPlaceholderUrl,
+        isCloudPlaylist: false),
+    Playlist(
         title: "cachedOrOffline".tr,
         playlistId: BoxNames.songsCache,
         thumbnailUrl: Playlist.thumbPlaceholderUrl,

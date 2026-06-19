@@ -17,42 +17,9 @@ import 'widgets/sliding_up_panel.dart';
 import 'widgets/snackbar.dart';
 import 'widgets/up_next_queue.dart';
 
-class Home extends StatefulWidget {
+class Home extends StatelessWidget {
   const Home({super.key});
   static const routeName = '/appHome';
-
-  @override
-  State<Home> createState() => _HomeState();
-}
-
-class _HomeState extends State<Home> {
-  @override
-  void initState() {
-    super.initState();
-    if (GetPlatform.isAndroid) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted && context.mounted) {
-            showDialog(
-              context: context,
-              barrierColor: Colors.transparent,
-              barrierDismissible: false,
-              useSafeArea: false,
-              builder: (context) {
-                Future.delayed(const Duration(milliseconds: 50), () {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                  }
-                });
-                return const SizedBox.shrink();
-              },
-            );
-          }
-        });
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     printINFO("Home");
@@ -61,7 +28,6 @@ class _HomeState extends State<Home> {
     final homeScreenController = Get.find<HomeScreenController>();
     final size = MediaQuery.of(context).size;
     final isWideScreen = size.width > 800;
-
     if (!playerController.initFlagForPlayer &&
         settingsScreenController.isBottomNavBarEnabled.isFalse) {
       if (isWideScreen) {

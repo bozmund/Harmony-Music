@@ -45,11 +45,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
-  late Animation<double> _heightAnimation;
 
   AnimationController get animationController => _animationController;
   Animation<double> get scaleAnimation => _scaleAnimation;
-  Animation<double> get heightAnimation => _heightAnimation;
   @override
   void onInit() {
     super.onInit();
@@ -60,9 +58,6 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     _scaleAnimation =
         Tween<double>(begin: 0, end: 1.0).animate(animationController);
-
-    _heightAnimation =
-        Tween<double>(begin: 10.0, end: 75.0).animate(CurvedAnimation(parent: animationController, curve: Curves.easeOutBack));
 
     final args = Get.arguments as List;
     final Playlist? playlist = args[0];
@@ -80,12 +75,17 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     isDefaultPlaylist.value = (playlistId == BoxNames.songDownloads ||
         playlistId == BoxNames.songsCache ||
         playlistId == BoxNames.libRP ||
-        playlistId == BoxNames.libFav);
+        playlistId == BoxNames.libFav ||
+        playlistId == BoxNames.libFavNotDownloaded);
 
     if (!isIdOnly && !playlist_.isCloudPlaylist) {
       playlist.value = playlist_;
       _animationController.forward();
-      fetchSongsfromDatabase(playlistId);
+      if (playlistId == BoxNames.libFavNotDownloaded) {
+        await fetchLikedNotDownloadedSongs();
+      } else {
+        fetchSongsfromDatabase(playlistId);
+      }
       isContentFetched.value = true;
 
       Future.delayed(
@@ -120,6 +120,16 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       // Handle any errors that occur during the fetch
       printERROR("Error fetching playlist details: $e");
     }
+  }
+
+  Future<void> fetchLikedNotDownloadedSongs() async {
+    final favBox = await Hive.openBox(BoxNames.libFav);
+    final downloadsBox = await Hive.openBox(BoxNames.songDownloads);
+    songList.value = favBox.values
+        .where((item) => !downloadsBox.containsKey(item['videoId']))
+        .map((item) => MediaItemBuilder.fromJson(item))
+        .toList();
+    checkDownloadStatus();
   }
 
   Future<void> _fetchSongOnline(
@@ -204,7 +214,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     for (int i = 0; i < songListCopy.length; i++) {
       await songsBox.put(i, MediaItemBuilder.toJson(songListCopy[i]));
     }
-    if (playlist.value.playlistId != BoxNames.songDownloads) await songsBox.close();
+    if (playlist.value.playlistId != BoxNames.songDownloads)
+      await songsBox.close();
 
     // Update the playlist thumbnail based on the first song's thumbnail
     _updatePlaylistThumbSongBased();
@@ -213,6 +224,15 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   @override
   Future<void> deleteMultipleSongs(List<MediaItem> songs) async {
     final id = playlist.value.playlistId;
+    if (id == BoxNames.libFavNotDownloaded) {
+      final favBox = await Hive.openBox(BoxNames.libFav);
+      for (MediaItem element in songs) {
+        await favBox.delete(element.id);
+        songList.removeWhere((song) => song.id == element.id);
+      }
+      _updatePlaylistThumbSongBased();
+      return;
+    }
     final isoffline = id == BoxNames.songsCache || id == BoxNames.songDownloads;
 
     final box_ = await Hive.openBox(id);
@@ -259,7 +279,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   }
 
   @override
-  void fetchAlbumDetails(Album? album_,String albumId) {} // Not used in this class
+  void fetchAlbumDetails(
+      Album? album_, String albumId) {} // Not used in this class
 
   /// This function updates the local playlist thumbnail based on the first song's thumbnail
   void _updatePlaylistThumbSongBased() {
@@ -373,7 +394,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       }
 
       printERROR("Error exporting playlist: $e");
-      
+
       String errorMsg = "exportError".tr;
       if (e is FileSystemException) {
         if (e.osError?.errorCode == 13) {
@@ -464,7 +485,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       }
 
       printERROR("Error exporting playlist to CSV: $e");
-      
+
       String errorMsg = "exportError".tr;
       if (e is FileSystemException) {
         if (e.osError?.errorCode == 13) {
@@ -488,58 +509,64 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
   String _generateCsvContent() {
     final buffer = StringBuffer();
-    
+
     // CSV Header
-    buffer.writeln('PlaylistBrowseId,PlaylistName,MediaId,Title,Artists,Duration,ThumbnailUrl,AlbumId,AlbumTitle,ArtistIds');
-    
+    buffer.writeln(
+        'PlaylistBrowseId,PlaylistName,MediaId,Title,Artists,Duration,ThumbnailUrl,AlbumId,AlbumTitle,ArtistIds');
+
     // CSV Rows - one for each song
     for (final song in songList) {
       // Keep playlistBrowseId blank for offline/piped playlists
-      final playlistBrowseId = (!playlist.value.isCloudPlaylist || playlist.value.isPipedPlaylist)
-          ? ''
-          : _escapeCsvField(playlist.value.playlistId);
+      final playlistBrowseId =
+          (!playlist.value.isCloudPlaylist || playlist.value.isPipedPlaylist)
+              ? ''
+              : _escapeCsvField(playlist.value.playlistId);
       final playlistName = _escapeCsvField(playlist.value.title);
       final mediaId = _escapeCsvField(song.id);
       final title = _escapeCsvField(song.title);
-      
+
       // Extract artists as comma-separated string
       final artistsList = song.extras?['artists'] as List?;
       final artists = artistsList != null
           ? _escapeCsvField(artistsList.map((a) => a['name']).join(', '))
           : '';
-      
+
       // Format duration as HH:MM:SS or MM:SS
-      final duration = song.duration != null
-          ? _formatDuration(song.duration!)
-          : '';
-      
+      final duration =
+          song.duration != null ? _formatDuration(song.duration!) : '';
+
       final thumbnailUrl = _escapeCsvField(song.artUri.toString());
-      
+
       // Extract album information
       final albumData = song.extras?['album'] as Map?;
-      final albumId = albumData != null ? _escapeCsvField(albumData['id'] ?? '') : '';
-      final albumTitle = albumData != null ? _escapeCsvField(albumData['name'] ?? '') : '';
-      
+      final albumId =
+          albumData != null ? _escapeCsvField(albumData['id'] ?? '') : '';
+      final albumTitle =
+          albumData != null ? _escapeCsvField(albumData['name'] ?? '') : '';
+
       // Extract all artist IDs (comma-separated)
       final artistIds = artistsList != null && artistsList.isNotEmpty
           ? _escapeCsvField(artistsList.map((a) => a['id'] ?? '').join(','))
           : '';
-      
-      buffer.writeln('$playlistBrowseId,$playlistName,$mediaId,$title,$artists,$duration,$thumbnailUrl,$albumId,$albumTitle,$artistIds');
+
+      buffer.writeln(
+          '$playlistBrowseId,$playlistName,$mediaId,$title,$artists,$duration,$thumbnailUrl,$albumId,$albumTitle,$artistIds');
     }
-    
+
     return buffer.toString();
   }
 
   String _escapeCsvField(String field) {
     // Escape double quotes by doubling them
     String escaped = field.replaceAll('"', '""');
-    
+
     // If field contains comma, newline, or double quote, wrap in quotes
-    if (escaped.contains(',') || escaped.contains('\n') || escaped.contains('"')) {
+    if (escaped.contains(',') ||
+        escaped.contains('\n') ||
+        escaped.contains('"')) {
       escaped = '"$escaped"';
     }
-    
+
     return escaped;
   }
 
@@ -547,7 +574,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
-    
+
     if (hours > 0) {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     } else {

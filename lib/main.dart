@@ -127,8 +127,11 @@ void _setAppInitPrefs() {
       PrefKeys.themePrimaryColor: 4278199603,
       PrefKeys.discoverContentType: "QP",
       PrefKeys.newVersionVisibility: updateCheckFlag,
-      PrefKeys.cacheHomeScreenData: true
+      PrefKeys.cacheHomeScreenData: true,
+      PrefKeys.queueLoopModeEnabled: true
     });
+  } else if (!appPrefs.containsKey(PrefKeys.queueLoopModeEnabled)) {
+    appPrefs.put(PrefKeys.queueLoopModeEnabled, true);
   }
 }
 

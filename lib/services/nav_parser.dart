@@ -146,6 +146,7 @@ List<Map<String, dynamic>> parseMixedContent(List<dynamic> rows) {
   //inspect(rows);
 
   for (var row in rows) {
+    if (row is! Map || row.isEmpty) continue;
     dynamic title;
     dynamic contents = [];
     if (description_shelf[0] == row.keys.first.toString()) {
@@ -183,7 +184,9 @@ List<Map<String, dynamic>> parseMixedContent(List<dynamic> rows) {
           content = parseSongFlat(data);
         }
 
-        contents.add(content);
+        if (content != null) {
+          contents.add(content);
+        }
       }
 
       items.add({'title': title, 'contents': contents});
@@ -500,11 +503,10 @@ List<dynamic> parsePlaylistItems(List<dynamic> results,
         'browseId'
       ]);
       videoId = creditId?.split("MPTC")[1];
-      
     }
 
-    if(isAlbum){
-      // Contains track number and total tracks 
+    if (isAlbum) {
+      // Contains track number and total tracks
       trackDetails = data?["index"] != null
           ? "${nav(data, ['index', 'runs', 0, 'text'])}/${results.length}"
           : null;
@@ -703,17 +705,65 @@ List<dynamic> parseSearchResults(List<dynamic> results,
     List<String> searchResultTypes, String? resultType, String category) {
   return results
       .map((result) {
-        return parseSearchResult(result['musicResponsiveListItemRenderer'],
+        return parseSearchResult(result is Map ? result[mrlir] : null,
             searchResultTypes, resultType, category);
       })
       .whereType<dynamic>()
       .toList();
 }
 
-dynamic parseSearchResult(Map<String, dynamic> data,
+List<dynamic> parseSearchItemSection(Map<String, dynamic> section,
+    List<String> searchResultTypes, String? resultType, String category) {
+  final contents = nav(section, ['itemSectionRenderer', 'contents']);
+  if (contents is! List) return [];
+
+  return parseSearchResults(contents, searchResultTypes, resultType, category);
+}
+
+dynamic parseSearchCardShelf(
+    Map<String, dynamic> section, List<String> searchResultTypes) {
+  final data = section['musicCardShelfRenderer'];
+  if (data == null) return null;
+
+  final titleRuns = nav(data, ['title', 'runs']);
+  if (titleRuns is! List || titleRuns.isEmpty) return null;
+
+  final watchEndpoint =
+      nav(titleRuns[0], ['navigationEndpoint', 'watchEndpoint']);
+  final videoId = watchEndpoint == null ? null : watchEndpoint['videoId'];
+  if (videoId == null) return null;
+
+  final videoType = nav(watchEndpoint, [
+    'watchEndpointMusicSupportedConfigs',
+    'watchEndpointMusicConfig',
+    'musicVideoType'
+  ]);
+  final resultType = videoType == 'MUSIC_VIDEO_TYPE_ATV' ? 'song' : 'video';
+
+  final subtitleRuns = nav(data, ['subtitle', 'runs']);
+  final Map<String, dynamic> searchResult = {
+    'resultType': resultType,
+    'title': nav(data, title_text),
+    'videoId': videoId,
+    'videoType': videoType,
+    'length': null,
+    'year': null,
+    'album': null,
+    'thumbnails': nav(data, thumbnails),
+  };
+
+  if (subtitleRuns is List) {
+    searchResult.addAll(parseSongRuns(subtitleRuns));
+  }
+
+  return MediaItemBuilder.fromJson(searchResult);
+}
+
+dynamic parseSearchResult(Map<String, dynamic>? data,
     List<String> searchResultTypes, String? resultType, String? category) {
+  if (data == null || category == null) return null;
   if ((resultType != null && resultType.contains("playlist")) ||
-      category!.contains("playlists")) {
+      category.contains("playlists")) {
     resultType = 'playlist';
   }
   int defaultOffset = (resultType == null) ? 2 : 0;
@@ -726,7 +776,8 @@ dynamic parseSearchResult(Map<String, dynamic> data,
 
   resultType = ((resultType == null)
       ? getSearchResultType(getItemText(data, 1), searchResultTypes)
-      : resultType)!;
+      : resultType);
+  if (resultType == null) return null;
   searchResult['resultType'] = resultType;
 
   if (resultType != 'artist') {
@@ -991,15 +1042,22 @@ dynamic parseContentList(results, Function parseFunc) {
 }
 
 Map<String, dynamic> parseChartsItemBrowseId(dynamic result) {
-  final title = nav(result,["musicTwoRowItemRenderer","title","runs",0,"text"]);
-  final browseId = nav(result,
-      ["musicTwoRowItemRenderer","title","runs",0,"navigationEndpoint","browseEndpoint","browseId"]);
+  final title =
+      nav(result, ["musicTwoRowItemRenderer", "title", "runs", 0, "text"]);
+  final browseId = nav(result, [
+    "musicTwoRowItemRenderer",
+    "title",
+    "runs",
+    0,
+    "navigationEndpoint",
+    "browseEndpoint",
+    "browseId"
+  ]);
   if (title.contains('Trending')) {
     return {'title': "Trending", 'browseId': browseId};
   } else if (title.contains('Daily Top')) {
     return {'title': "Top Music Videos", 'browseId': browseId};
-  }
-  else{
+  } else {
     return {'title': title, 'browseId': browseId};
   }
 }

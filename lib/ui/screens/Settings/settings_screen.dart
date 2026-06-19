@@ -261,6 +261,30 @@ class SettingsScreen extends StatelessWidget {
                                   settingsController.toggleCacheHomeScreenData),
                         )),
                     ListTile(
+                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
+                      title: const Text("Reset app state"),
+                      subtitle: Text(
+                        "Clears cached home content, saved playback session, temporary stream URLs, and returns navigation to Home.",
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      trailing: TextButton(
+                        child: Text(
+                          "reset".tr,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium!
+                              .copyWith(fontSize: 15),
+                        ),
+                        onPressed: () async {
+                          await settingsController.resetRecoverableAppState();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(snackbar(
+                              context, "App state reset",
+                              size: SanckBarSize.MEDIUM));
+                        },
+                      ),
+                    ),
+                    ListTile(
                       contentPadding:
                           const EdgeInsets.only(left: 5, right: 10, top: 0),
                       title: Text("Piped".tr),
@@ -630,6 +654,31 @@ class SettingsScreen extends StatelessWidget {
                       ).whenComplete(
                           () => Get.delete<RestoreDialogController>()),
                     ),
+                    if (GetPlatform.isAndroid) const Divider(),
+                    if (GetPlatform.isAndroid)
+                      ListTile(
+                        contentPadding:
+                            const EdgeInsets.only(left: 5, right: 10),
+                        title: const Text("Export clone package"),
+                        subtitle: Text(
+                          "Copies this app's DB, downloads, and thumbnails to a shared folder.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: settingsController.exportDeveloperClonePackage,
+                      ),
+                    if (GetPlatform.isAndroid)
+                      ListTile(
+                        contentPadding:
+                            const EdgeInsets.only(left: 5, right: 10),
+                        title: const Text("Import clone package"),
+                        subtitle: Text(
+                          "Overwrites this app sandbox with a clone export and rewrites download paths.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: settingsController.importDeveloperClonePackage,
+                      ),
                   ]),
               CustomExpansionTile(
                   icon: Icons.miscellaneous_services,

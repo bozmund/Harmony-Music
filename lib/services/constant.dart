@@ -12,6 +12,7 @@ class BoxNames {
   static const String prevSessionData = 'prevSessionData';
   static const String homeScreenData = 'homeScreenData';
   static const String libFav = 'LIBFAV';
+  static const String libFavNotDownloaded = 'LIBFAV_NOT_DOWNLOADED';
   static const String libRP = 'LIBRP';
   static const String libraryPlaylists = 'LibraryPlaylists';
   static const String libraryAlbums = 'LibraryAlbums';

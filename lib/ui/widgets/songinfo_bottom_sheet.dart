@@ -91,6 +91,7 @@ class SongInfoBottomSheet extends StatelessWidget {
                                 ))),
                     SongDownloadButton(
                       song_: song,
+                      showDebugStatus: false,
                       isDownloadingDoneCallback:
                           songInfoController.setDownloadStatus,
                     )
@@ -388,6 +389,19 @@ class SongInfoController extends GetxController
     isCurrentSongFav.isFalse
         ? box.put(song.id, MediaItemBuilder.toJson(song))
         : box.delete(song.id);
+    try {
+      final likedNotDownloadedController = Get.find<PlaylistScreenController>(
+          tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString());
+      if (isCurrentSongFav.isFalse &&
+          !Hive.box(BoxNames.songDownloads).containsKey(song.id)) {
+        likedNotDownloadedController.addNRemoveItemsinList(song,
+            action: 'add', index: 0);
+      } else {
+        likedNotDownloadedController.addNRemoveItemsinList(song,
+            action: 'remove');
+      }
+      // ignore: empty_catches
+    } catch (e) {}
     isCurrentSongFav.value = !isCurrentSongFav.value;
     if (Get.find<SettingsScreenController>()
             .autoDownloadFavoriteSongEnabled
@@ -400,6 +414,17 @@ class SongInfoController extends GetxController
 
 mixin RemoveSongFromPlaylistMixin {
   Future<void> removeSongFromPlaylist(MediaItem item, Playlist playlist) async {
+    if (playlist.playlistId == BoxNames.libFavNotDownloaded) {
+      final box = await Hive.openBox(BoxNames.libFav);
+      await box.delete(item.id);
+      try {
+        Get.find<PlaylistScreenController>(
+                tag: Key(playlist.playlistId).hashCode.toString())
+            .addNRemoveItemsinList(item, action: 'remove');
+      } catch (e) {}
+      return;
+    }
+
     final box = await Hive.openBox(playlist.playlistId);
     //Library songs case
     if (playlist.playlistId == BoxNames.songsCache) {

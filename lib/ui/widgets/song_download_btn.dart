@@ -1,4 +1,5 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/services/downloader.dart';
@@ -13,10 +14,12 @@ class SongDownloadButton extends StatelessWidget {
       {super.key,
       this.calledFromPlayer = false,
       this.song_,
-      this.isDownloadingDoneCallback});
+      this.isDownloadingDoneCallback,
+      this.showDebugStatus = true});
   final bool calledFromPlayer;
   final MediaItem? song_;
   final void Function(bool)? isDownloadingDoneCallback;
+  final bool showDebugStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -42,29 +45,97 @@ class SongDownloadButton extends StatelessWidget {
           : downloader.songQueue.contains(song) &&
                   downloader.isJobRunning.isTrue &&
                   downloader.currentSong == song
-              ? Obx(() => Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Align(
-                        alignment: Alignment.center,
-                        child: Text(
-                          "${downloader.songDownloadingProgress.value}%",
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium!
-                              .copyWith(
-                                  fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
+              ? Obx(() => Tooltip(
+                    message: kDebugMode
+                        ? downloader.currentDownloadDebugMessage.value
+                        : "",
+                    child: SizedBox(
+                      width: showDebugStatus && kDebugMode ? 96 : 40,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Align(
+                                alignment: Alignment.center,
+                                child: Text(
+                                  "${downloader.songDownloadingProgress.value}%",
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium!
+                                      .copyWith(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              LoadingIndicator(
+                                dimension: 30,
+                                strokeWidth: 4,
+                                value:
+                                    (downloader.songDownloadingProgress.value) /
+                                        100,
+                              )
+                            ],
+                          ),
+                          if (showDebugStatus &&
+                              kDebugMode &&
+                              downloader
+                                  .currentDownloadDebugMessage.value.isNotEmpty)
+                            Flexible(
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Text(
+                                  downloader.currentDownloadDebugMessage.value,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(fontSize: 10),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      LoadingIndicator(
-                        dimension: 30,
-                        strokeWidth: 4,
-                        value: (downloader.songDownloadingProgress.value) / 100,
-                      )
-                    ],
+                    ),
                   ))
               : downloader.songQueue.contains(song)
-                  ? const LoadingIndicator()
+                  ? Tooltip(
+                      message: kDebugMode &&
+                              downloader
+                                  .currentDownloadDebugMessage.value.isNotEmpty
+                          ? downloader.currentDownloadDebugMessage.value
+                          : "",
+                      child: SizedBox(
+                        width: showDebugStatus && kDebugMode ? 96 : 40,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const LoadingIndicator(),
+                            if (showDebugStatus &&
+                                kDebugMode &&
+                                downloader.currentDownloadDebugMessage.value
+                                    .isNotEmpty)
+                              Flexible(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Text(
+                                    downloader
+                                        .currentDownloadDebugMessage.value,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(fontSize: 10),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    )
                   : IconButton(
                       icon: Icon(
                         Icons.download,

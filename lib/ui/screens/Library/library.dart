@@ -340,6 +340,10 @@ class LibrarySearchWidget extends StatelessWidget {
                             const tag = "LibSongSort";
                             final targetController =
                                 Get.find<LibrarySongsController>();
+                            if (!Get.isRegistered<SortWidgetController>(
+                                tag: tag)) {
+                              return;
+                            }
 
                             final sortWidgetController =
                                 Get.find<SortWidgetController>(tag: tag);
@@ -351,7 +355,6 @@ class LibrarySearchWidget extends StatelessWidget {
                             sortWidgetController.textEditingController.text =
                                 query;
                             targetController.onSearch(query, tag);
-                            sortWidgetController.updateSuggestions(query, tag);
                           });
                         },
                       );

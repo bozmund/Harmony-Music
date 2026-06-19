@@ -35,9 +35,11 @@ class SearchResultScreen extends StatelessWidget {
                           destinations: (searchResScrController
                                       .isResultContentFetced.value &&
                                   searchResScrController.railItems.isNotEmpty)
-                              ? searchResScrController.railItems
-                                  .map((element) => railDestination(element))
-                                  .toList()
+                              ? [
+                                  railDestination("results".tr),
+                                  ...(searchResScrController.railItems.map(
+                                      (element) => railDestination(element))),
+                                ]
                               : [
                                   railDestination("results".tr),
                                   railDestination("")
@@ -115,41 +117,10 @@ class Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tabName = searchResScrController
-        .railItems[searchResScrController.navigationRailCurrentIndex.value];
-    if (tabName == "Results") {
+    if (searchResScrController.navigationRailCurrentIndex.value == 0) {
       return Obx(() {
-        if (searchResScrController.networkError.isTrue) {
-          return Center(
-            child:
-                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(
-                "networkError1".tr,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(
-                height: 10,
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                decoration: BoxDecoration(
-                    color: Theme.of(context).textTheme.titleLarge!.color,
-                    borderRadius: BorderRadius.circular(10)),
-                child: InkWell(
-                  onTap: () {
-                    searchResScrController.queryString.refresh();
-                  },
-                  child: Text(
-                    "retry".tr,
-                    style: TextStyle(color: Theme.of(context).canvasColor),
-                  ),
-                ),
-              ),
-            ]),
-          );
-        } else if (searchResScrController.isResultContentFetced.isTrue &&
-            searchResScrController.railItems.length <= 1) {
+        if (searchResScrController.isResultContentFetced.isTrue &&
+            searchResScrController.railItems.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -171,51 +142,18 @@ class Body extends StatelessWidget {
         }
       });
     } else {
-      return Obx(() {
-        if (searchResScrController.networkError.isTrue) {
-          return Center(
-            child:
-                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(
-                "networkError1".tr,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(
-                height: 10,
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                decoration: BoxDecoration(
-                    color: Theme.of(context).textTheme.titleLarge!.color,
-                    borderRadius: BorderRadius.circular(10)),
-                child: InkWell(
-                  onTap: () {
-                    searchResScrController.onDestinationSelected(
-                        searchResScrController.navigationRailCurrentIndex.value);
-                  },
-                  child: Text(
-                    "retry".tr,
-                    style: TextStyle(color: Theme.of(context).canvasColor),
-                  ),
-                ),
-              ),
-            ]),
-          );
-        } else if (searchResScrController.isResultContentFetced.isTrue) {
-          final topPadding = context.isLandscape ? 50.0 : 80.0;
-          final name = tabName;
-          return SeparateTabItemWidget(
-            items: const [],
-            title: name,
-            topPadding: topPadding,
-            scrollController: searchResScrController.scrollControllers[name],
-          );
-        }
-        return const Center(
-          child: LoadingIndicator(),
+      if (searchResScrController.isResultContentFetced.isTrue) {
+        final topPadding = context.isLandscape ? 50.0 : 80.0;
+        final name = searchResScrController.railItems[
+            searchResScrController.navigationRailCurrentIndex.value - 1];
+        return SeparateTabItemWidget(
+          items: const [],
+          title: name,
+          topPadding: topPadding,
+          scrollController: searchResScrController.scrollControllers[name],
         );
-      });
+      }
     }
+    return const SizedBox.shrink();
   }
 }

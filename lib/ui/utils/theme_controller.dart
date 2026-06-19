@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:palette_generator/palette_generator.dart';
 import '/utils/helper.dart';
@@ -166,8 +165,7 @@ class ThemeController extends GetxController {
               selectionHandleColor: primarySwatch[200])
           //scaffoldBackgroundColor: primarySwatch[700]
           );
-      return baseTheme.copyWith(
-          textTheme: GoogleFonts.interTextTheme(baseTheme.textTheme));
+      return baseTheme.copyWith(textTheme: _appTextTheme(baseTheme.textTheme));
     } else if (themeType == ThemeType.dark) {
       SystemChrome.setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
@@ -237,8 +235,7 @@ class ThemeController extends GetxController {
               focusColor: Colors.white,
               focusedBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.white))));
-      return baseTheme.copyWith(
-          textTheme: GoogleFonts.interTextTheme(baseTheme.textTheme));
+      return baseTheme.copyWith(textTheme: _appTextTheme(baseTheme.textTheme));
     } else {
       SystemChrome.setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
@@ -309,9 +306,12 @@ class ThemeController extends GetxController {
               focusColor: Colors.black,
               focusedBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.black))));
-      return baseTheme.copyWith(
-          textTheme: GoogleFonts.interTextTheme(baseTheme.textTheme));
+      return baseTheme.copyWith(textTheme: _appTextTheme(baseTheme.textTheme));
     }
+  }
+
+  TextTheme _appTextTheme(TextTheme baseTextTheme) {
+    return baseTextTheme.apply(fontFamily: 'Inter');
   }
 
   MaterialColor _createMaterialColor(Color color) {
