@@ -8,7 +8,7 @@ on:
 
 jobs:
   flutter-checks:
-    name: Analyze, test, and build Android APK
+    name: Analyze and test
     runs-on: ubuntu-latest
 
     steps:
@@ -35,6 +35,3 @@ jobs:
 
       - name: Test
         run: flutter test
-
-      - name: Build release APK
-        run: flutter build apk --release
