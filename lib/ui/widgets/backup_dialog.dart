@@ -248,7 +248,7 @@ class BackupDialogController extends GetxController {
 
     filesToBackup.value = filesToExport.length;
     printINFO(
-        "Found ${filesToExport.length} files for backup (${totalBackupBytes} bytes)",
+        "Found ${filesToExport.length} files for backup ($totalBackupBytes bytes)",
         tag: LogTags.backup);
   }
 
@@ -257,8 +257,8 @@ class BackupDialogController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await FilePicker.platform
-        .getDirectoryPath(dialogTitle: "Select backup file folder");
+    final String? pickedFolderPath = await FilePicker.getDirectoryPath(
+        dialogTitle: "Select backup file folder");
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
       return;
     }
@@ -355,8 +355,8 @@ Future<void> compressFilesInBackground(List<String> filePaths,
 
       final archiveName = _uniqueArchiveName(file.path, usedArchiveNames);
       final level = _shouldStoreWithoutCompression(file.path)
-          ? ZipFileEncoder.STORE
-          : ZipFileEncoder.GZIP;
+          ? ZipFileEncoder.store
+          : ZipFileEncoder.gzip;
       onProgress(BackupProgress(
           current: i + 1, total: filePaths.length, fileName: archiveName));
       printINFO("Adding $archiveName to backup (${i + 1}/${filePaths.length})",

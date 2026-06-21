@@ -216,8 +216,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     for (int i = 0; i < songListCopy.length; i++) {
       await songsBox.put(i, MediaItemBuilder.toJson(songListCopy[i]));
     }
-    if (playlist.value.playlistId != BoxNames.songDownloads)
+    if (playlist.value.playlistId != BoxNames.songDownloads) {
       await songsBox.close();
+    }
 
     // Update the playlist thumbnail based on the first song's thumbnail
     _updatePlaylistThumbSongBased();

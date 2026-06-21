@@ -307,8 +307,8 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                         //if a color exists, then touch events won't go through
                         color: _ac.value == 0.0
                             ? null
-                            : widget.backdropColor.withOpacity(
-                                widget.backdropOpacity * _ac.value),
+                            : widget.backdropColor.withValues(
+                                alpha: widget.backdropOpacity * _ac.value),
                       );
                     }),
               ),

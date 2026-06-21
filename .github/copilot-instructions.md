@@ -6,15 +6,15 @@ Harmony Music is a cross-platform music streaming application built with Flutter
 
 ## Technology Stack
 
-- **Framework**: Flutter 3.24.2+ (Dart SDK >=3.1.5 <4.0.0)
-- **State Management**: GetX (get: ^4.7.1)
+- **Framework**: Flutter 3.44.1+ (Dart SDK >=3.10.3 <4.0.0)
+- **State Management**: GetX (get: ^4.7.3)
 - **Audio Playback**:
-  - Android: just_audio (^0.9.46)
+  - Android: just_audio (^0.10.5)
   - Linux/Windows: media_kit via just_audio_media_kit
   - Background audio: audio_service (^0.18.17)
 - **Local Storage**: Hive (^2.2.3) with hive_flutter
 - **YouTube API**: youtube_explode_dart (custom fork)
-- **HTTP Client**: dio (^5.7.0)
+- **HTTP Client**: dio (^5.9.2)
 - **UI Components**: animations, cached_network_image, flutter_slidable, shimmer
 
 ## Project Structure

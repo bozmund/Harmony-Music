@@ -142,14 +142,12 @@ class RestoreDialogController extends GetxController {
       return;
     }
 
-    final FilePickerResult? pickedFileResult = await FilePicker.platform
-        .pickFiles(
-            dialogTitle: "Select backup file",
-            type: GetPlatform.isWindows ? FileType.custom : FileType.any,
-            allowedExtensions: GetPlatform.isWindows ? ['hmb'] : null,
-            allowMultiple: false);
+    final pickedFileResult = await FilePicker.pickFile(
+        dialogTitle: "Select backup file",
+        type: GetPlatform.isWindows ? FileType.custom : FileType.any,
+        allowedExtensions: GetPlatform.isWindows ? ['hmb'] : null);
 
-    final String? pickedFile = pickedFileResult?.files.first.path;
+    final String? pickedFile = pickedFileResult?.path;
 
     // is this check necessary?
     if (pickedFile == '/' || pickedFile == null) {
@@ -179,7 +177,7 @@ class RestoreDialogController extends GetxController {
       }
 
       input = InputFileStream(restoreFilePath);
-      archive = ZipDecoder().decodeBuffer(input);
+      archive = ZipDecoder().decodeStream(input);
       filesToRestore.value = archive.files.where((file) => file.isFile).length;
       restoreProgress.value = 0;
       processingFiles.value = false;
@@ -349,19 +347,7 @@ Future<void> _writeArchiveFileToDisk(
     ArchiveFile file, String outputFilePath) async {
   final output = OutputFileStream(outputFilePath);
   try {
-    final rawContent = file.rawContent;
-    if (rawContent == null) {
-      file.writeContent(output);
-      return;
-    }
-
-    if (file.compressionType == ArchiveFile.DEFLATE) {
-      Inflate.stream(rawContent, output);
-    } else if (file.compressionType == ArchiveFile.STORE) {
-      output.writeInputStream(rawContent);
-    } else {
-      file.writeContent(output);
-    }
+    file.writeContent(output);
   } finally {
     await output.close();
   }

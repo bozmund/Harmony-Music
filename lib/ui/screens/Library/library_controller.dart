@@ -374,8 +374,9 @@ class LibraryPlaylistsController extends GetxController
 
     final appPrefsBox = Hive.box(BoxNames.appPrefs);
     if (appPrefsBox.containsKey(PrefKeys.piped)) {
-      if (appPrefsBox.get(PrefKeys.piped)['isLoggedIn'])
+      if (appPrefsBox.get(PrefKeys.piped)['isLoggedIn']) {
         await syncPipedPlaylist();
+      }
     }
 
     isContentFetched.value = true;
@@ -907,7 +908,7 @@ class LibraryPlaylistsController extends GetxController
       }
 
       // Use file_picker to select JSON file
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
         dialogTitle: 'importPlaylist'.tr,

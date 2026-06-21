@@ -264,8 +264,10 @@ class AboutArtist extends StatelessWidget {
                                       size: 20,
                                     ),
                                     splashRadius: 18,
-                                    onPressed: () => Share.share(
-                                        "https://music.youtube.com/channel/${artistScreenController.artist_.browseId}")),
+                                    onPressed: () => SharePlus.instance.share(
+                                        ShareParams(
+                                            text:
+                                                "https://music.youtube.com/channel/${artistScreenController.artist_.browseId}"))),
                               ],
                             ),
                           )

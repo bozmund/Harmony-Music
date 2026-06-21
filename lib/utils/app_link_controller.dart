@@ -28,7 +28,7 @@ class AppLinksController extends GetxController with ProcessLink {
     _appLinks = AppLinks();
 
     // Check initial link if app was in cold state (terminated)
-    final appLink = await _appLinks.getInitialAppLink();
+    final appLink = await _appLinks.getInitialLink();
     if (appLink != null) {
       await filterLinks(appLink);
     }

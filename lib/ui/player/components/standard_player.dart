@@ -1,6 +1,5 @@
 import 'dart:ui';
 
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -52,7 +51,8 @@ class StandardPlayer extends StatelessWidget {
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.8),
+                    color:
+                        Theme.of(context).primaryColor.withValues(alpha: 0.8),
                   ),
                 ),
               ),
@@ -68,8 +68,8 @@ class StandardPlayer extends StatelessWidget {
                       colors: [
                         Theme.of(context).primaryColor,
                         Theme.of(context).primaryColor,
-                        Theme.of(context).primaryColor.withOpacity(0.4),
-                        Theme.of(context).primaryColor.withOpacity(0),
+                        Theme.of(context).primaryColor.withValues(alpha: 0.4),
+                        Theme.of(context).primaryColor.withValues(alpha: 0),
                       ],
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
@@ -196,7 +196,6 @@ class StandardPlayer extends StatelessWidget {
                           Obx(
                             () => Text(
                               "\"${playerController.playingFrom.value.nameString}\"",
-
                               overflow: TextOverflow.ellipsis,
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold),

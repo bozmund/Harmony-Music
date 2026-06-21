@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -36,7 +38,7 @@ class AddToPlaylist extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.only(left: 8.0),
                         child: Marquee(
-                          id:"createNewPlaylistx",
+                          id: "createNewPlaylistx",
                           delay: const Duration(milliseconds: 300),
                           child: Text(
                             "CreateNewPlaylist".tr,
@@ -45,7 +47,9 @@ class AddToPlaylist extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10,),
+                    const SizedBox(
+                      width: 10,
+                    ),
                     InkWell(
                       child: const Icon(Icons.playlist_add),
                       onTap: () {

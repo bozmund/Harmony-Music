@@ -32,7 +32,7 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
     status.value = "Reading export";
 
     try {
-      final picked = await FilePicker.platform.pickFiles(
+      final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['zip', 'json'],
         dialogTitle: "Import Spotify playlist export",
@@ -56,8 +56,10 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
       }
 
       detectedPlaylists.value = parsed.playlists;
-      selectedIndexes.value =
-          List.generate(parsed.playlists.length, (index) => index).toSet();
+      selectedIndexes
+        ..clear()
+        ..addAll(List.generate(parsed.playlists.length, (index) => index));
+      selectedIndexes.refresh();
       unsupportedItemCount.value = parsed.unsupportedItemCount;
       status.value = "Choose playlists to import";
     } on SpotifyPlaylistImportException catch (e) {
@@ -112,7 +114,10 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
     } else {
       next.remove(index);
     }
-    selectedIndexes.value = next;
+    selectedIndexes
+      ..clear()
+      ..addAll(next);
+    selectedIndexes.refresh();
   }
 
   Future<_ParsedSpotifyExport> _parseSpotifyExport(File file) async {
