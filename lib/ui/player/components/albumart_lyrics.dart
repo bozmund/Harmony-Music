@@ -63,7 +63,7 @@ class AlbumArtNLyrics extends StatelessWidget {
                         height: playerArtImageSize,
                         width: playerArtImageSize,
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.8),
+                          color: Colors.black.withValues(alpha: 0.8),
                           borderRadius: BorderRadius.circular(5),
                         ),
                         child: Stack(
@@ -82,13 +82,13 @@ class AlbumArtNLyrics extends StatelessWidget {
                                     colors: [
                                       Theme.of(context)
                                           .primaryColor
-                                          .withOpacity(0.90),
+                                          .withValues(alpha: 0.90),
                                       Colors.transparent,
                                       Colors.transparent,
                                       Colors.transparent,
                                       Theme.of(context)
                                           .primaryColor
-                                          .withOpacity(0.90)
+                                          .withValues(alpha: 0.90)
                                     ],
                                     stops: const [0, 0.2, 0.5, 0.8, 1],
                                   ),

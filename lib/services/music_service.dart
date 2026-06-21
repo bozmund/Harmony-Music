@@ -136,13 +136,16 @@ class MusicServices extends getx.GetxService {
     data["browseId"] = "FEmusic_home";
     final response = await _sendRequest("browse", data);
     final results = nav(response.data, single_column_tab + section_list);
+    if (results is! List) {
+      return [];
+    }
     final home = [...parseMixedContent(results)];
 
     final sectionList =
         nav(response.data, single_column_tab + ['sectionListRenderer']);
     //inspect(sectionList);
     //print(sectionList.containsKey('continuations'));
-    if (sectionList.containsKey('continuations')) {
+    if (sectionList is Map && sectionList.containsKey('continuations')) {
       requestFunc(additionalParams) async {
         return (await _sendRequest("browse", data,
                 additionalParams: additionalParams))
@@ -631,22 +634,12 @@ class MusicServices extends getx.GetxService {
         for (dynamic chipsItemRenderer in searchChips) {
           final chip = chipsItemRenderer['chipCloudChipRenderer'];
           final chipText = nav(chip, ['text', 'runs', 0, 'text']);
-          searchResults['searchEndpoint'][chipText] =
+          final chipParams =
               nav(chip, ['navigationEndpoint', 'searchEndpoint', 'params']);
+          if (chipText is String && chipParams is String) {
+            searchResults['searchEndpoint'][chipText] = chipParams;
+          }
         }
-      }
-
-      // now Featured playlists and community playlists are not coming in top results
-      // so adding them in tab if not present
-      if ((searchResults['searchEndpoint'])
-              .containsKey("Community playlists") &&
-          !searchResults.containsKey("Community playlists")) {
-        searchResults["Community playlists"] = [];
-      }
-
-      if ((searchResults['searchEndpoint']).containsKey("Featured playlists") &&
-          !searchResults.containsKey("Featured playlists")) {
-        searchResults["Featured playlists"] = [];
       }
     }
 
@@ -654,15 +647,27 @@ class MusicServices extends getx.GetxService {
 
     results = nav(results, ['sectionListRenderer', 'contents']);
 
-    if (results.length == 1 && results[0]['itemSectionRenderer'] != null) {
+    if (results is! List) {
       return searchResults;
     }
 
     String? type;
 
     for (var res in results) {
-      String category;
-      if (res['musicShelfRenderer'] != null) {
+      String? category;
+      if (res['musicCardShelfRenderer'] != null) {
+        final item = parseSearchCardShelf(
+            res, ['artist', 'playlist', 'song', 'video', 'station']);
+        _addMixedSearchResult(searchResults, item);
+      } else if (res['itemSectionRenderer'] != null) {
+        final mixedItems = parseSearchItemSection(res,
+            ['artist', 'playlist', 'song', 'video', 'station'], type, 'mixed');
+        if (filter == null) {
+          for (var item in mixedItems) {
+            _addMixedSearchResult(searchResults, item);
+          }
+        }
+      } else if (res['musicShelfRenderer'] != null) {
         dynamic itemResults = res['musicShelfRenderer']['contents'];
         String? typeFilter = filter;
         category = "mixed"; // Just a default value
@@ -670,18 +675,11 @@ class MusicServices extends getx.GetxService {
             ['artist', 'playlist', 'song', 'video', 'station'], type, category);
         if (filter == null) {
           for (var item in mixedItems) {
-            final itemType = item.runtimeType == MediaItem
-                ? (item.artist.split(",")[0]) + "s"
-                : "${item.runtimeType}s";
-            if (searchResults.containsKey(itemType) &&
-                (searchResults[itemType]).length < 3) {
-              (searchResults[itemType] as List).add(item);
-            } else if (!searchResults.containsKey(itemType)) {
-              searchResults[itemType] = [item];
-            }
+            _addMixedSearchResult(searchResults, item);
           }
         } else {
           category = nav(res, ['musicShelfRenderer', ...title_text]);
+          if (category == null) continue;
           searchResults[category] = parseSearchResults(
               res['musicShelfRenderer']['contents'],
               ['artist', 'playlist', 'song', 'video', 'station'],
@@ -693,19 +691,25 @@ class MusicServices extends getx.GetxService {
         continue;
       }
 
-      if (filter != null) {
+      if (filter != null &&
+          category != null &&
+          res['musicShelfRenderer'] != null) {
+        final continuationCategory = category;
         requestFunc(additionalParams) async =>
             (await _sendRequest("search", data,
                     additionalParams: additionalParams))
                 .data;
-        parseFunc(contents) => parseSearchResults(contents,
-            ['artist', 'playlist', 'song', 'video', 'station'], type, category);
+        parseFunc(contents) => parseSearchResults(
+            contents,
+            ['artist', 'playlist', 'song', 'video', 'station'],
+            type,
+            continuationCategory);
 
-        if (searchResults.containsKey(category)) {
+        if (searchResults.containsKey(continuationCategory)) {
           final x = await getContinuations(
               res['musicShelfRenderer'],
               'musicShelfContinuation',
-              limit - ((searchResults[category] as List).length),
+              limit - ((searchResults[continuationCategory] as List).length),
               requestFunc,
               parseFunc,
               isAdditionparamReturnReq: true);
@@ -713,12 +717,12 @@ class MusicServices extends getx.GetxService {
           searchResults["params"] = {
             'data': data,
             "type": type,
-            "category": category,
+            "category": continuationCategory,
             'additionalParams': x[1],
           };
 
-          searchResults[category] = [
-            ...(searchResults[category] as List),
+          searchResults[continuationCategory] = [
+            ...(searchResults[continuationCategory] as List),
             ...(x[0])
           ];
         }
@@ -726,6 +730,27 @@ class MusicServices extends getx.GetxService {
     }
 
     return searchResults;
+  }
+
+  void _addMixedSearchResult(Map<String, dynamic> searchResults, dynamic item) {
+    if (item == null) return;
+    if (item is Map && item.isEmpty) return;
+
+    String itemType;
+    if (item is MediaItem) {
+      final typeToken = item.artist?.split(",").first.trim();
+      itemType = typeToken == "Video" ? "Videos" : "Songs";
+    } else {
+      itemType = "${item.runtimeType}s";
+    }
+
+    if (searchResults.containsKey(itemType)) {
+      if ((searchResults[itemType] as List).length < 3) {
+        (searchResults[itemType] as List).add(item);
+      }
+    } else {
+      searchResults[itemType] = [item];
+    }
   }
 
   Future<Map<String, dynamic>> getSearchContinuation(Map additionalParamsNext,

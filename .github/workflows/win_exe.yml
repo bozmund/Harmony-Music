@@ -11,7 +11,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.24.2'
+          flutter-version: '3.44.1'
       
       - name: Install InnoSetup if missing
         run: |

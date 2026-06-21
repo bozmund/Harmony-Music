@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/utils/helper.dart';
@@ -7,6 +9,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/common_dialog_widget.dart';
 import '../../widgets/cust_switch.dart';
 import '../../widgets/export_file_dialog.dart';
+import '../../widgets/import_spotify_playlist_dialog.dart';
+import '../../widgets/import_ytmusic_playlist_dialog.dart';
+import '../../widgets/issue_report_dialog.dart';
 import '../../widgets/backup_dialog.dart';
 import '../../widgets/restore_dialog.dart';
 import '../Library/library_controller.dart';
@@ -57,7 +62,9 @@ class SettingsScreen extends StatelessWidget {
                             onTap: () {
                               launchUrl(
                                 Uri.parse(
-                                  'https://github.com/anandnet/Harmony-Music/releases/latest',
+                                  settingsController
+                                          .updateInfo.value?.downloadUrl ??
+                                      'https://github.com/bozmund/Harmony-Music/releases/latest',
                                 ),
                                 mode: LaunchMode.externalApplication,
                               );
@@ -260,6 +267,30 @@ class SettingsScreen extends StatelessWidget {
                               onChanged:
                                   settingsController.toggleCacheHomeScreenData),
                         )),
+                    ListTile(
+                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
+                      title: const Text("Reset app state"),
+                      subtitle: Text(
+                        "Clears cached home content, saved playback session, temporary stream URLs, and returns navigation to Home.",
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      trailing: TextButton(
+                        child: Text(
+                          "reset".tr,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium!
+                              .copyWith(fontSize: 15),
+                        ),
+                        onPressed: () async {
+                          await settingsController.resetRecoverableAppState();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(snackbar(
+                              context, "App state reset",
+                              size: SanckBarSize.MEDIUM));
+                        },
+                      ),
+                    ),
                     ListTile(
                       contentPadding:
                           const EdgeInsets.only(left: 5, right: 10, top: 0),
@@ -630,7 +661,66 @@ class SettingsScreen extends StatelessWidget {
                       ).whenComplete(
                           () => Get.delete<RestoreDialogController>()),
                     ),
+                    if (GetPlatform.isAndroid) const Divider(),
+                    if (GetPlatform.isAndroid)
+                      ListTile(
+                        contentPadding:
+                            const EdgeInsets.only(left: 5, right: 10),
+                        title: const Text("Export clone package"),
+                        subtitle: Text(
+                          "Copies this app's DB, downloads, and thumbnails to a shared folder.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: settingsController.exportDeveloperClonePackage,
+                      ),
+                    if (GetPlatform.isAndroid)
+                      ListTile(
+                        contentPadding:
+                            const EdgeInsets.only(left: 5, right: 10),
+                        title: const Text("Import clone package"),
+                        subtitle: Text(
+                          "Overwrites this app sandbox with a clone export and rewrites download paths.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: settingsController.importDeveloperClonePackage,
+                      ),
                   ]),
+              CustomExpansionTile(
+                title: "Import",
+                icon: Icons.playlist_add,
+                children: [
+                  ListTile(
+                    contentPadding: const EdgeInsets.only(left: 5, right: 10),
+                    title: const Text("Import YouTube Music playlist"),
+                    subtitle: Text(
+                      "Creates a local playlist from a public YouTube Music or YouTube playlist URL.",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    isThreeLine: true,
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (context) => const ImportYtMusicPlaylistDialog(),
+                    ).whenComplete(() =>
+                        Get.delete<ImportYtMusicPlaylistDialogController>()),
+                  ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.only(left: 5, right: 10),
+                    title: const Text("Import Spotify playlist export"),
+                    subtitle: Text(
+                      "Creates local playlists from Spotify account-data Playlist JSON or ZIP exports.",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    isThreeLine: true,
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (context) => const ImportSpotifyPlaylistDialog(),
+                    ).whenComplete(() =>
+                        Get.delete<ImportSpotifyPlaylistDialogController>()),
+                  ),
+                ],
+              ),
               CustomExpansionTile(
                   icon: Icons.miscellaneous_services,
                   title: "misc".tr,
@@ -669,11 +759,47 @@ class SettingsScreen extends StatelessWidget {
                     onTap: () {
                       launchUrl(
                         Uri.parse(
-                          'https://github.com/anandnet/Harmony-Music',
+                          'https://github.com/bozmund/Harmony-Music',
                         ),
                         mode: LaunchMode.externalApplication,
                       );
                     },
+                  ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.only(left: 5, right: 10),
+                    title: const Text("Update channel"),
+                    subtitle: Text(
+                      "Stable follows production releases. Rolling follows main-latest candidate builds.",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    trailing: Obx(
+                      () => DropdownButton<String>(
+                        dropdownColor: Theme.of(context).cardColor,
+                        underline: const SizedBox.shrink(),
+                        value: settingsController.updateChannel.value.name,
+                        items: const [
+                          DropdownMenuItem(
+                              value: "stable", child: Text("Stable")),
+                          DropdownMenuItem(
+                              value: "rolling", child: Text("Rolling")),
+                        ],
+                        onChanged: settingsController.changeUpdateChannel,
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.only(left: 5, right: 10),
+                    title: const Text("Report an issue"),
+                    subtitle: Text(
+                      "Send a bug report with app diagnostics.",
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    isThreeLine: true,
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (context) => const IssueReportDialog(),
+                    ).whenComplete(
+                        () => Get.delete<IssueReportDialogController>()),
                   ),
                   const Divider(),
                   SizedBox(

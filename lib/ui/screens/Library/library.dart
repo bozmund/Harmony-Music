@@ -5,6 +5,7 @@ import '/ui/widgets/modification_list.dart';
 import '../../../models/playlist.dart';
 import '../../widgets/piped_sync_widget.dart';
 import 'library_controller.dart';
+import 'library_combined.dart';
 import '../../widgets/content_list_widget_item.dart';
 import '../../widgets/list_widget.dart';
 import '../../widgets/sort_widget.dart';
@@ -279,6 +280,92 @@ class LibraryArtistWidget extends StatelessWidget {
                   "noBookmarks".tr,
                   style: Theme.of(context).textTheme.titleMedium,
                 ))))
+        ],
+      ),
+    );
+  }
+}
+
+class LibrarySearchWidget extends StatelessWidget {
+  const LibrarySearchWidget({super.key, this.isBottomNavActive = false});
+  final bool isBottomNavActive;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.put(LibrarySearchesController());
+    final topPadding = context.isLandscape ? 50.0 : 90.0;
+    return Padding(
+      padding: isBottomNavActive
+          ? const EdgeInsets.only(left: 15)
+          : EdgeInsets.only(left: 5, top: topPadding),
+      child: Column(
+        children: [
+          isBottomNavActive
+              ? const SizedBox(
+                  height: 10,
+                )
+              : Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "searches".tr,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+          Expanded(
+            child: Obx(() => controller.savedSearches.isNotEmpty
+                ? ListView.builder(
+                    itemCount: controller.savedSearches.length,
+                    itemBuilder: (context, index) {
+                      final query = controller.savedSearches[index];
+                      return ListTile(
+                        leading: const Icon(Icons.history),
+                        title: Text(query),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => controller.deleteSearch(query),
+                        ),
+                        onTap: () {
+                          // Find CombinedLibraryController to switch tabs
+                          final combinedLibController =
+                              Get.find<CombinedLibraryController>();
+
+                          // All saved searches apply to the Songs tab
+                          int targetTab = 0;
+
+                          combinedLibController.tabController
+                              .animateTo(targetTab);
+
+                          // Apply search to the Songs controller
+                          Future.delayed(const Duration(milliseconds: 300), () {
+                            const tag = "LibSongSort";
+                            final targetController =
+                                Get.find<LibrarySongsController>();
+                            if (!Get.isRegistered<SortWidgetController>(
+                                tag: tag)) {
+                              return;
+                            }
+
+                            final sortWidgetController =
+                                Get.find<SortWidgetController>(tag: tag);
+                            if (!sortWidgetController
+                                .isSearchingEnabled.value) {
+                              targetController.onSearchStart(tag);
+                              sortWidgetController.toggleSearch();
+                            }
+                            sortWidgetController.textEditingController.text =
+                                query;
+                            targetController.onSearch(query, tag);
+                          });
+                        },
+                      );
+                    },
+                  )
+                : Center(
+                    child: Text(
+                    "noSavedSearches".tr,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ))),
+          )
         ],
       ),
     );

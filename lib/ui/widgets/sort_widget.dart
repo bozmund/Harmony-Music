@@ -147,6 +147,7 @@ class SortWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(SortWidgetController(), tag: tag);
+    final canSaveLibrarySearch = tag == "LibSongSort";
     return Padding(
       padding: const EdgeInsets.only(top: 10.0),
       child: SizedBox(
@@ -176,8 +177,7 @@ class SortWidget extends StatelessWidget {
                     ),
                     Obx(
                       () => _customIconButton(
-                        isSelected:
-                            controller.sortType.value == SortType.Name,
+                        isSelected: controller.sortType.value == SortType.Name,
                         icon: Icons.sort_by_alpha,
                         tooltip: "sortByName".tr,
                         onPressed: () {
@@ -251,12 +251,11 @@ class SortWidget extends StatelessWidget {
                                     screenController: screenController,
                                     controller: controller,
                                   ));
-                
+
                           controller.setActiveMode(mode);
                           startAdditionalOperation!(controller, mode);
                         },
-                        itemBuilder: (BuildContext context) =>
-                            <PopupMenuEntry>[
+                        itemBuilder: (BuildContext context) => <PopupMenuEntry>[
                           if (isPlaylistRearrageFeatureRequired)
                             PopupMenuItem(
                               value: OperationMode.arrange,
@@ -302,17 +301,45 @@ class SortWidget extends StatelessWidget {
                         contentPadding: const EdgeInsets.all(8),
                         filled: true,
                         border: const OutlineInputBorder(),
-                        hintText: "search".tr,
+                        hintText: tag.startsWith("Lib")
+                            ? "searchHint".tr
+                            : "search".tr,
                         suffixIconColor:
                             Theme.of(context).colorScheme.secondary,
-                        suffixIcon: IconButton(
-                          splashRadius: 10,
-                          iconSize: 20,
-                          icon: const Icon(Icons.cancel),
-                          onPressed: () {
-                            controller.toggleSearch();
-                            onSearchClose!(tag);
-                          },
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (canSaveLibrarySearch)
+                              IconButton(
+                                splashRadius: 10,
+                                iconSize: 20,
+                                icon: const Icon(Icons.save),
+                                onPressed: () {
+                                  final query = controller
+                                      .textEditingController.text
+                                      .trim();
+                                  if (query.isEmpty) return;
+                                  final isSearchControllerRegistered =
+                                      Get.isRegistered<
+                                          LibrarySearchesController>();
+                                  if (!isSearchControllerRegistered) {
+                                    Get.put(LibrarySearchesController());
+                                  }
+                                  Get.find<LibrarySearchesController>()
+                                      .saveSearch(query);
+                                  Get.snackbar("searchSaved".tr, query);
+                                },
+                              ),
+                            IconButton(
+                              splashRadius: 10,
+                              iconSize: 20,
+                              icon: const Icon(Icons.cancel),
+                              onPressed: () {
+                                onSearchClose!(tag);
+                                controller.toggleSearch();
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -388,5 +415,11 @@ class SortWidgetController extends GetxController {
 
   void toggleSearch() {
     isSearchingEnabled.value = !isSearchingEnabled.value;
+  }
+
+  @override
+  void onClose() {
+    textEditingController.dispose();
+    super.onClose();
   }
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 class ScrollToHideWidget extends StatelessWidget {
   const ScrollToHideWidget(
@@ -7,11 +6,14 @@ class ScrollToHideWidget extends StatelessWidget {
   final Widget child;
   final bool isVisible;
 
+  static double visibleHeight(BuildContext context) =>
+      80.0 + MediaQuery.of(context).viewPadding.bottom;
+
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      height: isVisible ? 80.0 + Get.mediaQuery.viewPadding.bottom : 0.0,
+      height: isVisible ? visibleHeight(context) : 0.0,
       child: child,
     );
   }

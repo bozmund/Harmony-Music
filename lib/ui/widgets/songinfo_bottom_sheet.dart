@@ -2,10 +2,10 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
-import 'package:ionicons/ionicons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../services/constant.dart';
 import '../../services/downloader.dart';
 import '../screens/Playlist/playlist_screen_controller.dart';
 import '../screens/Settings/settings_screen_controller.dart';
@@ -24,11 +24,13 @@ import 'image_widget.dart';
 import 'song_info_dialog.dart';
 
 class SongInfoBottomSheet extends StatelessWidget {
-  const SongInfoBottomSheet(this.song,
-      {super.key,
-      this.playlist,
-      this.calledFromPlayer = false,
-      this.calledFromQueue = false});
+  const SongInfoBottomSheet(
+    this.song, {
+    super.key,
+    this.playlist,
+    this.calledFromPlayer = false,
+    this.calledFromQueue = false,
+  });
   final MediaItem song;
   final Playlist? playlist;
   final bool calledFromPlayer;
@@ -36,8 +38,9 @@ class SongInfoBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final songInfoController =
-        Get.put(SongInfoController(song, calledFromPlayer));
+    final songInfoController = Get.put(
+      SongInfoController(song, calledFromPlayer),
+    );
     final playerController = Get.find<PlayerController>();
     return Padding(
       padding: EdgeInsets.only(bottom: Get.mediaQuery.padding.bottom),
@@ -46,16 +49,14 @@ class SongInfoBottomSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              contentPadding:
-                  const EdgeInsets.only(left: 15, top: 7, right: 10, bottom: 0),
-              leading: ImageWidget(
-                song: song,
-                size: 50,
+              contentPadding: const EdgeInsets.only(
+                left: 15,
+                top: 7,
+                right: 10,
+                bottom: 0,
               ),
-              title: Text(
-                song.title,
-                maxLines: 1,
-              ),
+              leading: ImageWidget(song: song, size: 50),
+              title: Text(song.title, maxLines: 1),
               subtitle: Text(song.artist!),
               trailing: SizedBox(
                 width: 110,
@@ -65,34 +66,35 @@ class SongInfoBottomSheet extends StatelessWidget {
                     calledFromPlayer
                         ? IconButton(
                             onPressed: () => showDialog(
-                                  context: context,
-                                  builder: (context) => SongInfoDialog(
-                                    song: song,
-                                  ),
-                                ),
+                              context: context,
+                              builder: (context) => SongInfoDialog(song: song),
+                            ),
                             icon: Icon(
                               Icons.info,
-                              color: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium!
-                                  .color,
-                            ))
+                              color: Theme.of(
+                                context,
+                              ).textTheme.titleMedium!.color,
+                            ),
+                          )
                         : IconButton(
                             onPressed: songInfoController.toggleFav,
-                            icon: Obx(() => Icon(
-                                  songInfoController.isCurrentSongFav.isFalse
-                                      ? Icons.favorite_border
-                                      : Icons.favorite,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium!
-                                      .color,
-                                ))),
+                            icon: Obx(
+                              () => Icon(
+                                songInfoController.isCurrentSongFav.isFalse
+                                    ? Icons.favorite_border
+                                    : Icons.favorite,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.titleMedium!.color,
+                              ),
+                            ),
+                          ),
                     SongDownloadButton(
                       song_: song,
+                      showDebugStatus: false,
                       isDownloadingDoneCallback:
                           songInfoController.setDownloadStatus,
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -116,9 +118,13 @@ class SongInfoBottomSheet extends StatelessWidget {
                     onTap: () {
                       Navigator.of(context).pop();
                       playerController.playNext(song);
-                      ScaffoldMessenger.of(context).showSnackBar(snackbar(
-                          context, "${"playnextMsg".tr} ${song.title}",
-                          size: SanckBarSize.BIG));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        snackbar(
+                          context,
+                          "${"playnextMsg".tr} ${song.title}",
+                          size: SanckBarSize.BIG,
+                        ),
+                      );
                     },
                   ),
             ListTile(
@@ -142,9 +148,13 @@ class SongInfoBottomSheet extends StatelessWidget {
                     onTap: () {
                       playerController.enqueueSong(song).whenComplete(() {
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(snackbar(
-                            context, "songEnqueueAlert".tr,
-                            size: SanckBarSize.MEDIUM));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          snackbar(
+                            context,
+                            "songEnqueueAlert".tr,
+                            size: SanckBarSize.MEDIUM,
+                          ),
+                        );
                       });
                       Navigator.of(context).pop();
                     },
@@ -162,9 +172,11 @@ class SongInfoBottomSheet extends StatelessWidget {
                       if (calledFromQueue) {
                         playerController.playerPanelController.close();
                       }
-                      Get.toNamed(ScreenNavigationSetup.albumScreen,
-                          id: ScreenNavigationSetup.id,
-                          arguments: (null, song.extras!['album']['id']));
+                      Get.toNamed(
+                        ScreenNavigationSetup.albumScreen,
+                        id: ScreenNavigationSetup.id,
+                        arguments: (null, song.extras!['album']['id']),
+                      );
                     },
                   )
                 : const SizedBox.shrink(),
@@ -183,10 +195,16 @@ class SongInfoBottomSheet extends StatelessWidget {
                       Navigator.of(context).pop();
                       songInfoController
                           .removeSongFromPlaylist(song, playlist!)
-                          .whenComplete(() => ScaffoldMessenger.of(Get.context!)
-                              .showSnackBar(snackbar(Get.context!,
-                                  "Removed from ${playlist!.title}",
-                                  size: SanckBarSize.MEDIUM)));
+                          .whenComplete(
+                            () =>
+                                ScaffoldMessenger.of(Get.context!).showSnackBar(
+                                  snackbar(
+                                    Get.context!,
+                                    "Removed from ${playlist!.title}",
+                                    size: SanckBarSize.MEDIUM,
+                                  ),
+                                ),
+                          );
                     },
                   )
                 : const SizedBox.shrink(),
@@ -198,21 +216,31 @@ class SongInfoBottomSheet extends StatelessWidget {
                     onTap: () {
                       Navigator.of(context).pop();
                       if (playerController.currentSong.value!.id == song.id) {
-                        ScaffoldMessenger.of(context).showSnackBar(snackbar(
-                            context, "songRemovedfromQueueCurrSong".tr,
-                            size: SanckBarSize.BIG));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          snackbar(
+                            context,
+                            "songRemovedfromQueueCurrSong".tr,
+                            size: SanckBarSize.BIG,
+                          ),
+                        );
                       } else {
                         playerController.removeFromQueue(song);
-                        ScaffoldMessenger.of(context).showSnackBar(snackbar(
-                            context, "songRemovedfromQueue".tr,
-                            size: SanckBarSize.MEDIUM));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          snackbar(
+                            context,
+                            "songRemovedfromQueue".tr,
+                            size: SanckBarSize.MEDIUM,
+                          ),
+                        );
                       }
-                    })
+                    },
+                  )
                 : const SizedBox.shrink(),
             Obx(
-              () => (songInfoController.isDownloaded.isTrue &&
-                      (playlist?.playlistId != "SongDownloads" &&
-                          playlist?.playlistId != "SongsCache"))
+              () =>
+                  (songInfoController.isDownloaded.isTrue &&
+                      (playlist?.playlistId != BoxNames.songDownloads &&
+                          playlist?.playlistId != BoxNames.songsCache))
                   ? ListTile(
                       contentPadding: const EdgeInsets.only(left: 15),
                       visualDensity: const VisualDensity(vertical: -1),
@@ -220,27 +248,33 @@ class SongInfoBottomSheet extends StatelessWidget {
                       title: Text("deleteDownloadData".tr),
                       onTap: () {
                         Navigator.of(context).pop();
-                        final box = Hive.box("SongDownloads");
+                        final box = Hive.box(BoxNames.songDownloads);
                         Get.find<LibrarySongsController>()
-                            .removeSong(song, true,
-                                url: box.get(song.id)['url'])
+                            .removeSong(
+                              song,
+                              true,
+                              url: box.get(song.id)['url'],
+                            )
                             .then((value) async {
-                          box.delete(song.id).then((value) {
-                            if (playlist != null) {
-                              Get.find<PlaylistScreenController>(
-                                      tag: Key(playlist!.playlistId)
-                                          .hashCode
-                                          .toString())
-                                  .checkDownloadStatus();
-                            }
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  snackbar(
-                                      context, "deleteDownloadedDataAlert".tr,
-                                      size: SanckBarSize.BIG));
-                            }
-                          });
-                        });
+                              box.delete(song.id).then((value) {
+                                if (playlist != null) {
+                                  Get.find<PlaylistScreenController>(
+                                    tag: Key(
+                                      playlist!.playlistId,
+                                    ).hashCode.toString(),
+                                  ).checkDownloadStatus();
+                                }
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    snackbar(
+                                      context,
+                                      "deleteDownloadedDataAlert".tr,
+                                      size: SanckBarSize.BIG,
+                                    ),
+                                  );
+                                }
+                              });
+                            });
                       },
                     )
                   : const SizedBox.shrink(),
@@ -256,19 +290,23 @@ class SongInfoBottomSheet extends StatelessWidget {
                     IconButton(
                       splashRadius: 10,
                       onPressed: () {
-                        launchUrl(Uri.parse(
-                            "https://youtube.com/watch?v=${song.id}"));
+                        launchUrl(
+                          Uri.parse("https://youtube.com/watch?v=${song.id}"),
+                        );
                       },
-                      icon: const Icon(Ionicons.logo_youtube),
+                      icon: const Icon(Icons.smart_display),
                     ),
                     IconButton(
                       splashRadius: 10,
                       onPressed: () {
-                        launchUrl(Uri.parse(
-                            "https://music.youtube.com/watch?v=${song.id}"));
+                        launchUrl(
+                          Uri.parse(
+                            "https://music.youtube.com/watch?v=${song.id}",
+                          ),
+                        );
                       },
-                      icon: const Icon(Ionicons.play_circle),
-                    )
+                      icon: const Icon(Icons.play_circle),
+                    ),
                   ],
                 ),
               ),
@@ -284,8 +322,9 @@ class SongInfoBottomSheet extends StatelessWidget {
                   showModalBottomSheet(
                     constraints: const BoxConstraints(maxWidth: 500),
                     shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(10.0)),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(10.0),
+                      ),
                     ),
                     isScrollControlled: true,
                     context:
@@ -300,8 +339,9 @@ class SongInfoBottomSheet extends StatelessWidget {
               visualDensity: const VisualDensity(vertical: -1),
               leading: const Icon(Icons.share),
               title: Text("shareSong".tr),
-              onTap: () =>
-                  Share.share("https://youtube.com/watch?v=${song.id}"),
+              onTap: () => SharePlus.instance.share(
+                ShareParams(text: "https://youtube.com/watch?v=${song.id}"),
+              ),
             ),
           ],
         ),
@@ -319,28 +359,31 @@ class SongInfoBottomSheet extends StatelessWidget {
     }
     return artistList.isNotEmpty
         ? artistList
-            .map((e) => ListTile(
+              .map(
+                (e) => ListTile(
                   onTap: () async {
                     Navigator.of(context).pop();
                     if (calledFromPlayer) {
-                      Get.find<PlayerController>()
-                          .playerPanelController
+                      Get.find<PlayerController>().playerPanelController
                           .close();
                     }
                     if (calledFromQueue) {
                       final playerController = Get.find<PlayerController>();
                       playerController.playerPanelController.close();
                     }
-                    await Get.toNamed(ScreenNavigationSetup.artistScreen,
-                        id: ScreenNavigationSetup.id,
-                        preventDuplicates: true,
-                        arguments: [true, e['id']]);
+                    await Get.toNamed(
+                      ScreenNavigationSetup.artistScreen,
+                      id: ScreenNavigationSetup.id,
+                      preventDuplicates: true,
+                      arguments: [true, e['id']],
+                    );
                   },
                   tileColor: Colors.transparent,
                   leading: const Icon(Icons.person),
                   title: Text("${"viewArtist".tr} (${e['name']})"),
-                ))
-            .toList()
+                ),
+              )
+              .toList()
         : [const SizedBox.shrink()];
   }
 }
@@ -356,9 +399,10 @@ class SongInfoController extends GetxController
     _setInitStatus(song);
   }
   _setInitStatus(MediaItem song) async {
-    isDownloaded.value = Hive.box("SongDownloads").containsKey(song.id);
-    isCurrentSongFav.value =
-        (await Hive.openBox("LIBFAV")).containsKey(song.id);
+    isDownloaded.value = Hive.box(BoxNames.songDownloads).containsKey(song.id);
+    isCurrentSongFav.value = (await Hive.openBox(
+      BoxNames.libFav,
+    )).containsKey(song.id);
     final artists = song.extras!['artists'];
     if (artists != null) {
       for (dynamic each in artists) {
@@ -369,8 +413,10 @@ class SongInfoController extends GetxController
 
   void setDownloadStatus(bool isDownloaded_) {
     if (isDownloaded_) {
-      Future.delayed(const Duration(milliseconds: 100),
-          () => isDownloaded.value = isDownloaded_);
+      Future.delayed(
+        const Duration(milliseconds: 100),
+        () => isDownloaded.value = isDownloaded_,
+      );
     }
   }
 
@@ -383,10 +429,30 @@ class SongInfoController extends GetxController
         return;
       }
     }
-    final box = await Hive.openBox("LIBFAV");
+    final box = await Hive.openBox(BoxNames.libFav);
     isCurrentSongFav.isFalse
         ? box.put(song.id, MediaItemBuilder.toJson(song))
         : box.delete(song.id);
+    try {
+      final likedNotDownloadedController = Get.find<PlaylistScreenController>(
+        tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
+      );
+      if (isCurrentSongFav.isFalse &&
+          !Hive.box(BoxNames.songDownloads).containsKey(song.id)) {
+        likedNotDownloadedController.addNRemoveItemsinList(
+          song,
+          action: 'add',
+          index: 0,
+        );
+      } else {
+        likedNotDownloadedController.addNRemoveItemsinList(
+          song,
+          action: 'remove',
+        );
+      }
+    } catch (e) {
+      printERROR(e, tag: LogTags.library);
+    }
     isCurrentSongFav.value = !isCurrentSongFav.value;
     if (Get.find<SettingsScreenController>()
             .autoDownloadFavoriteSongEnabled
@@ -399,37 +465,69 @@ class SongInfoController extends GetxController
 
 mixin RemoveSongFromPlaylistMixin {
   Future<void> removeSongFromPlaylist(MediaItem item, Playlist playlist) async {
+    if (playlist.playlistId == BoxNames.libFavNotDownloaded) {
+      final box = await Hive.openBox(BoxNames.libFav);
+      await box.delete(item.id);
+      try {
+        Get.find<PlaylistScreenController>(
+          tag: Key(playlist.playlistId).hashCode.toString(),
+        ).addNRemoveItemsinList(item, action: 'remove');
+      } catch (e) {
+        printERROR(e, tag: LogTags.library);
+      }
+      return;
+    }
+    if (playlist.playlistId == BoxNames.libImportDuplicates ||
+        playlist.playlistId == BoxNames.libImportReview) {
+      final box = await Hive.openBox(playlist.playlistId);
+      await box.delete(item.id);
+      await box.close();
+      try {
+        Get.find<PlaylistScreenController>(
+          tag: Key(playlist.playlistId).hashCode.toString(),
+        ).addNRemoveItemsinList(item, action: 'remove');
+      } catch (e) {
+        printERROR(e, tag: LogTags.library);
+      }
+      return;
+    }
+
     final box = await Hive.openBox(playlist.playlistId);
     //Library songs case
-    if (playlist.playlistId == "SongsCache") {
+    if (playlist.playlistId == BoxNames.songsCache) {
       if (!box.containsKey(item.id)) {
-        Hive.box("SongDownloads").delete(item.id);
+        Hive.box(BoxNames.songDownloads).delete(item.id);
         Get.find<LibrarySongsController>().removeSong(item, true);
       } else {
         Get.find<LibrarySongsController>().removeSong(item, false);
         box.delete(item.id);
       }
-    } else if (playlist.playlistId == "SongDownloads") {
+    } else if (playlist.playlistId == BoxNames.songDownloads) {
       box.delete(item.id);
       Get.find<LibrarySongsController>().removeSong(item, true);
     } else if (!playlist.isPipedPlaylist) {
       //Other playlist song case
-      final index =
-          box.values.toList().indexWhere((ele) => ele['videoId'] == item.id);
+      final index = box.values.toList().indexWhere(
+        (ele) => ele['videoId'] == item.id,
+      );
       await box.deleteAt(index);
     }
 
     // this try catch block is to handle the case when song is removed from libsongs sections
     try {
       final plstCntroller = Get.find<PlaylistScreenController>(
-          tag: Key(playlist.playlistId).hashCode.toString());
+        tag: Key(playlist.playlistId).hashCode.toString(),
+      );
       if (playlist.isPipedPlaylist) {
-        final res = await Get.find<PipedServices>()
-            .getPlaylistSongs(playlist.playlistId);
+        final res = await Get.find<PipedServices>().getPlaylistSongs(
+          playlist.playlistId,
+        );
         final songIndex = res.indexWhere((element) => element.id == item.id);
         if (songIndex != -1) {
-          final res = await Get.find<PipedServices>()
-              .removeFromPlaylist(playlist.playlistId, songIndex);
+          final res = await Get.find<PipedServices>().removeFromPlaylist(
+            playlist.playlistId,
+            songIndex,
+          );
           if (res.code == 1) {
             plstCntroller.addNRemoveItemsinList(item, action: 'remove');
           }
@@ -439,14 +537,15 @@ mixin RemoveSongFromPlaylistMixin {
 
       try {
         plstCntroller.addNRemoveItemsinList(item, action: 'remove');
-        // ignore: empty_catches
-      } catch (e) {}
+      } catch (e) {
+        printERROR(e, tag: LogTags.library);
+      }
     } catch (e) {
       printERROR("Some Error in removeSongFromPlaylist (might irrelavant): $e");
     }
 
-    if (playlist.playlistId == "SongDownloads" ||
-        playlist.playlistId == "SongsCache") {
+    if (playlist.playlistId == BoxNames.songDownloads ||
+        playlist.playlistId == BoxNames.songsCache) {
       return;
     }
     box.close();

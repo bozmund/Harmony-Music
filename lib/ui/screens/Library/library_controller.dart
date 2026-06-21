@@ -8,11 +8,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 
+import '/utils/search_filter.dart';
+import '/services/constant.dart';
 import '../../../utils/house_keeping.dart';
 import '../../widgets/add_to_playlist.dart';
 import '/ui/widgets/sort_widget.dart';
 import '../Settings/settings_screen_controller.dart';
+import '/services/music_service.dart';
 import '/services/piped_service.dart';
+import '/services/utils.dart';
 import '../../../utils/helper.dart';
 import '/models/album.dart';
 import '/models/artist.dart';
@@ -55,7 +59,7 @@ class LibrarySongsController extends GetxController {
       //printINFO("all files: $downloadedFiles \n $songsList");
     }
 
-    final box = Hive.box("SongsCache");
+    final box = Hive.box(BoxNames.songsCache);
     for (var element in box.keys) {
       if (!songsList.contains(element)) {
         box.delete(element);
@@ -67,7 +71,7 @@ class LibrarySongsController extends GetxController {
         .whereType<MediaItem>()
         .toList();
 
-    librarySongsList.addAll(Hive.box("SongDownloads")
+    librarySongsList.addAll(Hive.box(BoxNames.songDownloads)
         .values
         .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
         .whereType<MediaItem>()
@@ -89,15 +93,22 @@ class LibrarySongsController extends GetxController {
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where((element) =>
-            element.title.toLowerCase().contains(value.toLowerCase()))
-        .toList();
-    librarySongsList.value = songlist;
+    librarySongsList.value = tempListContainer.where((song) {
+      return SearchFilter.matches(
+          {'title': song.title, 'artist': song.artist}, value);
+    }).toList();
   }
 
   void onSearchClose(String? tag) {
     librarySongsList.value = tempListContainer.toList();
+    // Clear search bar text when closing
+    final sortWidgetController =
+        Get.isRegistered<SortWidgetController>(tag: tag)
+            ? Get.find<SortWidgetController>(tag: tag)
+            : null;
+    sortWidgetController?.textEditingController.clear();
+    // onSearch is called with empty string via widget logic indirectly,
+    // but here we ensure internal state is clean
     tempListContainer.clear();
   }
 
@@ -174,8 +185,8 @@ class LibrarySongsController extends GetxController {
   }
 
   Future<void> deleteMultipleSongs(List<MediaItem> songs) async {
-    final downloadsBox = await Hive.openBox("SongDownloads");
-    final cacheBox = await Hive.openBox("SongsCache");
+    final downloadsBox = await Hive.openBox(BoxNames.songDownloads);
+    final cacheBox = await Hive.openBox(BoxNames.songsCache);
     for (MediaItem element in songs) {
       if (downloadsBox.containsKey(element.id)) {
         await downloadsBox.delete(element.id);
@@ -207,6 +218,90 @@ class LibrarySongsController extends GetxController {
   }
 }
 
+class YouTubePlaylistImportResult {
+  const YouTubePlaylistImportResult({
+    required this.playlist,
+    required this.importedSongCount,
+    required this.conflictAddedCount,
+  });
+
+  final Playlist playlist;
+  final int importedSongCount;
+  final int conflictAddedCount;
+}
+
+class YouTubePlaylistImportException implements Exception {
+  const YouTubePlaylistImportException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class SpotifyImportTrack {
+  const SpotifyImportTrack({
+    required this.trackName,
+    required this.artistName,
+    this.albumName,
+    this.trackUri,
+  });
+
+  final String trackName;
+  final String artistName;
+  final String? albumName;
+  final String? trackUri;
+
+  String get query => "$trackName $artistName";
+}
+
+class SpotifyImportPlaylist {
+  const SpotifyImportPlaylist({
+    required this.name,
+    required this.tracks,
+    this.description,
+  });
+
+  final String name;
+  final String? description;
+  final List<SpotifyImportTrack> tracks;
+}
+
+class SpotifyPlaylistImportResult {
+  const SpotifyPlaylistImportResult({
+    required this.playlistsImported,
+    required this.importedSongCount,
+    required this.conflictAddedCount,
+    required this.reviewAddedCount,
+    required this.skippedTrackCount,
+  });
+
+  final int playlistsImported;
+  final int importedSongCount;
+  final int conflictAddedCount;
+  final int reviewAddedCount;
+  final int skippedTrackCount;
+}
+
+class SpotifyPlaylistImportException implements Exception {
+  const SpotifyPlaylistImportException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class _SpotifyTrackMatch {
+  const _SpotifyTrackMatch({
+    required this.song,
+    required this.isConfident,
+  });
+
+  final MediaItem song;
+  final bool isConfident;
+}
+
 class LibraryPlaylistsController extends GetxController
     with GetTickerProviderStateMixin {
   late AnimationController controller;
@@ -215,22 +310,37 @@ class LibraryPlaylistsController extends GetxController
   static final initPlst = [
     Playlist(
         title: "recentlyPlayed".tr,
-        playlistId: "LIBRP",
+        playlistId: BoxNames.libRP,
         thumbnailUrl: Playlist.thumbPlaceholderUrl,
         isCloudPlaylist: false),
     Playlist(
         title: "favorites".tr,
-        playlistId: "LIBFAV",
+        playlistId: BoxNames.libFav,
+        thumbnailUrl: Playlist.thumbPlaceholderUrl,
+        isCloudPlaylist: false),
+    Playlist(
+        title: "Liked not downloaded",
+        playlistId: BoxNames.libFavNotDownloaded,
+        thumbnailUrl: Playlist.thumbPlaceholderUrl,
+        isCloudPlaylist: false),
+    Playlist(
+        title: "Import conflicts",
+        playlistId: BoxNames.libImportDuplicates,
+        thumbnailUrl: Playlist.thumbPlaceholderUrl,
+        isCloudPlaylist: false),
+    Playlist(
+        title: "Import needs review",
+        playlistId: BoxNames.libImportReview,
         thumbnailUrl: Playlist.thumbPlaceholderUrl,
         isCloudPlaylist: false),
     Playlist(
         title: "cachedOrOffline".tr,
-        playlistId: "SongsCache",
+        playlistId: BoxNames.songsCache,
         thumbnailUrl: Playlist.thumbPlaceholderUrl,
         isCloudPlaylist: false),
     Playlist(
         title: "downloads".tr,
-        playlistId: "SongDownloads",
+        playlistId: BoxNames.songDownloads,
         thumbnailUrl: Playlist.thumbPlaceholderUrl,
         isCloudPlaylist: false)
   ];
@@ -253,7 +363,7 @@ class LibraryPlaylistsController extends GetxController
   }
 
   void refreshLib() async {
-    final box = await Hive.openBox("LibraryPlaylists");
+    final box = await Hive.openBox(BoxNames.libraryPlaylists);
     libraryPlaylists.value = [
       ...initPlst,
       ...(box.values
@@ -262,9 +372,11 @@ class LibraryPlaylistsController extends GetxController
           .toList())
     ];
 
-    final appPrefsBox = Hive.box("AppPrefs");
-    if (appPrefsBox.containsKey("piped")) {
-      if (appPrefsBox.get("piped")['isLoggedIn']) await syncPipedPlaylist();
+    final appPrefsBox = Hive.box(BoxNames.appPrefs);
+    if (appPrefsBox.containsKey(PrefKeys.piped)) {
+      if (appPrefsBox.get(PrefKeys.piped)['isLoggedIn']) {
+        await syncPipedPlaylist();
+      }
     }
 
     isContentFetched.value = true;
@@ -272,7 +384,7 @@ class LibraryPlaylistsController extends GetxController
   }
 
   void updatePlaylistIntoDb(Playlist playlist) async {
-    final box = await Hive.openBox("LibraryPlaylists");
+    final box = await Hive.openBox(BoxNames.libraryPlaylists);
     box.put(playlist.playlistId, playlist.toJson());
     refreshLib();
   }
@@ -342,7 +454,7 @@ class LibraryPlaylistsController extends GetxController
         if (res.code == 0) return false;
         playlist.newTitle = title;
       } else {
-        final box = await Hive.openBox("LibraryPlaylists");
+        final box = await Hive.openBox(BoxNames.libraryPlaylists);
         title = "${title[0].toUpperCase()}${title.substring(1).toLowerCase()}";
         playlist.newTitle = title;
         box.put(playlist.playlistId, playlist.toJson());
@@ -389,7 +501,7 @@ class LibraryPlaylistsController extends GetxController
                 : Playlist.thumbPlaceholderUrl,
             description: "Library Playlist",
             isCloudPlaylist: false);
-        final box = await Hive.openBox("LibraryPlaylists");
+        final box = await Hive.openBox(BoxNames.libraryPlaylists);
         box.put(newplst.playlistId, newplst.toJson());
         await box.close();
       }
@@ -429,10 +541,331 @@ class LibraryPlaylistsController extends GetxController
 
   void onSort(SortType sortType, bool isAscending) {
     final playlists = libraryPlaylists.toList();
-    playlists.removeRange(0, 4);
+    playlists.removeRange(0, initPlst.length);
     sortPlayLists(playlists, sortType, isAscending);
     playlists.insertAll(0, initPlst);
     libraryPlaylists.value = playlists;
+  }
+
+  Future<YouTubePlaylistImportResult> importPlaylistFromYouTubeMusic(
+    String input, {
+    void Function(String status)? onStatus,
+  }) async {
+    onStatus?.call("Parsing playlist URL");
+    final playlistId = _extractYouTubePlaylistId(input);
+    if (playlistId == null) {
+      throw const YouTubePlaylistImportException("Invalid URL or playlist ID");
+    }
+
+    onStatus?.call("Fetching playlist");
+    late Map<String, dynamic> content;
+    try {
+      content = await Get.find<MusicServices>()
+          .getPlaylistOrAlbumSongs(playlistId: playlistId);
+    } catch (e) {
+      printERROR("YouTube Music playlist import fetch failed: $e");
+      throw const YouTubePlaylistImportException(
+          "Playlist not found, private, or unavailable");
+    }
+
+    final tracks = (content['tracks'] as List?)
+            ?.whereType<MediaItem>()
+            .toList(growable: false) ??
+        const <MediaItem>[];
+    if (tracks.isEmpty) {
+      throw const YouTubePlaylistImportException("No songs found");
+    }
+
+    final rawTitle = (content['title'] as String?)?.trim();
+    final newPlaylist = await _saveLocalImportedPlaylist(
+      title: rawTitle == null || rawTitle.isEmpty
+          ? "Imported YouTube Music playlist"
+          : rawTitle,
+      description: content['description'] ?? "Imported YouTube Music playlist",
+      thumbnailUrl: _thumbnailUrlFromContent(content, tracks),
+      tracks: tracks,
+    );
+
+    onStatus?.call("Checking conflicts");
+    final conflictAddedCount = await _addImportedConflicts(tracks);
+
+    refreshLib();
+    onStatus?.call("Completed");
+    return YouTubePlaylistImportResult(
+      playlist: newPlaylist,
+      importedSongCount: tracks.length,
+      conflictAddedCount: conflictAddedCount,
+    );
+  }
+
+  Future<SpotifyPlaylistImportResult> importSpotifyPlaylists(
+    List<SpotifyImportPlaylist> playlists, {
+    void Function(String status)? onStatus,
+  }) async {
+    if (playlists.isEmpty) {
+      throw const SpotifyPlaylistImportException("No selected playlists");
+    }
+
+    var playlistsImported = 0;
+    var importedSongCount = 0;
+    var conflictAddedCount = 0;
+    var reviewAddedCount = 0;
+    var skippedTrackCount = 0;
+
+    for (final spotifyPlaylist in playlists) {
+      onStatus?.call("Matching ${spotifyPlaylist.name}");
+      final matchedSongs = <MediaItem>[];
+      final reviewSongs = <MediaItem>[];
+
+      for (final track in spotifyPlaylist.tracks) {
+        onStatus?.call("Matching ${track.trackName}");
+        final match = await _matchSpotifyTrack(track);
+        if (match == null) {
+          skippedTrackCount++;
+        } else if (match.isConfident) {
+          matchedSongs.add(match.song);
+        } else {
+          reviewSongs.add(match.song);
+        }
+      }
+
+      reviewAddedCount += await _addImportReviewCandidates(reviewSongs);
+
+      if (matchedSongs.isEmpty) {
+        continue;
+      }
+
+      onStatus?.call("Saving ${spotifyPlaylist.name}");
+      await _saveLocalImportedPlaylist(
+        title: spotifyPlaylist.name,
+        description:
+            spotifyPlaylist.description ?? "Imported Spotify playlist export",
+        thumbnailUrl: _thumbnailUrlFromContent({}, matchedSongs),
+        tracks: matchedSongs,
+      );
+      conflictAddedCount += await _addImportedConflicts(matchedSongs);
+      importedSongCount += matchedSongs.length;
+      playlistsImported++;
+    }
+
+    refreshLib();
+    onStatus?.call("Completed");
+
+    if (playlistsImported == 0 && reviewAddedCount == 0) {
+      throw const SpotifyPlaylistImportException("No songs found");
+    }
+
+    return SpotifyPlaylistImportResult(
+      playlistsImported: playlistsImported,
+      importedSongCount: importedSongCount,
+      conflictAddedCount: conflictAddedCount,
+      reviewAddedCount: reviewAddedCount,
+      skippedTrackCount: skippedTrackCount,
+    );
+  }
+
+  Future<_SpotifyTrackMatch?> _matchSpotifyTrack(
+      SpotifyImportTrack track) async {
+    final results = await Get.find<MusicServices>()
+        .search(track.query, filter: 'songs', limit: 5);
+    final candidates = _songsFromSearchResults(results);
+    if (candidates.isEmpty) return null;
+
+    for (final candidate in candidates) {
+      if (_isConfidentSpotifyMatch(track, candidate)) {
+        return _SpotifyTrackMatch(song: candidate, isConfident: true);
+      }
+    }
+
+    return _SpotifyTrackMatch(song: candidates.first, isConfident: false);
+  }
+
+  List<MediaItem> _songsFromSearchResults(Map<String, dynamic> results) {
+    final songs = <MediaItem>[];
+    for (final entry in results.entries) {
+      final value = entry.value;
+      if (value is! List) continue;
+      for (final item in value) {
+        if (item is MediaItem) songs.add(item);
+      }
+    }
+    return songs;
+  }
+
+  bool _isConfidentSpotifyMatch(SpotifyImportTrack track, MediaItem song) {
+    final spotifyTitle = _normalizeImportText(track.trackName);
+    final candidateTitle = _normalizeImportText(song.title);
+    final candidateArtist = _normalizeImportText(song.artist ?? "");
+
+    final titleMatches = candidateTitle == spotifyTitle ||
+        candidateTitle.contains(spotifyTitle) ||
+        spotifyTitle.contains(candidateTitle);
+    if (!titleMatches) return false;
+
+    final spotifyArtists = track.artistName
+        .split(RegExp(r'\s+(?:and|x|with|feat|ft)\s+|,\s*|&',
+            caseSensitive: false))
+        .map(_normalizeImportText)
+        .map((artist) => artist.trim())
+        .where((artist) => artist.isNotEmpty)
+        .toList();
+    if (spotifyArtists.isEmpty) return false;
+
+    return spotifyArtists.any((artist) => candidateArtist.contains(artist));
+  }
+
+  String _normalizeImportText(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'\([^)]*\)|\[[^\]]*\]'), ' ')
+        .replaceAll(
+            RegExp(r'\b(feat|ft|with|official|audio|video|lyrics?)\b'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  Future<Playlist> _saveLocalImportedPlaylist({
+    required String title,
+    required String description,
+    required String thumbnailUrl,
+    required List<MediaItem> tracks,
+  }) async {
+    final libraryBoxWasOpen = Hive.isBoxOpen(BoxNames.libraryPlaylists);
+    final libraryBox = libraryBoxWasOpen
+        ? Hive.box(BoxNames.libraryPlaylists)
+        : await Hive.openBox(BoxNames.libraryPlaylists);
+
+    final existingTitles = [
+      ...initPlst.map((playlist) => playlist.title),
+      ...libraryBox.values
+          .map<Playlist?>((item) => Playlist.fromJson(item))
+          .whereType<Playlist>()
+          .map((playlist) => playlist.title),
+    ];
+
+    var newPlaylistId = "LIB${DateTime.now().microsecondsSinceEpoch}";
+    while (libraryBox.containsKey(newPlaylistId)) {
+      newPlaylistId = "LIB${DateTime.now().microsecondsSinceEpoch}";
+    }
+    final newPlaylist = Playlist(
+      title: _uniqueImportedPlaylistTitle(title, existingTitles),
+      playlistId: newPlaylistId,
+      thumbnailUrl: thumbnailUrl,
+      description: description,
+      songCount: tracks.length.toString(),
+      isCloudPlaylist: false,
+    );
+
+    await libraryBox.put(newPlaylistId, newPlaylist.toJson());
+    final songsBox = await Hive.openBox(newPlaylistId);
+    await songsBox.clear();
+    for (int i = 0; i < tracks.length; i++) {
+      await songsBox.put(i, MediaItemBuilder.toJson(tracks[i]));
+    }
+    await songsBox.close();
+
+    if (!libraryBoxWasOpen) await libraryBox.close();
+    return newPlaylist;
+  }
+
+  Future<int> _addImportedConflicts(List<MediaItem> tracks) async {
+    final favBoxWasOpen = Hive.isBoxOpen(BoxNames.libFav);
+    final downloadsBoxWasOpen = Hive.isBoxOpen(BoxNames.songDownloads);
+    final conflictsBoxWasOpen = Hive.isBoxOpen(BoxNames.libImportDuplicates);
+    final favBox = favBoxWasOpen
+        ? Hive.box(BoxNames.libFav)
+        : await Hive.openBox(BoxNames.libFav);
+    final downloadsBox = downloadsBoxWasOpen
+        ? Hive.box(BoxNames.songDownloads)
+        : await Hive.openBox(BoxNames.songDownloads);
+    final conflictsBox = conflictsBoxWasOpen
+        ? Hive.box(BoxNames.libImportDuplicates)
+        : await Hive.openBox(BoxNames.libImportDuplicates);
+
+    var conflictAddedCount = 0;
+    for (final song in tracks) {
+      final alreadyKnown =
+          favBox.containsKey(song.id) || downloadsBox.containsKey(song.id);
+      if (alreadyKnown && !conflictsBox.containsKey(song.id)) {
+        await conflictsBox.put(song.id, MediaItemBuilder.toJson(song));
+        conflictAddedCount++;
+      }
+    }
+
+    if (!conflictsBoxWasOpen) await conflictsBox.close();
+    if (!downloadsBoxWasOpen) await downloadsBox.close();
+    if (!favBoxWasOpen) await favBox.close();
+    return conflictAddedCount;
+  }
+
+  Future<int> _addImportReviewCandidates(List<MediaItem> tracks) async {
+    final reviewBoxWasOpen = Hive.isBoxOpen(BoxNames.libImportReview);
+    final reviewBox = reviewBoxWasOpen
+        ? Hive.box(BoxNames.libImportReview)
+        : await Hive.openBox(BoxNames.libImportReview);
+
+    var reviewAddedCount = 0;
+    for (final song in tracks) {
+      if (!reviewBox.containsKey(song.id)) {
+        await reviewBox.put(song.id, MediaItemBuilder.toJson(song));
+        reviewAddedCount++;
+      }
+    }
+
+    if (!reviewBoxWasOpen) await reviewBox.close();
+    return reviewAddedCount;
+  }
+
+  String? _extractYouTubePlaylistId(String input) {
+    final value = input.trim();
+    if (value.isEmpty) return null;
+
+    final uri = Uri.tryParse(value);
+    final listParam = uri?.queryParameters['list'];
+    if (listParam != null && listParam.trim().isNotEmpty) {
+      return validatePlaylistId(listParam.trim());
+    }
+
+    final match = RegExp(r'(?:^|[?&])list=([^&#\s]+)').firstMatch(value);
+    if (match != null) return validatePlaylistId(match.group(1)!.trim());
+
+    if (value.contains('/') || value.contains('?') || value.contains('&')) {
+      return null;
+    }
+
+    if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value)) return null;
+    return validatePlaylistId(value);
+  }
+
+  String _uniqueImportedPlaylistTitle(String baseTitle, List<String> titles) {
+    final existing = titles.map((title) => title.toLowerCase()).toSet();
+    if (!existing.contains(baseTitle.toLowerCase())) return baseTitle;
+
+    var suffix = 2;
+    var candidate = "$baseTitle (Imported)";
+    while (existing.contains(candidate.toLowerCase())) {
+      candidate = "$baseTitle (Imported $suffix)";
+      suffix++;
+    }
+    return candidate;
+  }
+
+  String _thumbnailUrlFromContent(
+      Map<String, dynamic> content, List<MediaItem> tracks) {
+    final thumbnails = content['thumbnails'];
+    if (thumbnails is List && thumbnails.isNotEmpty) {
+      final first = thumbnails.first;
+      if (first is Map && first['url'] is String) {
+        final url = (first['url'] as String).trim();
+        if (url.isNotEmpty) return url;
+      }
+    }
+    if (tracks.isNotEmpty) {
+      final artUri = tracks.first.artUri?.toString();
+      if (artUri != null && artUri.isNotEmpty) return artUri;
+    }
+    return Playlist.thumbPlaceholderUrl;
   }
 
   void onSearchStart(String? tag) {
@@ -440,15 +873,20 @@ class LibraryPlaylistsController extends GetxController
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where((element) =>
-            element.title.toLowerCase().contains(value.toLowerCase()))
+    libraryPlaylists.value = tempListContainer
+        .where(
+            (element) => SearchFilter.matches({'title': element.title}, value))
         .toList();
-    libraryPlaylists.value = songlist;
   }
 
   void onSearchClose(String? tag) {
     libraryPlaylists.value = tempListContainer.toList();
+    // Clear search bar text when closing
+    final sortWidgetController =
+        Get.isRegistered<SortWidgetController>(tag: tag)
+            ? Get.find<SortWidgetController>(tag: tag)
+            : null;
+    sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
 
@@ -470,7 +908,7 @@ class LibraryPlaylistsController extends GetxController
       }
 
       // Use file_picker to select JSON file
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
         dialogTitle: 'importPlaylist'.tr,
@@ -525,7 +963,7 @@ class LibraryPlaylistsController extends GetxController
       importProgress.value = 0.6;
 
       // Save playlist to database
-      final box = await Hive.openBox("LibraryPlaylists");
+      final box = await Hive.openBox(BoxNames.libraryPlaylists);
       box.put(newPlaylistId, newPlaylist.toJson());
       importProgress.value = 0.7;
 
@@ -642,7 +1080,7 @@ class LibraryAlbumsController extends GetxController {
   }
 
   void refreshLib() async {
-    final box = await Hive.openBox("LibraryAlbums");
+    final box = await Hive.openBox(BoxNames.libraryAlbums);
     libraryAlbums.value = box.values
         .map<Album?>((item) => Album.fromJson(item))
         .whereType<Album>()
@@ -663,15 +1101,20 @@ class LibraryAlbumsController extends GetxController {
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where((element) =>
-            element.title.toLowerCase().contains(value.toLowerCase()))
+    libraryAlbums.value = tempListContainer
+        .where(
+            (element) => SearchFilter.matches({'title': element.title}, value))
         .toList();
-    libraryAlbums.value = songlist;
   }
 
   void onSearchClose(String? tag) {
     libraryAlbums.value = tempListContainer.toList();
+    // Clear search bar text when closing
+    final sortWidgetController =
+        Get.isRegistered<SortWidgetController>(tag: tag)
+            ? Get.find<SortWidgetController>(tag: tag)
+            : null;
+    sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
 }
@@ -688,7 +1131,7 @@ class LibraryArtistsController extends GetxController {
   }
 
   void refreshLib() async {
-    final box = await Hive.openBox("LibraryArtists");
+    final box = await Hive.openBox(BoxNames.libraryArtists);
     libraryArtists.value = box.values
         .map<Artist?>((item) => Artist.fromJson(item))
         .whereType<Artist>()
@@ -708,15 +1151,57 @@ class LibraryArtistsController extends GetxController {
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where((element) =>
-            element.name.toLowerCase().contains(value.toLowerCase()))
+    libraryArtists.value = tempListContainer
+        .where(
+            (element) => SearchFilter.matches({'title': element.name}, value))
         .toList();
-    libraryArtists.value = songlist;
   }
 
   void onSearchClose(String? tag) {
     libraryArtists.value = tempListContainer.toList();
+    // Clear search bar text when closing
+    final sortWidgetController =
+        Get.isRegistered<SortWidgetController>(tag: tag)
+            ? Get.find<SortWidgetController>(tag: tag)
+            : null;
+    sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
+  }
+}
+
+class LibrarySearchesController extends GetxController {
+  final RxList<String> savedSearches = RxList();
+  final isContentFetched = false.obs;
+
+  @override
+  void onInit() {
+    refreshLib();
+    super.onInit();
+  }
+
+  void refreshLib() async {
+    final box = await Hive.openBox(BoxNames.librarySearches);
+    savedSearches.value = box.values.whereType<String>().toList();
+    isContentFetched.value = true;
+    box.close();
+  }
+
+  Future<void> saveSearch(String query) async {
+    if (query.trim().isEmpty || savedSearches.contains(query)) return;
+    final box = await Hive.openBox(BoxNames.librarySearches);
+    await box.add(query);
+    savedSearches.add(query);
+    await box.close();
+  }
+
+  Future<void> deleteSearch(String query) async {
+    final box = await Hive.openBox(BoxNames.librarySearches);
+    final key =
+        box.keys.firstWhere((k) => box.get(k) == query, orElse: () => null);
+    if (key != null) {
+      await box.delete(key);
+      savedSearches.remove(query);
+    }
+    await box.close();
   }
 }

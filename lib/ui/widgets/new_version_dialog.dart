@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../utils/helper.dart';
 import '../screens/Home/home_screen_controller.dart';
 import 'common_dialog_widget.dart';
 
 class NewVersionDialog extends StatelessWidget {
-  const NewVersionDialog({super.key});
+  const NewVersionDialog({super.key, required this.updateInfo});
+  final UpdateInfo updateInfo;
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +31,7 @@ class NewVersionDialog extends StatelessWidget {
                     child: FloatingActionButton(
                       onPressed: () {
                         launchUrl(
-                          Uri.parse(
-                            'https://github.com/anandnet/Harmony-Music/releases/latest',
-                          ),
+                          Uri.parse(updateInfo.downloadUrl),
                           mode: LaunchMode.externalApplication,
                         );
                       },

@@ -10,14 +10,15 @@ class CustSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLightMode =
-        Get.find<ThemeController>().themedata.value!.primaryColor ==
+        Get.find<ThemeController>().themeData.value!.primaryColor ==
             Colors.white;
     return Switch(
-        activeColor: Colors.white,
+        activeThumbColor: Colors.white,
         activeTrackColor: isLightMode ? Colors.grey : null,
         inactiveTrackColor: isLightMode ? Colors.grey : null,
-        inactiveThumbColor:
-            isLightMode ? Colors.grey[300] : Colors.white.withOpacity(0.5),
+        inactiveThumbColor: isLightMode
+            ? Colors.grey[300]
+            : Colors.white.withValues(alpha: 0.5),
         value: value,
         onChanged: onChanged);
   }

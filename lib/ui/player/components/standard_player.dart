@@ -1,6 +1,5 @@
 import 'dart:ui';
 
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -52,7 +51,8 @@ class StandardPlayer extends StatelessWidget {
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.8),
+                    color:
+                        Theme.of(context).primaryColor.withValues(alpha: 0.8),
                   ),
                 ),
               ),
@@ -68,8 +68,8 @@ class StandardPlayer extends StatelessWidget {
                       colors: [
                         Theme.of(context).primaryColor,
                         Theme.of(context).primaryColor,
-                        Theme.of(context).primaryColor.withOpacity(0.4),
-                        Theme.of(context).primaryColor.withOpacity(0),
+                        Theme.of(context).primaryColor.withValues(alpha: 0.4),
+                        Theme.of(context).primaryColor.withValues(alpha: 0),
                       ],
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
@@ -190,12 +190,12 @@ class StandardPlayer extends StatelessWidget {
                     child: Obx(
                       () => Column(
                         children: [
-                          Text(playerController.playinfrom.value.typeString,
+                          Text(playerController.playingFrom.value.typeString,
                               style: const TextStyle(
                                   fontSize: 12, fontWeight: FontWeight.bold)),
                           Obx(
                             () => Text(
-                              "\"${playerController.playinfrom.value.nameString}\"",
+                              "\"${playerController.playingFrom.value.nameString}\"",
                               overflow: TextOverflow.ellipsis,
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold),
