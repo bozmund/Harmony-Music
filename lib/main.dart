@@ -48,8 +48,9 @@ class MyApp extends StatelessWidget {
         home: const Home(),
         debugShowCheckedModeBanner: false,
         translations: Languages(),
-        locale:
-            Locale(Hive.box(BoxNames.appPrefs).get(PrefKeys.currentAppLanguageCode) ?? "en"),
+        locale: Locale(
+            Hive.box(BoxNames.appPrefs).get(PrefKeys.currentAppLanguageCode) ??
+                "en"),
         fallbackLocale: const Locale("en"),
         builder: (context, child) {
           final mQuery = MediaQuery.of(context);
@@ -62,7 +63,7 @@ class MyApp extends StatelessWidget {
                   data: mQuery.copyWith(textScaler: scale),
                   child: AnimatedTheme(
                       duration: const Duration(milliseconds: 700),
-                      data: controller.themedata.value!,
+                      data: controller.themeData.value!,
                       child: child!),
                 ),
               ),
@@ -127,6 +128,8 @@ void _setAppInitPrefs() {
       PrefKeys.themePrimaryColor: 4278199603,
       PrefKeys.discoverContentType: "QP",
       PrefKeys.newVersionVisibility: updateCheckFlag,
+      PrefKeys.updateChannel:
+          BuildInfo.channel == 'rolling' ? 'rolling' : 'stable',
       PrefKeys.cacheHomeScreenData: true,
       PrefKeys.queueLoopModeEnabled: true
     });

@@ -154,7 +154,7 @@ class HomeScreenController extends GetxController {
       if (quickPicks.value.songList.isEmpty) {
         final con =
             _takeContentSectionByTitle(homeContentListMap, "Quick picks") ??
-            _takeFirstSongSection(homeContentListMap);
+                _takeFirstSongSection(homeContentListMap);
         if (con != null) {
           quickPicks.value = QuickPicks(
               List<MediaItem>.from(con["contents"].whereType<MediaItem>()),
@@ -175,8 +175,8 @@ class HomeScreenController extends GetxController {
 
       // set home content last update time
       cachedHomeScreenData(updateAll: true);
-      await Hive.box(BoxNames.appPrefs)
-          .put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
+      await Hive.box(BoxNames.appPrefs).put(
+          PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
     } on NetworkError catch (r) {
       printERROR("Home Content not loaded due to ${r.message}");
       await Future.delayed(const Duration(seconds: 1));
@@ -274,8 +274,8 @@ class HomeScreenController extends GetxController {
 
     // set home content last update time
     cachedHomeScreenData(updateQuickPicksNMiddleContent: true);
-    await Hive.box(BoxNames.appPrefs)
-        .put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
+    await Hive.box(BoxNames.appPrefs).put(
+        PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
   }
 
   String getContentHlCode() {
@@ -299,12 +299,12 @@ class HomeScreenController extends GetxController {
     showVersionDialog.value =
         Hive.box(BoxNames.appPrefs).get(PrefKeys.newVersionVisibility) ?? true;
     if (showVersionDialog.isTrue) {
-      newVersionCheck(Get.find<SettingsScreenController>().currentVersion)
-          .then((value) {
-        if (value) {
+      final settingsController = Get.find<SettingsScreenController>();
+      settingsController.checkNewVersion().then((value) {
+        if (value != null) {
           showDialog(
               context: Get.context!,
-              builder: (context) => const NewVersionDialog());
+              builder: (context) => NewVersionDialog(updateInfo: value));
         }
       });
     }

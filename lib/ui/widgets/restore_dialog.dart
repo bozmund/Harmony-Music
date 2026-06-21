@@ -215,21 +215,7 @@ class RestoreDialogController extends GetxController {
         await tempFilePickerDir.delete(recursive: true);
       }
 
-      // Change file download path to support dir path in songs if system is Windows or Linux.
-      if (GetPlatform.isWindows || GetPlatform.isLinux) {
-        final newSongBox = await Hive.openBox(BoxNames.songDownloads);
-        final downloadedSongs = newSongBox.values.toList();
-        for (final song in downloadedSongs) {
-          final songPath = song["url"];
-          if (songPath != null && songPath is String) {
-            final fileName = songPath.split("/").last;
-            final newFilePath = "$supportDirPath/Music/$fileName";
-            song["url"] = newFilePath;
-            song['streamInfo'][1]['url'] = newFilePath;
-            await newSongBox.put(song["videoId"], song);
-          }
-        }
-      }
+      await rewriteRestoredDownloadPaths(supportDirPath: supportDirPath);
     } catch (e, stackTrace) {
       restoreError.value = "Restore failed";
       printERROR("Error during restore: $e", tag: LogTags.backup);
@@ -241,6 +227,96 @@ class RestoreDialogController extends GetxController {
       await input?.close();
     }
   }
+}
+
+Future<void> rewriteRestoredDownloadPaths({
+  required String supportDirPath,
+}) async {
+  final newSongBox = await Hive.openBox(BoxNames.songDownloads);
+  for (final key in newSongBox.keys.toList()) {
+    final rewrittenSong = rewriteRestoredDownloadSong(
+      newSongBox.get(key),
+      supportDirPath,
+    );
+
+    if (rewrittenSong == null) {
+      await newSongBox.delete(key);
+    } else {
+      await newSongBox.put(key, rewrittenSong);
+    }
+  }
+  await newSongBox.flush();
+}
+
+Map<dynamic, dynamic>? rewriteRestoredDownloadSong(
+  dynamic song,
+  String supportDirPath, {
+  bool Function(String path)? fileExists,
+}) {
+  if (song is! Map) return null;
+
+  final updatedSong = Map<dynamic, dynamic>.from(song);
+  final originalPath = restoredDownloadPathFromSong(updatedSong);
+  final fileName = restoredFileName(originalPath);
+  if (fileName == null) return null;
+
+  final exists = fileExists ?? ((path) => File(path).existsSync());
+  final restoredPath = "$supportDirPath/Music/$fileName";
+  final usablePath = exists(restoredPath)
+      ? restoredPath
+      : originalPath != null && exists(originalPath)
+          ? originalPath
+          : null;
+
+  if (usablePath == null) {
+    printWarning("Skipping restored download with missing file: $fileName",
+        tag: LogTags.backup);
+    return null;
+  }
+
+  updatedSong["url"] = usablePath;
+  final streamInfo = updatedSong["streamInfo"];
+  if (streamInfo is List && streamInfo.length > 1 && streamInfo[1] is Map) {
+    final streamInfoData = Map<dynamic, dynamic>.from(streamInfo[1]);
+    streamInfoData["url"] = usablePath;
+    final updatedStreamInfo = List<dynamic>.from(streamInfo);
+    updatedStreamInfo[1] = streamInfoData;
+    updatedSong["streamInfo"] = updatedStreamInfo;
+  }
+
+  return updatedSong;
+}
+
+String? restoredDownloadPathFromSong(Map<dynamic, dynamic> song) {
+  final topLevelPath = normalizeRestoredFilePath(song["url"]);
+  if (topLevelPath != null) return topLevelPath;
+
+  final streamInfo = song["streamInfo"];
+  if (streamInfo is List && streamInfo.length > 1 && streamInfo[1] is Map) {
+    return normalizeRestoredFilePath(streamInfo[1]["url"]);
+  }
+
+  return null;
+}
+
+String? normalizeRestoredFilePath(dynamic value) {
+  if (value is! String || value.trim().isEmpty) return null;
+
+  final path = value.trim();
+  if (path.startsWith("file://")) {
+    return Uri.parse(path).toFilePath();
+  }
+  return path;
+}
+
+String? restoredFileName(String? path) {
+  if (path == null || path.isEmpty) return null;
+
+  final fileName = path.split(RegExp(r'[\\/]')).last;
+  if (fileName.isEmpty || fileName == "." || fileName == "..") {
+    return null;
+  }
+  return fileName;
 }
 
 String? _safeArchiveFileName(String archiveName) {

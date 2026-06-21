@@ -424,6 +424,18 @@ mixin RemoveSongFromPlaylistMixin {
       } catch (e) {}
       return;
     }
+    if (playlist.playlistId == BoxNames.libImportDuplicates ||
+        playlist.playlistId == BoxNames.libImportReview) {
+      final box = await Hive.openBox(playlist.playlistId);
+      await box.delete(item.id);
+      await box.close();
+      try {
+        Get.find<PlaylistScreenController>(
+                tag: Key(playlist.playlistId).hashCode.toString())
+            .addNRemoveItemsinList(item, action: 'remove');
+      } catch (e) {}
+      return;
+    }
 
     final box = await Hive.openBox(playlist.playlistId);
     //Library songs case

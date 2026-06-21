@@ -13,6 +13,8 @@ class BoxNames {
   static const String homeScreenData = 'homeScreenData';
   static const String libFav = 'LIBFAV';
   static const String libFavNotDownloaded = 'LIBFAV_NOT_DOWNLOADED';
+  static const String libImportDuplicates = 'LIBIMPORT_DUPLICATES';
+  static const String libImportReview = 'LIBIMPORT_REVIEW';
   static const String libRP = 'LIBRP';
   static const String libraryPlaylists = 'LibraryPlaylists';
   static const String libraryAlbums = 'LibraryAlbums';
@@ -57,6 +59,14 @@ class PrefKeys {
   static const String themePrimaryColor = 'themePrimaryColor';
   static const String themeModeType = 'themeModeType';
   static const String currentAppLanguageCode = 'currentAppLanguageCode';
+  static const String updateChannel = 'updateChannel';
+}
+
+class BuildInfo {
+  static const String channel =
+      String.fromEnvironment('BUILD_CHANNEL', defaultValue: 'stable');
+  static const String version = String.fromEnvironment('BUILD_VERSION');
+  static const String sha = String.fromEnvironment('BUILD_SHA');
 }
 
 class LogTags {

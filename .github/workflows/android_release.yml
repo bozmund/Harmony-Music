@@ -1,0 +1,142 @@
+name: Android release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-release:
+    name: Build and publish Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.29.2'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Enable GitHub update checks
+        run: echo "const updateCheckFlag = true;" > lib/utils/update_check_flag_file.dart
+
+      - name: Prepare build metadata
+        id: build_meta
+        shell: bash
+        run: |
+          pubspec_version="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            channel="stable"
+            build_version="${pubspec_version}"
+          else
+            channel="rolling"
+            build_version="${pubspec_version}-main.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "channel=${channel}" >> "${GITHUB_OUTPUT}"
+          echo "version=${build_version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate release secrets
+        shell: bash
+        run: |
+          test -n "${ANDROID_KEYSTORE_BASE64}" || (echo "ANDROID_KEYSTORE_BASE64 is missing" && exit 1)
+          test -n "${ANDROID_KEYSTORE_PASSWORD}" || (echo "ANDROID_KEYSTORE_PASSWORD is missing" && exit 1)
+          test -n "${ANDROID_KEY_ALIAS}" || (echo "ANDROID_KEY_ALIAS is missing" && exit 1)
+          test -n "${ANDROID_KEY_PASSWORD}" || (echo "ANDROID_KEY_PASSWORD is missing" && exit 1)
+          test -n "${ISSUE_REPORT_ENDPOINT}" || (echo "ISSUE_REPORT_ENDPOINT is missing" && exit 1)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ISSUE_REPORT_ENDPOINT: ${{ secrets.ISSUE_REPORT_ENDPOINT }}
+
+      - name: Decode Android release keystore
+        run: |
+          mkdir -p android/app/keystore
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/app/keystore/release.jks
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Build signed universal APK
+        run: >
+          flutter build apk --release
+          --dart-define=ISSUE_REPORT_ENDPOINT="${ISSUE_REPORT_ENDPOINT}"
+          --dart-define=BUILD_CHANNEL="${BUILD_CHANNEL}"
+          --dart-define=BUILD_VERSION="${BUILD_VERSION}"
+          --dart-define=BUILD_SHA="${GITHUB_SHA}"
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/keystore/release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ISSUE_REPORT_ENDPOINT: ${{ secrets.ISSUE_REPORT_ENDPOINT }}
+          BUILD_CHANNEL: ${{ steps.build_meta.outputs.channel }}
+          BUILD_VERSION: ${{ steps.build_meta.outputs.version }}
+
+      - name: Prepare APK asset
+        id: asset
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            asset_name="harmonymusic-${version}-release.apk"
+          else
+            asset_name="harmonymusic-main-latest.apk"
+          fi
+          cp build/app/outputs/flutter-apk/app-release.apk "${asset_name}"
+          echo "name=${asset_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish rolling main candidate release
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f main-latest "${GITHUB_SHA}"
+          git push origin refs/tags/main-latest --force
+
+          if gh release view main-latest >/dev/null 2>&1; then
+            gh release edit main-latest \
+              --title "Main latest Android candidate" \
+              --notes "Rolling Android candidate build from main.\n\nBuild SHA: ${GITHUB_SHA}\nRun number: ${GITHUB_RUN_NUMBER}" \
+              --prerelease
+            gh release upload main-latest "${{ steps.asset.outputs.name }}" --clobber
+          else
+            gh release create main-latest "${{ steps.asset.outputs.name }}" \
+              --title "Main latest Android candidate" \
+              --notes "Rolling Android candidate build from main.\n\nBuild SHA: ${GITHUB_SHA}\nRun number: ${GITHUB_RUN_NUMBER}" \
+              --prerelease
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Publish production release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "${{ steps.asset.outputs.name }}" \
+            --title "Harmony Music ${GITHUB_REF_NAME}" \
+            --notes "Android production release ${GITHUB_REF_NAME}." \
+            --latest
+        env:
+          GH_TOKEN: ${{ github.token }}

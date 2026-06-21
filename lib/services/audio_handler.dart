@@ -4,7 +4,6 @@ import 'dart:math';
 
 import 'package:flutter/services.dart';
 
-
 import 'package:hive/hive.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
@@ -91,7 +90,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     _player.setSkipSilenceEnabled(
         appPrefsBox.get(PrefKeys.skipSilenceEnabled) ?? false);
     loopModeEnabled = appPrefsBox.get(PrefKeys.isLoopModeEnabled) ?? false;
-    shuffleModeEnabled = appPrefsBox.get(PrefKeys.isShuffleModeEnabled) ?? false;
+    shuffleModeEnabled =
+        appPrefsBox.get(PrefKeys.isShuffleModeEnabled) ?? false;
     queueLoopModeEnabled =
         Hive.box(BoxNames.appPrefs).get(PrefKeys.queueLoopModeEnabled) ?? true;
     loudnessNormalizationEnabled =
@@ -450,7 +450,6 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) async {
     switch (name) {
-
       case 'dispose':
         await _player.dispose();
         super.stop();
@@ -530,10 +529,11 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
             jsonData['streamInfo'] = dbStreamData != null
                 ? [
                     true,
-                    dbStreamData[
-                        Hive.box(BoxNames.appPrefs).get(PrefKeys.streamingQuality) == 0
-                            ? 'lowQualityAudio'
-                            : "highQualityAudio"]
+                    dbStreamData[Hive.box(BoxNames.appPrefs)
+                                .get(PrefKeys.streamingQuality) ==
+                            0
+                        ? 'lowQualityAudio'
+                        : "highQualityAudio"]
                   ]
                 : null;
             songsCacheBox.put(song.id, jsonData);
@@ -593,14 +593,15 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           try {
             final currentSongId = (queue.value[currentIndex]).id;
             if (Hive.box(BoxNames.songsUrlCache).containsKey(currentSongId)) {
-              final songJson = Hive.box(BoxNames.songsUrlCache).get(currentSongId);
+              final songJson =
+                  Hive.box(BoxNames.songsUrlCache).get(currentSongId);
               _normalizeVolume((songJson)["highQualityAudio"]["loudnessDb"]);
               return;
             }
 
             if (Hive.box(BoxNames.songDownloads).containsKey(currentSongId)) {
-              final streamInfo =
-                  (Hive.box(BoxNames.songDownloads).get(currentSongId))["streamInfo"];
+              final streamInfo = (Hive.box(BoxNames.songDownloads)
+                  .get(currentSongId))["streamInfo"];
 
               _normalizeVolume(
                   streamInfo == null ? 0 : streamInfo[1]["loudnessDb"]);
@@ -788,7 +789,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         (await Hive.openBox(BoxNames.songsCache)).containsKey(songId)) {
       printINFO("Got Song from cachedbox ($songId)", tag: LogTags.audioHandler);
       // if contains stream Info
-      final streamInfo = Hive.box(BoxNames.songsCache).get(songId)["streamInfo"];
+      final streamInfo =
+          Hive.box(BoxNames.songsCache).get(songId)["streamInfo"];
       Audio? cacheAudioPlaceholder;
       if (streamInfo != null && streamInfo.isNotEmpty) {
         streamInfo[1]['url'] = "file://$_cacheDir/cachedSongs/$songId.mp3";
@@ -847,7 +849,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     } else {
       //check if song stream url is cached and allocate url accordingly
       final songsUrlCacheBox = Hive.box(BoxNames.songsUrlCache);
-      final qualityIndex = Hive.box(BoxNames.appPrefs).get(PrefKeys.streamingQuality) ?? 1;
+      final qualityIndex =
+          Hive.box(BoxNames.appPrefs).get(PrefKeys.streamingQuality) ?? 1;
       HMStreamingData? streamInfo;
       if (songsUrlCacheBox.containsKey(songId) && !generateNewUrl) {
         final streamInfoJson = songsUrlCacheBox.get(songId);
@@ -876,7 +879,6 @@ class UrlError extends Error {
   String message() => 'Unable to fetch url';
 }
 
-
 // for Android Auto
 class MediaLibrary {
   static const albumsRootId = 'albums';
@@ -894,6 +896,10 @@ class MediaLibrary {
         return getLibSongs(BoxNames.libFav);
       case BoxNames.libFavNotDownloaded:
         return getLikedNotDownloadedSongs();
+      case BoxNames.libImportDuplicates:
+        return getLibSongs(BoxNames.libImportDuplicates);
+      case BoxNames.libImportReview:
+        return getLibSongs(BoxNames.libImportReview);
       case albumsRootId:
         return getAlbums();
       case playlistsRootId:

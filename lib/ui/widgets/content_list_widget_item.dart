@@ -22,7 +22,8 @@ class ContentListItem extends StatelessWidget {
       onTap: () {
         if (isAlbum) {
           Get.toNamed(ScreenNavigationSetup.albumScreen,
-              id: ScreenNavigationSetup.id, arguments:(content, content.browseId));
+              id: ScreenNavigationSetup.id,
+              arguments: (content, content.browseId));
           return;
         }
         Get.toNamed(ScreenNavigationSetup.playlistScreen,
@@ -46,6 +47,9 @@ class ContentListItem extends StatelessWidget {
                             content.playlistId == 'LIBFAV' ||
                             content.playlistId ==
                                 BoxNames.libFavNotDownloaded ||
+                            content.playlistId ==
+                                BoxNames.libImportDuplicates ||
+                            content.playlistId == BoxNames.libImportReview ||
                             content.playlistId == 'SongsCache' ||
                             content.playlistId == 'SongDownloads')
                     ? SizedBox.square(
@@ -124,9 +128,16 @@ class ContentListItem extends StatelessWidget {
                                   : content.playlistId ==
                                           BoxNames.libFavNotDownloaded
                                       ? Icons.favorite_border
-                                      : content.playlistId == 'SongsCache'
-                                          ? Icons.flight
-                                          : Icons.download,
+                                      : content.playlistId ==
+                                              BoxNames.libImportDuplicates
+                                          ? Icons.playlist_remove
+                                          : content.playlistId ==
+                                                  BoxNames.libImportReview
+                                              ? Icons.rule
+                                              : content.playlistId ==
+                                                      'SongsCache'
+                                                  ? Icons.flight
+                                                  : Icons.download,
                           color: Colors.white,
                           size: 40,
                         ))),

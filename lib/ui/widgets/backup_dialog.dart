@@ -220,6 +220,8 @@ class BackupDialogController extends GetxController {
       }
     }
 
+    await _flushOpenBackupBoxes();
+
     final dbDir = await Get.find<SettingsScreenController>().dbDir;
     for (final filePath in await processDirectoryInIsolate(dbDir)) {
       addIfValid(filePath);
@@ -297,6 +299,27 @@ class BackupDialogController extends GetxController {
     } finally {
       scanning.value = false;
       backupRunning.value = false;
+    }
+  }
+}
+
+Future<void> _flushOpenBackupBoxes() async {
+  for (final boxName in [
+    BoxNames.songsCache,
+    BoxNames.songDownloads,
+    BoxNames.songsUrlCache,
+    BoxNames.appPrefs,
+    BoxNames.homeScreenData,
+    BoxNames.prevSessionData,
+    BoxNames.libFav,
+    BoxNames.libRP,
+    BoxNames.libraryPlaylists,
+    BoxNames.libraryAlbums,
+    BoxNames.libraryArtists,
+    BoxNames.librarySearches,
+  ]) {
+    if (Hive.isBoxOpen(boxName)) {
+      await Hive.box(boxName).flush();
     }
   }
 }

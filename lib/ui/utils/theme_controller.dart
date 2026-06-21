@@ -9,7 +9,7 @@ import '/utils/helper.dart';
 class ThemeController extends GetxController {
   final primaryColor = Colors.deepPurple[400].obs;
   final textColor = Colors.white24.obs;
-  final themedata = Rxn<ThemeData>();
+  final themeData = Rxn<ThemeData>();
 
   /// The method channel for setting the title bar color on Windows.
   final platform = const MethodChannel('win_titlebar_color');
@@ -43,20 +43,20 @@ class ThemeController extends GetxController {
 
   void changeThemeModeType(dynamic value, {bool sysCall = false}) {
     if (value == ThemeType.system) {
-      themedata.value = _createThemeData(
+      themeData.value = _createThemeData(
           null,
           systemBrightness == Brightness.light
               ? ThemeType.light
               : ThemeType.dark);
     } else {
       if (sysCall) return;
-      themedata.value = _createThemeData(
+      themeData.value = _createThemeData(
           value == ThemeType.dynamic
               ? _createMaterialColor(primaryColor.value!)
               : null,
           value);
     }
-    setWindowsTitleBarColor(themedata.value!.scaffoldBackgroundColor);
+    setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
   }
 
   void setTheme(ImageProvider imageProvider, String songId) async {
@@ -77,12 +77,12 @@ class ThemeController extends GetxController {
       textColor.value = Colors.white54;
     }
     final primarySwatch = _createMaterialColor(primaryColor.value!);
-    themedata.value = _createThemeData(primarySwatch, ThemeType.dynamic,
+    themeData.value = _createThemeData(primarySwatch, ThemeType.dynamic,
         textColor: textColor.value,
         titleColorSwatch: _createMaterialColor(textColor.value));
     currentSongId = songId;
     Hive.box('appPrefs').put("themePrimaryColor", (primaryColor.value!).value);
-    setWindowsTitleBarColor(themedata.value!.scaffoldBackgroundColor);
+    setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
   }
 
   ThemeData _createThemeData(MaterialColor? primarySwatch, ThemeType themeType,

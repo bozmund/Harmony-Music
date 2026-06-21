@@ -40,6 +40,8 @@ class SettingsScreenController extends GetxController {
   final autoOpenPlayer = false.obs;
   final discoverContentType = "QP".obs;
   final isNewVersionAvailable = false.obs;
+  final updateInfo = Rxn<UpdateInfo>();
+  final updateChannel = UpdateChannel.stable.obs;
   final isLinkedWithPiped = false.obs;
   final stopPlyabackOnSwipeAway = false.obs;
   final currentAppLanguageCode = "en".obs;
@@ -57,20 +59,29 @@ class SettingsScreenController extends GetxController {
 
   @override
   void onInit() {
-    _setInitValue();
-    if (updateCheckFlag) _checkNewVersion();
+    _setInitValue().then((_) {
+      if (updateCheckFlag) checkNewVersion();
+    });
     _createInAppSongDownDir();
     super.onInit();
   }
 
   get currentVision => currentVersion;
+  UpdateChannel get selectedUpdateChannel => updateChannel.value;
   get isCurrentPathsupportDownDir =>
       "$_supportDir/Music" == downloadLocationPath.toString();
   String get supportDirPath => _supportDir;
 
-  _checkNewVersion() {
-    newVersionCheck(currentVersion)
-        .then((value) => isNewVersionAvailable.value = value);
+  Future<UpdateInfo?> checkNewVersion() async {
+    updateChannel.value =
+        (setBox.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
+            ? UpdateChannel.rolling
+            : UpdateChannel.stable;
+    final info =
+        await newVersionCheck(currentVersion, channel: selectedUpdateChannel);
+    updateInfo.value = info;
+    isNewVersionAvailable.value = info != null;
+    return info;
   }
 
   Future<String> _createInAppSongDownDir() async {
@@ -90,6 +101,10 @@ class SettingsScreenController extends GetxController {
         : appLang == "zh_Hans"
             ? "zh-CN"
             : appLang;
+    updateChannel.value =
+        (setBox.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
+            ? UpdateChannel.rolling
+            : UpdateChannel.stable;
     isBottomNavBarEnabled.value = isDesktop
         ? false
         : (setBox.get(PrefKeys.isBottomNavBarEnabled) ?? false);
@@ -144,6 +159,14 @@ class SettingsScreenController extends GetxController {
     }
     autoDownloadFavoriteSongEnabled.value =
         setBox.get(PrefKeys.autoDownloadFavoriteSongEnabled) ?? false;
+  }
+
+  void changeUpdateChannel(String? val) {
+    final next =
+        val == 'rolling' ? UpdateChannel.rolling : UpdateChannel.stable;
+    updateChannel.value = next;
+    setBox.put(PrefKeys.updateChannel, next.name);
+    if (updateCheckFlag) checkNewVersion();
   }
 
   void setAppLanguage(String? val) {

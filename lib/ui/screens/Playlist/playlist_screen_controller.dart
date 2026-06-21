@@ -76,7 +76,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         playlistId == BoxNames.songsCache ||
         playlistId == BoxNames.libRP ||
         playlistId == BoxNames.libFav ||
-        playlistId == BoxNames.libFavNotDownloaded);
+        playlistId == BoxNames.libFavNotDownloaded ||
+        playlistId == BoxNames.libImportDuplicates ||
+        playlistId == BoxNames.libImportReview);
 
     if (!isIdOnly && !playlist_.isCloudPlaylist) {
       playlist.value = playlist_;
@@ -230,6 +232,16 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         await favBox.delete(element.id);
         songList.removeWhere((song) => song.id == element.id);
       }
+      _updatePlaylistThumbSongBased();
+      return;
+    }
+    if (id == BoxNames.libImportDuplicates || id == BoxNames.libImportReview) {
+      final conflictsBox = await Hive.openBox(id);
+      for (MediaItem element in songs) {
+        await conflictsBox.delete(element.id);
+        songList.removeWhere((song) => song.id == element.id);
+      }
+      await conflictsBox.close();
       _updatePlaylistThumbSongBased();
       return;
     }
