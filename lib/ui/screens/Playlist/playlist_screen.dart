@@ -17,7 +17,7 @@ import '../../widgets/loader.dart';
 import '../../widgets/playlist_export_dialog.dart';
 import '../../widgets/snackbar.dart';
 import '../../widgets/song_list_tile.dart';
-import '../../widgets/songinfo_bottom_sheet.dart';
+import '../../widgets/song_info_bottom_sheet.dart';
 import '../../widgets/sort_widget.dart';
 import '../Library/library_controller.dart';
 import 'playlist_screen_controller.dart';
@@ -198,7 +198,7 @@ class PlaylistScreen extends StatelessWidget {
                                           onTap: () {
                                             Navigator.of(context).pop();
                                             playlistController
-                                                .addNremoveFromLibrary(
+                                                .addNRemoveFromLibrary(
                                                   playlistController
                                                       .playlist
                                                       .value,
@@ -296,7 +296,7 @@ class PlaylistScreen extends StatelessWidget {
                                                               .isAddedToLibrary
                                                               .isFalse;
                                                       playlistController
-                                                          .addNremoveFromLibrary(
+                                                          .addNRemoveFromLibrary(
                                                             playlistController
                                                                 .playlist
                                                                 .value,
@@ -398,14 +398,14 @@ class PlaylistScreen extends StatelessWidget {
                                           IconButton(
                                             tooltip: "shuffle".tr,
                                             onPressed: () {
-                                              final songsToplay =
+                                              final songsToPlay =
                                                   List<MediaItem>.from(
                                                     playlistController.songList,
                                                   );
-                                              songsToplay.shuffle();
-                                              songsToplay.shuffle();
+                                              songsToPlay.shuffle();
+                                              songsToPlay.shuffle();
                                               playerController.playPlayListSong(
-                                                songsToplay,
+                                                songsToPlay,
                                                 0,
                                                 playfrom: PlayingFrom(
                                                   name: playlistController
@@ -580,14 +580,14 @@ class PlaylistScreen extends StatelessWidget {
                                                     "https://piped.video/playlist?list=${content.playlistId}",
                                                   );
                                                 } else {
-                                                  final isPlaylistIdPrefixAvlbl =
+                                                  final isPlaylistIdPrefixAvailable =
                                                       content.playlistId
                                                           .substring(0, 2) ==
                                                       "VL";
                                                   String url =
                                                       "https://youtube.com/playlist?list=";
 
-                                                  url = isPlaylistIdPrefixAvlbl
+                                                  url = isPlaylistIdPrefixAvailable
                                                       ? url +
                                                             content.playlistId
                                                                 .substring(2)

@@ -12,9 +12,9 @@ import 'package:harmonymusic/utils/helper.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 
+import '../../../mixins/additional_operation_mixin.dart';
 import '../../../services/constant.dart';
 import '../../../base_class/playlist_album_screen_con_base.dart';
-import '../../../mixins/additional_opeartion_mixin.dart';
 import '../../../models/album.dart' show Album;
 import '../../../models/media_Item_builder.dart';
 import '../../../models/playlist.dart';
@@ -26,7 +26,7 @@ import '../Library/library_controller.dart';
 ///
 ///Playlist title,image,songs
 class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
-    with AdditionalOpeartionMixin, GetSingleTickerProviderStateMixin {
+    with AdditionalOperationMixin, GetSingleTickerProviderStateMixin {
   final MusicServiceContract _musicServices = Get.find<MusicServiceContract>();
   final playlist = Playlist(
     title: "",
@@ -47,7 +47,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   late Animation<double> _scaleAnimation;
 
   AnimationController get animationController => _animationController;
+
   Animation<double> get scaleAnimation => _scaleAnimation;
+
   @override
   void onInit() {
     super.onInit();
@@ -91,7 +93,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       if (playlistId == BoxNames.libFavNotDownloaded) {
         await fetchLikedNotDownloadedSongs();
       } else {
-        fetchSongsfromDatabase(playlistId);
+        fetchSongsFromDatabase(playlistId);
       }
       isContentFetched.value = true;
 
@@ -119,7 +121,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         } else {
           // If the playlist is offline, fetch the songs from the local database
           // Playlist details are already fetched in _checkIfAddedToLibrary method
-          fetchSongsfromDatabase(playlistId);
+          fetchSongsFromDatabase(playlistId);
         }
       } else {
         _fetchSongOnline(playlistId, isIdOnly, isPipedPlaylist);
@@ -186,7 +188,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   }
 
   @override
-  Future<bool> addNremoveFromLibrary(dynamic content, {bool add = true}) async {
+  Future<bool> addNRemoveFromLibrary(dynamic content, {bool add = true}) async {
     try {
       if (content.isPipedPlaylist && !add) {
         //remove piped playlist from lib
@@ -211,8 +213,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       //Update frontend
       Get.find<LibraryPlaylistsController>().refreshLib();
       if (!content.isCloudPlaylist && !add) {
-        final plstbox = await Hive.openBox(content.playlistId);
-        plstbox.deleteFromDisk();
+        final playlistBox = await Hive.openBox(content.playlistId);
+        playlistBox.deleteFromDisk();
       }
       return true;
     } catch (e) {
@@ -258,7 +260,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       _updatePlaylistThumbSongBased();
       return;
     }
-    final isoffline = id == BoxNames.songsCache || id == BoxNames.songDownloads;
+    final offline = id == BoxNames.songsCache || id == BoxNames.songDownloads;
 
     final box_ = await Hive.openBox(id);
     for (MediaItem element in songs) {
@@ -267,7 +269,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       );
       await box_.deleteAt(index);
 
-      if (isoffline) {
+      if (offline) {
         await Get.find<LibrarySongsController>().removeSong(
           element,
           id == BoxNames.songDownloads,
@@ -276,13 +278,13 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
       songList.removeWhere((song) => song.id == element.id);
     }
-    if (!isoffline) await box_.close();
+    if (!offline) await box_.close();
 
     // Update the playlist thumbnail based on the first song's thumbnail
     _updatePlaylistThumbSongBased();
   }
 
-  void addNRemoveItemsinList(
+  void addNRemoveItemsInList(
     MediaItem? item, {
     required String action,
     int? index,
@@ -319,13 +321,13 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       return;
     }
 
-    Playlist updatedplaylist;
+    Playlist updatedPlaylist;
     if (songList.isNotEmpty) {
-      updatedplaylist = currentPlaylist.copyWith(
+      updatedPlaylist = currentPlaylist.copyWith(
         thumbnailUrl: songList[0].artUri.toString(),
       );
     } else {
-      updatedplaylist = currentPlaylist.copyWith(
+      updatedPlaylist = currentPlaylist.copyWith(
         thumbnailUrl: Playlist.thumbPlaceholderUrl,
       );
     }
@@ -333,14 +335,14 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     // Check if the thumbnail URL is the same as the current one
     // If it is, no need to update the playlist
     if (Thumbnail(currentPlaylist.thumbnailUrl).extraHigh ==
-        Thumbnail(updatedplaylist.thumbnailUrl).extraHigh) {
+        Thumbnail(updatedPlaylist.thumbnailUrl).extraHigh) {
       return;
     }
 
     // Update the playlist thumbnail URL
-    playlist.value = updatedplaylist;
+    playlist.value = updatedPlaylist;
     Get.find<LibraryPlaylistsController>().updatePlaylistIntoDb(
-      updatedplaylist,
+      updatedPlaylist,
     );
   }
 

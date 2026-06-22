@@ -7,7 +7,7 @@ import 'package:get/get.dart';
 import 'package:harmonymusic/ui/player/components/backgroud_image.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
-import '../../widgets/songinfo_bottom_sheet.dart';
+import '../../widgets/song_info_bottom_sheet.dart';
 import '../../utils/theme_controller.dart';
 import '../player_controller.dart';
 

@@ -7,7 +7,7 @@ import 'package:harmonymusic/models/playlist.dart';
 import 'package:harmonymusic/utils/helper.dart';
 import 'package:hive/hive.dart';
 
-import '../../../mixins/additional_opeartion_mixin.dart';
+import '../../../mixins/additional_operation_mixin.dart';
 import '../../../models/media_Item_builder.dart';
 import '../Home/home_screen_controller.dart';
 import '../Library/library_controller.dart';
@@ -16,7 +16,7 @@ import '../Library/library_controller.dart';
 ///
 ///Album title,image,songs
 class AlbumScreenController extends PlaylistAlbumScreenControllerBase
-    with AdditionalOpeartionMixin, GetSingleTickerProviderStateMixin {
+    with AdditionalOperationMixin, GetSingleTickerProviderStateMixin {
   final album =
       Album(title: "", browseId: "", thumbnailUrl: "", artists: []).obs;
   final isOfflineAlbum = false.obs;
@@ -89,7 +89,7 @@ class AlbumScreenController extends PlaylistAlbumScreenControllerBase
   }
 
   @override
-  Future<bool> addNremoveFromLibrary(content, {bool add = true}) async {
+  Future<bool> addNRemoveFromLibrary(content, {bool add = true}) async {
     try {
       final box = await Hive.openBox("LibraryAlbums");
       final id = content.browseId;

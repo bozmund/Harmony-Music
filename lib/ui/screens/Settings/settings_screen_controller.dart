@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:harmonymusic/ui/screens/Library/library_combined.dart';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,7 +32,7 @@ class SettingsScreenController extends GetxController {
   late String _supportDir;
   final cacheSongs = false.obs;
   final setBox = Hive.box(BoxNames.appPrefs);
-  final themeModetype = ThemeType.dynamic.obs;
+  final themeModeType = ThemeType.dynamic.obs;
   final skipSilenceEnabled = false.obs;
   final loudnessNormalizationEnabled = false.obs;
   final noOfHomeScreenContent = 3.obs;
@@ -63,6 +64,8 @@ class SettingsScreenController extends GetxController {
   final currentVersion =
       "V${(BuildInfo.version.isEmpty ? '5.9.2' : BuildInfo.version).split('+').first.split('-').first}";
 
+  final libraryFirstTab = 0.obs;
+
   @override
   void onInit() {
     _setInitValue().then((_) {
@@ -74,9 +77,12 @@ class SettingsScreenController extends GetxController {
   }
 
   get currentVision => currentVersion;
+
   UpdateChannel get selectedUpdateChannel => updateChannel.value;
+
   get isCurrentPathsupportDownDir =>
       "$_supportDir/Music" == downloadLocationPath.toString();
+
   String get supportDirPath => _supportDir;
 
   Future<UpdateInfo?> checkNewVersion() async {
@@ -222,7 +228,7 @@ class SettingsScreenController extends GetxController {
     isTransitionAnimationDisabled.value =
         setBox.get(PrefKeys.isTransitionAnimationDisabled) ?? false;
     cacheSongs.value = setBox.get(PrefKeys.cacheSongs) ?? false;
-    themeModetype.value =
+    themeModeType.value =
         ThemeType.values[setBox.get(PrefKeys.themeModeType) ?? 0];
     skipSilenceEnabled.value = isDesktop
         ? false
@@ -270,6 +276,7 @@ class SettingsScreenController extends GetxController {
     }
     autoDownloadFavoriteSongEnabled.value =
         setBox.get(PrefKeys.autoDownloadFavoriteSongEnabled) ?? false;
+    libraryFirstTab.value = setBox.get(PrefKeys.libraryFirstTab) ?? 0;
   }
 
   void changeUpdateChannel(String? val) {
@@ -394,7 +401,7 @@ class SettingsScreenController extends GetxController {
 
   void onThemeChange(dynamic val) {
     setBox.put(PrefKeys.themeModeType, ThemeType.values.indexOf(val));
-    themeModetype.value = val;
+    themeModeType.value = val;
     Get.find<ThemeController>().changeThemeModeType(val);
   }
 
@@ -635,6 +642,14 @@ class SettingsScreenController extends GetxController {
   void toggleAutoOpenPlayer(bool val) {
     setBox.put(PrefKeys.autoOpenPlayer, val);
     autoOpenPlayer.value = val;
+  }
+
+  void setFirstLibraryTab(int index) {
+    setBox.put(PrefKeys.libraryFirstTab, index);
+    libraryFirstTab.value = index;
+    if (Get.isRegistered<CombinedLibraryController>()) {
+      Get.delete<CombinedLibraryController>();
+    }
   }
 
   Future<void> unlinkPiped() async {

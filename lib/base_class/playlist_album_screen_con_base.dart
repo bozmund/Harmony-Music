@@ -60,7 +60,7 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   /// Fetches the songs of an album/playlist from database.
   ///
   /// [id] - The unique identifier of the album/playlist.
-  void fetchSongsfromDatabase(String id) async {
+  void fetchSongsFromDatabase(String id) async {
     final box = await Hive.openBox(id);
     songList.value = box.values
         .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
@@ -94,7 +94,7 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   ///
   /// This method is only applicable for playlists.
   @protected
-  Future<bool> addNremoveFromLibrary(dynamic content, {bool add = true});
+  Future<bool> addNRemoveFromLibrary(dynamic content, {bool add = true});
 
   /// Synchronizes the playlist songs.
   ///

@@ -321,7 +321,7 @@ class LibraryPlaylistsController extends GetxController
   late AnimationController controller;
 
   final playlistCreationMode = "local".obs;
-  static final initPlst = [
+  static final initialPlaylists = [
     Playlist(
       title: "recentlyPlayed".tr,
       playlistId: BoxNames.libRP,
@@ -365,7 +365,7 @@ class LibraryPlaylistsController extends GetxController
       isCloudPlaylist: false,
     ),
   ];
-  late RxList<Playlist> libraryPlaylists = RxList(initPlst);
+  late RxList<Playlist> libraryPlaylists = RxList(initialPlaylists);
   final isContentFetched = false.obs;
   final creationInProgress = false.obs;
   final textInputController = TextEditingController();
@@ -388,11 +388,11 @@ class LibraryPlaylistsController extends GetxController
   void refreshLib() async {
     final box = await Hive.openBox(BoxNames.libraryPlaylists);
     libraryPlaylists.value = [
-      ...initPlst,
       ...(box.values
           .map<Playlist?>((item) => Playlist.fromJson(item))
           .whereType<Playlist>()
           .toList()),
+      ...initialPlaylists,
     ];
 
     final appPrefsBox = Hive.box(BoxNames.appPrefs);
@@ -413,9 +413,9 @@ class LibraryPlaylistsController extends GetxController
   }
 
   void removePipedPlaylists() {
-    for (Playlist plst in libraryPlaylists.toList()) {
-      if (plst.isPipedPlaylist) {
-        libraryPlaylists.remove(plst);
+    for (Playlist playlist in libraryPlaylists.toList()) {
+      if (playlist.isPipedPlaylist) {
+        libraryPlaylists.remove(playlist);
       }
     }
   }
@@ -437,7 +437,7 @@ class LibraryPlaylistsController extends GetxController
         blacklistedPlaylist;
 
     if (res.code == 1) {
-      final cloudpipedPlaylistsId = res.response
+      final cloudPipedPlaylistsId = res.response
           .map((e) {
             return e['id'];
           })
@@ -446,20 +446,19 @@ class LibraryPlaylistsController extends GetxController
       //add new playlist from cloud
       for (dynamic playlist in res.response) {
         if (!libPipedPlaylistsId.contains(playlist['id'])) {
-          final plst = Playlist(
+          libraryPlaylists.add(Playlist(
             title: playlist['name'],
             playlistId: playlist['id'],
             description: "Piped Playlist",
             thumbnailUrl: playlist['thumbnail'],
             isPipedPlaylist: true,
-          );
-          libraryPlaylists.add(plst);
+          ));
         }
       }
 
-      //remove playist if removed from cloud
+      //remove playlist if removed from cloud
       for (Playlist playlist in libraryPlaylists.toList()) {
-        if (!cloudpipedPlaylistsId.contains(playlist.playlistId) &&
+        if (!cloudPipedPlaylistsId.contains(playlist.playlistId) &&
             playlist.isPipedPlaylist) {
           libraryPlaylists.removeWhere(
             (element) => element.playlistId == playlist.playlistId,
@@ -497,18 +496,18 @@ class LibraryPlaylistsController extends GetxController
   }
 
   Future<bool> createNewPlaylist({
-    bool createPlaylistNaddSong = false,
+    bool createPlaylistNAddSong = false,
     List<MediaItem>? songItems,
   }) async {
     String title = textInputController.text;
     if (title.trim().isNotEmpty) {
-      dynamic newplst;
+      dynamic newPlaylist;
 
       if (playlistCreationMode.value == "piped") {
         creationInProgress.value = true;
         final res = await Get.find<PipedServices>().createPlaylist(title);
         if (res.code == 1) {
-          newplst = Playlist(
+          newPlaylist = Playlist(
             title: title,
             playlistId: "${res.response['playlistId']}",
             thumbnailUrl: songItems != null
@@ -523,7 +522,7 @@ class LibraryPlaylistsController extends GetxController
           return false;
         }
       } else {
-        newplst = Playlist(
+        newPlaylist = Playlist(
           title: title,
           playlistId: "LIB${DateTime.now().millisecondsSinceEpoch}",
           thumbnailUrl: songItems != null
@@ -533,23 +532,23 @@ class LibraryPlaylistsController extends GetxController
           isCloudPlaylist: false,
         );
         final box = await Hive.openBox(BoxNames.libraryPlaylists);
-        box.put(newplst.playlistId, newplst.toJson());
+        box.put(newPlaylist.playlistId, newPlaylist.toJson());
         await box.close();
       }
 
-      libraryPlaylists.add(newplst);
+      libraryPlaylists.insert(0, newPlaylist);
 
-      if (createPlaylistNaddSong && playlistCreationMode.value == "local") {
-        final plastbox = await Hive.openBox(newplst.playlistId);
+      if (createPlaylistNAddSong && playlistCreationMode.value == "local") {
+        final playlistBox = await Hive.openBox(newPlaylist.playlistId);
         for (MediaItem item in songItems!) {
-          plastbox.add(MediaItemBuilder.toJson(item));
+          playlistBox.add(MediaItemBuilder.toJson(item));
         }
-        plastbox.close();
-      } else if ((createPlaylistNaddSong &&
+        playlistBox.close();
+      } else if ((createPlaylistNAddSong &&
           playlistCreationMode.value == "piped")) {
         final songIds = songItems!.map((e) => e.id).toList();
         await Get.find<PipedServices>().addToPlaylist(
-          newplst.playlistId,
+          newPlaylist.playlistId,
           songIds,
         );
       }
@@ -574,9 +573,9 @@ class LibraryPlaylistsController extends GetxController
 
   void onSort(SortType sortType, bool isAscending) {
     final playlists = libraryPlaylists.toList();
-    playlists.removeRange(0, initPlst.length);
+    playlists.removeRange(0, initialPlaylists.length);
     sortPlayLists(playlists, sortType, isAscending);
-    playlists.insertAll(0, initPlst);
+    playlists.insertAll(0, initialPlaylists);
     libraryPlaylists.value = playlists;
   }
 
@@ -781,7 +780,7 @@ class LibraryPlaylistsController extends GetxController
         : await Hive.openBox(BoxNames.libraryPlaylists);
 
     final existingTitles = [
-      ...initPlst.map((playlist) => playlist.title),
+      ...initialPlaylists.map((playlist) => playlist.title),
       ...libraryBox.values
           .map<Playlist?>((item) => Playlist.fromJson(item))
           .whereType<Playlist>()

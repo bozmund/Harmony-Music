@@ -35,7 +35,7 @@ class BackgroudImage extends StatelessWidget {
 
                           /// if theme mode is dynamic then set the theme with image
                           if (Get.find<SettingsScreenController>()
-                                  .themeModetype
+                                  .themeModeType
                                   .value ==
                               ThemeType.dynamic) {
                             Get.find<ThemeController>().setTheme(
@@ -59,7 +59,7 @@ class BackgroudImage extends StatelessWidget {
                     memCacheHeight: cacheHeight,
                     imageBuilder: (context, imageProvider) {
                       Get.find<SettingsScreenController>()
-                                  .themeModetype
+                                  .themeModeType
                                   .value ==
                               ThemeType.dynamic
                           ? Future.delayed(

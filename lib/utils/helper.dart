@@ -293,10 +293,10 @@ String? _rollingReleaseSha(dynamic release) {
       : RegExp(r'Build SHA:\s*([a-fA-F0-9]{7,40})').firstMatch(body)?.group(1);
   if (bodySha != null && bodySha.isNotEmpty) return bodySha;
 
-  final targetCommitish = release['target_commitish'] as String?;
-  if (targetCommitish != null &&
-      RegExp(r'^[a-fA-F0-9]{7,40}$').hasMatch(targetCommitish)) {
-    return targetCommitish;
+  final targetCommitSha = release['target_commitish'] as String?;
+  if (targetCommitSha != null &&
+      RegExp(r'^[a-fA-F0-9]{7,40}$').hasMatch(targetCommitSha)) {
+    return targetCommitSha;
   }
   return null;
 }

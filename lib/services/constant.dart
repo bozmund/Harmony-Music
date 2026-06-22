@@ -60,6 +60,7 @@ class PrefKeys {
   static const String themePrimaryColor = 'themePrimaryColor';
   static const String themeModeType = 'themeModeType';
   static const String currentAppLanguageCode = 'currentAppLanguageCode';
+  static const String libraryFirstTab = 'libraryFirstTab';
   static const String updateChannel = 'updateChannel';
 }
 

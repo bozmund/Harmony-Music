@@ -15,6 +15,7 @@ import '../../widgets/issue_report_dialog.dart';
 import '../../widgets/backup_dialog.dart';
 import '../../widgets/restore_dialog.dart';
 import '../Library/library_controller.dart';
+import '../Library/library_combined.dart';
 import '../../widgets/snackbar.dart';
 import '/ui/widgets/link_piped.dart';
 import '/services/music_service.dart';
@@ -25,6 +26,7 @@ import 'settings_screen_controller.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, this.isBottomNavActive = false});
+
   final bool isBottomNavActive;
 
   @override
@@ -120,13 +122,13 @@ class SettingsScreen extends StatelessWidget {
                       title: Text("themeMode".tr),
                       subtitle: Obx(
                         () => Text(
-                          settingsController.themeModetype.value ==
+                          settingsController.themeModeType.value ==
                                   ThemeType.dynamic
                               ? "dynamic".tr
-                              : settingsController.themeModetype.value ==
+                              : settingsController.themeModeType.value ==
                                     ThemeType.system
                               ? "systemDefault".tr
-                              : settingsController.themeModetype.value ==
+                              : settingsController.themeModeType.value ==
                                     ThemeType.dark
                               ? "dark".tr
                               : "light".tr,
@@ -203,6 +205,37 @@ class SettingsScreen extends StatelessWidget {
                               ),
                             ],
                             onChanged: settingsController.setPlayerUi,
+                          ),
+                        ),
+                      ),
+                    if (!isDesktop)
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("firstLibraryTab".tr),
+                        subtitle: Text(
+                          "firstLibraryTabDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: Obx(
+                          () => DropdownButton(
+                            dropdownColor: Theme.of(context).cardColor,
+                            underline: const SizedBox.shrink(),
+                            value: settingsController.libraryFirstTab.value,
+                            items: libraryTabKeys
+                                .asMap()
+                                .entries
+                                .map(
+                                  (entry) => DropdownMenuItem(
+                                    value: entry.key,
+                                    child: Text(entry.value.tr),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (val) => settingsController
+                                .setFirstLibraryTab(val as int),
                           ),
                         ),
                       ),
@@ -944,7 +977,7 @@ class SettingsScreen extends StatelessWidget {
                       contentPadding: const EdgeInsets.only(left: 5, right: 10),
                       title: Text("github".tr),
                       subtitle: Text(
-                        "${"githubDes".tr}${((Get.find<PlayerController>().playerPanelMinHeight.value) == 0 || !isBottomNavActive) ? "" : "\n\n${settingsController.currentVersion} ${"by".tr} anandnet"}",
+                        "${"githubDes".tr}${((Get.find<PlayerController>().playerPanelMinHeight.value) == 0 || !isBottomNavActive) ? "" : "\n\n${settingsController.currentVersion} ${"by".tr} bozmund"}",
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       isThreeLine: true,
@@ -1019,7 +1052,7 @@ class SettingsScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 20.0),
             child: Text(
-              "${settingsController.currentVersion} ${"by".tr} anandnet",
+              "${settingsController.currentVersion} ${"by".tr} bozmund",
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -1178,7 +1211,7 @@ Widget radioWidget({
       leading: Radio(
         value: value,
         groupValue: value.runtimeType == ThemeType
-            ? controller.themeModetype.value
+            ? controller.themeModeType.value
             : controller.discoverContentType.value,
         onChanged: value.runtimeType == ThemeType
             ? controller.onThemeChange

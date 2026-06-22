@@ -13,7 +13,7 @@ import '../../player/player_controller.dart';
 import '../../widgets/loader.dart';
 import '../../widgets/snackbar.dart';
 import '../../widgets/song_list_tile.dart';
-import '../../widgets/songinfo_bottom_sheet.dart';
+import '../../widgets/song_info_bottom_sheet.dart';
 import '../../widgets/sort_widget.dart';
 import 'album_screen_controller.dart';
 
@@ -204,7 +204,7 @@ class AlbumScreen extends StatelessWidget {
                                                   .isAddedToLibrary
                                                   .isFalse;
                                               albumController
-                                                  .addNremoveFromLibrary(
+                                                  .addNRemoveFromLibrary(
                                                     albumController.album.value,
                                                     add: add,
                                                   )

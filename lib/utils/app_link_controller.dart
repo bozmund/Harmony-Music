@@ -6,7 +6,7 @@ import 'package:get/get.dart';
 
 import '../models/playing_from.dart';
 
-import '/ui/widgets/songinfo_bottom_sheet.dart';
+import '/ui/widgets/song_info_bottom_sheet.dart';
 import '/utils/helper.dart';
 import '../ui/widgets/loader.dart';
 import '/services/app_contracts.dart';
