@@ -3,11 +3,11 @@ import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 import '/utils/app_link_controller.dart' show ProcessLink;
-import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 
 class SearchScreenController extends GetxController with ProcessLink {
   final textInputController = TextEditingController();
-  final musicServices = Get.find<MusicServices>();
+  final musicServices = Get.find<MusicServiceContract>();
   final suggestionList = [].obs;
   final historyQuerylist = [].obs;
   late Box<dynamic> queryBox;
@@ -24,8 +24,8 @@ class SearchScreenController extends GetxController with ProcessLink {
   }
 
   _init() async {
-    if(GetPlatform.isDesktop){
-      focusNode.addListener((){
+    if (GetPlatform.isDesktop) {
+      focusNode.addListener(() {
         isSearchBarInFocus.value = focusNode.hasFocus;
       });
     }
@@ -34,8 +34,8 @@ class SearchScreenController extends GetxController with ProcessLink {
   }
 
   Future<void> onChanged(String text) async {
-    if(text.contains("https://")){
-      urlPasted.value = true; 
+    if (text.contains("https://")) {
+      urlPasted.value = true;
       return;
     }
     urlPasted.value = false;
@@ -44,8 +44,9 @@ class SearchScreenController extends GetxController with ProcessLink {
 
   Future<void> suggestionInput(String txt) async {
     textInputController.text = txt;
-    textInputController.selection =
-        TextSelection.collapsed(offset: textInputController.text.length);
+    textInputController.selection = TextSelection.collapsed(
+      offset: textInputController.text.length,
+    );
     await onChanged(txt);
   }
 

@@ -5,7 +5,8 @@ import 'package:get/get.dart';
 import 'package:harmonymusic/ui/widgets/snackbar.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
+import '/services/file_picker_service.dart';
 import 'dart:convert';
 
 import '/utils/search_filter.dart';
@@ -14,7 +15,7 @@ import '../../../utils/house_keeping.dart';
 import '../../widgets/add_to_playlist.dart';
 import '/ui/widgets/sort_widget.dart';
 import '../Settings/settings_screen_controller.dart';
-import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 import '/services/piped_service.dart';
 import '/services/utils.dart';
 import '../../../utils/helper.dart';
@@ -44,18 +45,25 @@ class LibrarySongsController extends GetxController {
     if (Directory("$cacheDir/cachedSongs/").existsSync()) {
       final downloadedFiles = Directory("$cacheDir/cachedSongs")
           .listSync()
-          .where((f) => !['mime', 'part']
-              .contains(f.path.replaceAll(RegExp(r'^.*\.'), '')));
-      songsList.addAll(downloadedFiles
-          .map((e) {
-            RegExpMatch? match =
-                RegExp(".cachedSongs/([^#]*)?.mp3").firstMatch(e.path);
-            if (match != null) {
-              return match[1]!;
-            }
-          })
-          .whereType<String>()
-          .toList());
+          .where(
+            (f) => ![
+              'mime',
+              'part',
+            ].contains(f.path.replaceAll(RegExp(r'^.*\.'), '')),
+          );
+      songsList.addAll(
+        downloadedFiles
+            .map((e) {
+              RegExpMatch? match = RegExp(
+                ".cachedSongs/([^#]*)?.mp3",
+              ).firstMatch(e.path);
+              if (match != null) {
+                return match[1]!;
+              }
+            })
+            .whereType<String>()
+            .toList(),
+      );
       //printINFO("all files: $downloadedFiles \n $songsList");
     }
 
@@ -71,11 +79,12 @@ class LibrarySongsController extends GetxController {
         .whereType<MediaItem>()
         .toList();
 
-    librarySongsList.addAll(Hive.box(BoxNames.songDownloads)
-        .values
-        .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
-        .whereType<MediaItem>()
-        .toList());
+    librarySongsList.addAll(
+      Hive.box(BoxNames.songDownloads).values
+          .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
+          .whereType<MediaItem>()
+          .toList(),
+    );
     isSongFetched.value = true;
 
     //Remove deleted songs and expired songUrl from database
@@ -94,8 +103,10 @@ class LibrarySongsController extends GetxController {
 
   void onSearch(String value, String? tag) {
     librarySongsList.value = tempListContainer.where((song) {
-      return SearchFilter.matches(
-          {'title': song.title, 'artist': song.artist}, value);
+      return SearchFilter.matches({
+        'title': song.title,
+        'artist': song.artist,
+      }, value);
     }).toList();
   }
 
@@ -104,8 +115,8 @@ class LibrarySongsController extends GetxController {
     // Clear search bar text when closing
     final sortWidgetController =
         Get.isRegistered<SortWidgetController>(tag: tag)
-            ? Get.find<SortWidgetController>(tag: tag)
-            : null;
+        ? Get.find<SortWidgetController>(tag: tag)
+        : null;
     sortWidgetController?.textEditingController.clear();
     // onSearch is called with empty string via widget logic indirectly,
     // but here we ensure internal state is clean
@@ -113,8 +124,11 @@ class LibrarySongsController extends GetxController {
   }
 
   /// remove song from library list and from storage only, not from database
-  Future<void> removeSong(MediaItem item, bool isDownloaded,
-      {String? url}) async {
+  Future<void> removeSong(
+    MediaItem item,
+    bool isDownloaded, {
+    String? url,
+  }) async {
     if (tempListContainer.isNotEmpty) {
       tempListContainer.remove(item);
     }
@@ -132,18 +146,21 @@ class LibrarySongsController extends GetxController {
     }
 
     final thumbFile = File(
-        "${Get.find<SettingsScreenController>().supportDirPath}/thumbnails/${item.id}.png");
+      "${Get.find<SettingsScreenController>().supportDirPath}/thumbnails/${item.id}.png",
+    );
     if (await thumbFile.exists()) {
       await thumbFile.delete();
     }
   }
 
-//Additional operations
+  //Additional operations
   final additionalOperationTempList = [].obs;
   final additionalOperationTempMap = <int, bool>{}.obs;
 
   void startAdditionalOperation(
-      SortWidgetController sortWidgetController_, OperationMode mode) {
+    SortWidgetController sortWidgetController_,
+    OperationMode mode,
+  ) {
     sortWidgetController = sortWidgetController_;
     additionalOperationTempList.value = librarySongsList.toList();
     if (mode == OperationMode.addToPlaylist || mode == OperationMode.delete) {
@@ -155,8 +172,8 @@ class LibrarySongsController extends GetxController {
   }
 
   void checkIfAllSelected() {
-    sortWidgetController!.isAllSelected.value =
-        !additionalOperationTempMap.containsValue(false);
+    sortWidgetController!.isAllSelected.value = !additionalOperationTempMap
+        .containsValue(false);
   }
 
   void selectAll(bool selected) {
@@ -293,10 +310,7 @@ class SpotifyPlaylistImportException implements Exception {
 }
 
 class _SpotifyTrackMatch {
-  const _SpotifyTrackMatch({
-    required this.song,
-    required this.isConfident,
-  });
+  const _SpotifyTrackMatch({required this.song, required this.isConfident});
 
   final MediaItem song;
   final bool isConfident;
@@ -309,40 +323,47 @@ class LibraryPlaylistsController extends GetxController
   final playlistCreationMode = "local".obs;
   static final initPlst = [
     Playlist(
-        title: "recentlyPlayed".tr,
-        playlistId: BoxNames.libRP,
-        thumbnailUrl: Playlist.thumbPlaceholderUrl,
-        isCloudPlaylist: false),
+      title: "recentlyPlayed".tr,
+      playlistId: BoxNames.libRP,
+      thumbnailUrl: Playlist.thumbPlaceholderUrl,
+      isCloudPlaylist: false,
+    ),
     Playlist(
-        title: "favorites".tr,
-        playlistId: BoxNames.libFav,
-        thumbnailUrl: Playlist.thumbPlaceholderUrl,
-        isCloudPlaylist: false),
+      title: "favorites".tr,
+      playlistId: BoxNames.libFav,
+      thumbnailUrl: Playlist.thumbPlaceholderUrl,
+      isCloudPlaylist: false,
+    ),
     Playlist(
-        title: "Liked not downloaded",
-        playlistId: BoxNames.libFavNotDownloaded,
-        thumbnailUrl: Playlist.thumbPlaceholderUrl,
-        isCloudPlaylist: false),
+      title: "Liked not downloaded",
+      playlistId: BoxNames.libFavNotDownloaded,
+      thumbnailUrl: Playlist.thumbPlaceholderUrl,
+      isCloudPlaylist: false,
+    ),
     Playlist(
-        title: "Import conflicts",
-        playlistId: BoxNames.libImportDuplicates,
-        thumbnailUrl: Playlist.thumbPlaceholderUrl,
-        isCloudPlaylist: false),
+      title: "Import conflicts",
+      playlistId: BoxNames.libImportDuplicates,
+      thumbnailUrl: Playlist.thumbPlaceholderUrl,
+      isCloudPlaylist: false,
+    ),
     Playlist(
-        title: "Import needs review",
-        playlistId: BoxNames.libImportReview,
-        thumbnailUrl: Playlist.thumbPlaceholderUrl,
-        isCloudPlaylist: false),
+      title: "Import needs review",
+      playlistId: BoxNames.libImportReview,
+      thumbnailUrl: Playlist.thumbPlaceholderUrl,
+      isCloudPlaylist: false,
+    ),
     Playlist(
-        title: "cachedOrOffline".tr,
-        playlistId: BoxNames.songsCache,
-        thumbnailUrl: Playlist.thumbPlaceholderUrl,
-        isCloudPlaylist: false),
+      title: "cachedOrOffline".tr,
+      playlistId: BoxNames.songsCache,
+      thumbnailUrl: Playlist.thumbPlaceholderUrl,
+      isCloudPlaylist: false,
+    ),
     Playlist(
-        title: "downloads".tr,
-        playlistId: BoxNames.songDownloads,
-        thumbnailUrl: Playlist.thumbPlaceholderUrl,
-        isCloudPlaylist: false)
+      title: "downloads".tr,
+      playlistId: BoxNames.songDownloads,
+      thumbnailUrl: Playlist.thumbPlaceholderUrl,
+      isCloudPlaylist: false,
+    ),
   ];
   late RxList<Playlist> libraryPlaylists = RxList(initPlst);
   final isContentFetched = false.obs;
@@ -356,8 +377,10 @@ class LibraryPlaylistsController extends GetxController
 
   @override
   void onInit() {
-    controller =
-        AnimationController(vsync: this, duration: const Duration(seconds: 5));
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    );
     refreshLib();
     super.onInit();
   }
@@ -369,7 +392,7 @@ class LibraryPlaylistsController extends GetxController
       ...(box.values
           .map<Playlist?>((item) => Playlist.fromJson(item))
           .whereType<Playlist>()
-          .toList())
+          .toList()),
     ];
 
     final appPrefsBox = Hive.box(BoxNames.appPrefs);
@@ -401,7 +424,8 @@ class LibraryPlaylistsController extends GetxController
     final res = await Get.find<PipedServices>().getAllPlaylists();
     final box = await Hive.openBox('blacklistedPlaylist');
     final blacklistedPlaylist = box.values.whereType<String>().toList();
-    final libPipedPlaylistsId = libraryPlaylists
+    final libPipedPlaylistsId =
+        libraryPlaylists
             .toList()
             .map((e) {
               if (e.isPipedPlaylist) {
@@ -438,7 +462,8 @@ class LibraryPlaylistsController extends GetxController
         if (!cloudpipedPlaylistsId.contains(playlist.playlistId) &&
             playlist.isPipedPlaylist) {
           libraryPlaylists.removeWhere(
-              (element) => element.playlistId == playlist.playlistId);
+            (element) => element.playlistId == playlist.playlistId,
+          );
         }
       }
     }
@@ -449,8 +474,10 @@ class LibraryPlaylistsController extends GetxController
     String title = textInputController.text;
     if (title.trim().isNotEmpty) {
       if (playlist.isPipedPlaylist) {
-        final res = await Get.find<PipedServices>()
-            .renamePlaylist(playlist.playlistId, title);
+        final res = await Get.find<PipedServices>().renamePlaylist(
+          playlist.playlistId,
+          title,
+        );
         if (res.code == 0) return false;
         playlist.newTitle = title;
       } else {
@@ -469,8 +496,10 @@ class LibraryPlaylistsController extends GetxController
     playlistCreationMode.value = val!;
   }
 
-  Future<bool> createNewPlaylist(
-      {bool createPlaylistNaddSong = false, List<MediaItem>? songItems}) async {
+  Future<bool> createNewPlaylist({
+    bool createPlaylistNaddSong = false,
+    List<MediaItem>? songItems,
+  }) async {
     String title = textInputController.text;
     if (title.trim().isNotEmpty) {
       dynamic newplst;
@@ -480,27 +509,29 @@ class LibraryPlaylistsController extends GetxController
         final res = await Get.find<PipedServices>().createPlaylist(title);
         if (res.code == 1) {
           newplst = Playlist(
-              title: title,
-              playlistId: "${res.response['playlistId']}",
-              thumbnailUrl: songItems != null
-                  ? songItems[0].artUri.toString()
-                  : Playlist.thumbPlaceholderUrl,
-              description: "Piped Playlist",
-              isCloudPlaylist: true,
-              isPipedPlaylist: true);
+            title: title,
+            playlistId: "${res.response['playlistId']}",
+            thumbnailUrl: songItems != null
+                ? songItems[0].artUri.toString()
+                : Playlist.thumbPlaceholderUrl,
+            description: "Piped Playlist",
+            isCloudPlaylist: true,
+            isPipedPlaylist: true,
+          );
         } else {
           creationInProgress.value = false;
           return false;
         }
       } else {
         newplst = Playlist(
-            title: title,
-            playlistId: "LIB${DateTime.now().millisecondsSinceEpoch}",
-            thumbnailUrl: songItems != null
-                ? songItems[0].artUri.toString()
-                : Playlist.thumbPlaceholderUrl,
-            description: "Library Playlist",
-            isCloudPlaylist: false);
+          title: title,
+          playlistId: "LIB${DateTime.now().millisecondsSinceEpoch}",
+          thumbnailUrl: songItems != null
+              ? songItems[0].artUri.toString()
+              : Playlist.thumbPlaceholderUrl,
+          description: "Library Playlist",
+          isCloudPlaylist: false,
+        );
         final box = await Hive.openBox(BoxNames.libraryPlaylists);
         box.put(newplst.playlistId, newplst.toJson());
         await box.close();
@@ -517,8 +548,10 @@ class LibraryPlaylistsController extends GetxController
       } else if ((createPlaylistNaddSong &&
           playlistCreationMode.value == "piped")) {
         final songIds = songItems!.map((e) => e.id).toList();
-        await Get.find<PipedServices>()
-            .addToPlaylist(newplst.playlistId, songIds);
+        await Get.find<PipedServices>().addToPlaylist(
+          newplst.playlistId,
+          songIds,
+        );
       }
       creationInProgress.value = false;
       return true;
@@ -560,17 +593,20 @@ class LibraryPlaylistsController extends GetxController
     onStatus?.call("Fetching playlist");
     late Map<String, dynamic> content;
     try {
-      content = await Get.find<MusicServices>()
-          .getPlaylistOrAlbumSongs(playlistId: playlistId);
+      content = await Get.find<MusicServiceContract>().getPlaylistOrAlbumSongs(
+        playlistId: playlistId,
+      );
     } catch (e) {
       printERROR("YouTube Music playlist import fetch failed: $e");
       throw const YouTubePlaylistImportException(
-          "Playlist not found, private, or unavailable");
+        "Playlist not found, private, or unavailable",
+      );
     }
 
-    final tracks = (content['tracks'] as List?)
-            ?.whereType<MediaItem>()
-            .toList(growable: false) ??
+    final tracks =
+        (content['tracks'] as List?)?.whereType<MediaItem>().toList(
+          growable: false,
+        ) ??
         const <MediaItem>[];
     if (tracks.isEmpty) {
       throw const YouTubePlaylistImportException("No songs found");
@@ -665,9 +701,13 @@ class LibraryPlaylistsController extends GetxController
   }
 
   Future<_SpotifyTrackMatch?> _matchSpotifyTrack(
-      SpotifyImportTrack track) async {
-    final results = await Get.find<MusicServices>()
-        .search(track.query, filter: 'songs', limit: 5);
+    SpotifyImportTrack track,
+  ) async {
+    final results = await Get.find<MusicServiceContract>().search(
+      track.query,
+      filter: 'songs',
+      limit: 5,
+    );
     final candidates = _songsFromSearchResults(results);
     if (candidates.isEmpty) return null;
 
@@ -697,14 +737,16 @@ class LibraryPlaylistsController extends GetxController
     final candidateTitle = _normalizeImportText(song.title);
     final candidateArtist = _normalizeImportText(song.artist ?? "");
 
-    final titleMatches = candidateTitle == spotifyTitle ||
+    final titleMatches =
+        candidateTitle == spotifyTitle ||
         candidateTitle.contains(spotifyTitle) ||
         spotifyTitle.contains(candidateTitle);
     if (!titleMatches) return false;
 
     final spotifyArtists = track.artistName
-        .split(RegExp(r'\s+(?:and|x|with|feat|ft)\s+|,\s*|&',
-            caseSensitive: false))
+        .split(
+          RegExp(r'\s+(?:and|x|with|feat|ft)\s+|,\s*|&', caseSensitive: false),
+        )
         .map(_normalizeImportText)
         .map((artist) => artist.trim())
         .where((artist) => artist.isNotEmpty)
@@ -719,7 +761,9 @@ class LibraryPlaylistsController extends GetxController
         .toLowerCase()
         .replaceAll(RegExp(r'\([^)]*\)|\[[^\]]*\]'), ' ')
         .replaceAll(
-            RegExp(r'\b(feat|ft|with|official|audio|video|lyrics?)\b'), ' ')
+          RegExp(r'\b(feat|ft|with|official|audio|video|lyrics?)\b'),
+          ' ',
+        )
         .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
         .trim()
         .replaceAll(RegExp(r'\s+'), ' ');
@@ -852,7 +896,9 @@ class LibraryPlaylistsController extends GetxController
   }
 
   String _thumbnailUrlFromContent(
-      Map<String, dynamic> content, List<MediaItem> tracks) {
+    Map<String, dynamic> content,
+    List<MediaItem> tracks,
+  ) {
     final thumbnails = content['thumbnails'];
     if (thumbnails is List && thumbnails.isNotEmpty) {
       final first = thumbnails.first;
@@ -875,7 +921,8 @@ class LibraryPlaylistsController extends GetxController
   void onSearch(String value, String? tag) {
     libraryPlaylists.value = tempListContainer
         .where(
-            (element) => SearchFilter.matches({'title': element.title}, value))
+          (element) => SearchFilter.matches({'title': element.title}, value),
+        )
         .toList();
   }
 
@@ -884,8 +931,8 @@ class LibraryPlaylistsController extends GetxController
     // Clear search bar text when closing
     final sortWidgetController =
         Get.isRegistered<SortWidgetController>(tag: tag)
-            ? Get.find<SortWidgetController>(tag: tag)
-            : null;
+        ? Get.find<SortWidgetController>(tag: tag)
+        : null;
     sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
@@ -907,14 +954,14 @@ class LibraryPlaylistsController extends GetxController
         _showImportProgressDialog(context);
       }
 
-      // Use file_picker to select JSON file
-      final result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        dialogTitle: 'importPlaylist'.tr,
+      final result = await FilePickerService.openFile(
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'JSON', extensions: ['json']),
+        ],
+        confirmButtonText: 'importPlaylist'.tr,
       );
 
-      if (result == null || result.files.isEmpty) {
+      if (result == null) {
         // User cancelled the picker
         if (Get.isDialogOpen ?? false) {
           Get.back();
@@ -926,7 +973,7 @@ class LibraryPlaylistsController extends GetxController
 
       importProgress.value = 0.2;
 
-      final file = File(result.files.single.path!);
+      final file = File(result.path);
       if (!await file.exists()) {
         throw FileSystemException("fileNotFound".tr);
       }
@@ -952,7 +999,8 @@ class LibraryPlaylistsController extends GetxController
       final newPlaylist = Playlist(
         title: "${playlistInfo['title']} (${"imported".tr})",
         playlistId: newPlaylistId,
-        thumbnailUrl: playlistInfo['thumbnailUrl'] ??
+        thumbnailUrl:
+            playlistInfo['thumbnailUrl'] ??
             (playlistInfo['thumbnails'] != null &&
                     playlistInfo['thumbnails'].isNotEmpty
                 ? playlistInfo['thumbnails'][0]['url']
@@ -1021,8 +1069,9 @@ class LibraryPlaylistsController extends GetxController
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
       }
     } finally {
       isImporting.value = false;
@@ -1035,33 +1084,34 @@ class LibraryPlaylistsController extends GetxController
     Get.dialog(
       AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: Text(
           "importingPlaylist".tr,
           style: Theme.of(context).textTheme.titleLarge,
         ),
-        content: Obx(() => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  value: Get.isRegistered<LibraryPlaylistsController>()
-                      ? importProgress.value
-                      : 0,
-                  backgroundColor:
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context).colorScheme.secondary,
-                  ),
+        content: Obx(
+          () => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: Get.isRegistered<LibraryPlaylistsController>()
+                    ? importProgress.value
+                    : 0,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.secondary,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  "${(Get.isRegistered<LibraryPlaylistsController>() ? importProgress.value * 100 : 0).toInt()}%",
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            )),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "${(Get.isRegistered<LibraryPlaylistsController>() ? importProgress.value * 100 : 0).toInt()}%",
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
       ),
       barrierDismissible: false,
     );
@@ -1103,7 +1153,8 @@ class LibraryAlbumsController extends GetxController {
   void onSearch(String value, String? tag) {
     libraryAlbums.value = tempListContainer
         .where(
-            (element) => SearchFilter.matches({'title': element.title}, value))
+          (element) => SearchFilter.matches({'title': element.title}, value),
+        )
         .toList();
   }
 
@@ -1112,8 +1163,8 @@ class LibraryAlbumsController extends GetxController {
     // Clear search bar text when closing
     final sortWidgetController =
         Get.isRegistered<SortWidgetController>(tag: tag)
-            ? Get.find<SortWidgetController>(tag: tag)
-            : null;
+        ? Get.find<SortWidgetController>(tag: tag)
+        : null;
     sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
@@ -1153,7 +1204,8 @@ class LibraryArtistsController extends GetxController {
   void onSearch(String value, String? tag) {
     libraryArtists.value = tempListContainer
         .where(
-            (element) => SearchFilter.matches({'title': element.name}, value))
+          (element) => SearchFilter.matches({'title': element.name}, value),
+        )
         .toList();
   }
 
@@ -1162,8 +1214,8 @@ class LibraryArtistsController extends GetxController {
     // Clear search bar text when closing
     final sortWidgetController =
         Get.isRegistered<SortWidgetController>(tag: tag)
-            ? Get.find<SortWidgetController>(tag: tag)
-            : null;
+        ? Get.find<SortWidgetController>(tag: tag)
+        : null;
     sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
   }
@@ -1196,8 +1248,10 @@ class LibrarySearchesController extends GetxController {
 
   Future<void> deleteSearch(String query) async {
     final box = await Hive.openBox(BoxNames.librarySearches);
-    final key =
-        box.keys.firstWhere((k) => box.get(k) == query, orElse: () => null);
+    final key = box.keys.firstWhere(
+      (k) => box.get(k) == query,
+      orElse: () => null,
+    );
     if (key != null) {
       await box.delete(key);
       savedSearches.remove(query);

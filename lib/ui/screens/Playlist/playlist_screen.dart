@@ -2,11 +2,11 @@ import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '/models/playing_from.dart';
 import '/models/thumbnail.dart';
+import '../../../services/app_platform_service.dart';
 import '/ui/widgets/playlist_album_scroll_behaviour.dart';
 import '../../../services/constant.dart';
 import '../../../services/downloader.dart';
@@ -576,11 +576,8 @@ class PlaylistScreen extends StatelessWidget {
                                                         .playlist
                                                         .value;
                                                 if (content.isPipedPlaylist) {
-                                                  SharePlus.instance.share(
-                                                    ShareParams(
-                                                      text:
-                                                          "https://piped.video/playlist?list=${content.playlistId}",
-                                                    ),
+                                                  AppPlatformService.shareText(
+                                                    "https://piped.video/playlist?list=${content.playlistId}",
                                                   );
                                                 } else {
                                                   final isPlaylistIdPrefixAvlbl =
@@ -596,8 +593,8 @@ class PlaylistScreen extends StatelessWidget {
                                                                 .substring(2)
                                                       : url +
                                                             content.playlistId;
-                                                  SharePlus.instance.share(
-                                                    ShareParams(text: url),
+                                                  AppPlatformService.shareText(
+                                                    url,
                                                   );
                                                 }
                                               },

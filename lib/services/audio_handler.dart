@@ -415,9 +415,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
       await customAction("playByIndex", {'index': index});
     } else if (queueLoopModeEnabled) {
       await _player.seek(Duration.zero);
-      if (!_player.playing) {
-        await _player.play();
-      }
+      await _player.play();
     } else {
       await _player.seek(Duration.zero);
       await _player.pause();
@@ -522,6 +520,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
             await _player.seek(Duration(milliseconds: position));
           }
         } else {
+          await _player.seek(Duration.zero, index: 0);
           await _player.play();
         }
         break;
@@ -591,6 +590,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           _normalizeVolume(streamInfo.audio!.loudnessDb);
         }
 
+        await _player.seek(Duration.zero, index: 0);
         await _player.play();
         break;
 

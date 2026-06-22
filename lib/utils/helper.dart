@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
+import '/services/app_contracts.dart';
 import '/services/constant.dart';
 import '/ui/navigator.dart';
 import '/ui/widgets/sort_widget.dart';
@@ -30,11 +31,7 @@ String? getCurrentRouteName() {
   return currentPath;
 }
 
-void sortSongsNVideos(
-  List songlist,
-  SortType sortType,
-  bool isAscending,
-) {
+void sortSongsNVideos(List songlist, SortType sortType, bool isAscending) {
   Comparator compareFunction;
 
   switch (sortType) {
@@ -51,8 +48,8 @@ void sortSongsNVideos(
           (a.duration ?? Duration.zero).compareTo(b.duration ?? Duration.zero);
     case SortType.Name:
     default:
-      compareFunction =
-          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      compareFunction = (a, b) =>
+          a.title.toLowerCase().compareTo(b.title.toLowerCase());
       break;
   }
 
@@ -65,17 +62,13 @@ void sortSongsNVideos(
   }
 }
 
-void sortAlbumNSingles(
-  List albumList,
-  SortType sortType,
-  bool isAscending,
-) {
+void sortAlbumNSingles(List albumList, SortType sortType, bool isAscending) {
   Comparator compareFunction;
 
   switch (sortType) {
     case SortType.Date:
-      compareFunction =
-          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      compareFunction = (a, b) =>
+          a.title.toLowerCase().compareTo(b.title.toLowerCase());
       break;
     case SortType.Name:
     default:
@@ -97,11 +90,7 @@ void sortAlbumNSingles(
   }
 }
 
-void sortPlayLists(
-  List playlists,
-  SortType sortType,
-  bool isAscending,
-) {
+void sortPlayLists(List playlists, SortType sortType, bool isAscending) {
   Comparator compareFunction;
   int titleSort(a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase());
 
@@ -137,18 +126,14 @@ void sortPlayLists(
   }
 }
 
-void sortArtist(
-  List artistList,
-  SortType sortType,
-  bool isAscending,
-) {
+void sortArtist(List artistList, SortType sortType, bool isAscending) {
   Comparator compareFunction;
 
   switch (sortType) {
     case SortType.Name:
     default:
-      compareFunction =
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      compareFunction = (a, b) =>
+          a.name.toLowerCase().compareTo(b.name.toLowerCase());
       break;
   }
 
@@ -184,80 +169,121 @@ Future<UpdateInfo?> newVersionCheck(
   String currentVersion, {
   UpdateChannel channel = UpdateChannel.stable,
 }) async {
-  try {
-    if (channel == UpdateChannel.rolling) {
-      return await _rollingVersionCheck();
-    }
-
-    final tags = (await Dio()
-            .get("https://api.github.com/repos/bozmund/Harmony-Music/tags"))
-        .data;
-
-    final versionTagPattern = RegExp(r'^v\d+\.\d+\.\d+$');
-    final semanticTags = (tags as List)
-        .map((tag) => tag['name'])
-        .whereType<String>()
-        .where((tag) => versionTagPattern.hasMatch(tag))
-        .toList();
-    if (semanticTags.isEmpty) return null;
-    semanticTags.sort((a, b) => _compareSemanticVersions(b, a));
-
-    final currentVersion_ =
-        currentVersion.toLowerCase().replaceFirst('v', '').split(".");
-    final latestTag = semanticTags.first;
-    final availableVersion_ = latestTag.substring(1).split(".");
-    final isNewer = int.parse(availableVersion_[0]) >
-            int.parse(currentVersion_[0]) ||
-        (int.parse(availableVersion_[1]) > int.parse(currentVersion_[1]) &&
-            int.parse(availableVersion_[0]) == int.parse(currentVersion_[0])) ||
-        (int.parse(availableVersion_[2]) > int.parse(currentVersion_[2]) &&
-            int.parse(availableVersion_[0]) == int.parse(currentVersion_[0]) &&
-            int.parse(availableVersion_[1]) == int.parse(currentVersion_[1]));
-    if (!isNewer) return null;
-
-    return UpdateInfo(
-      channel: UpdateChannel.stable,
-      version: latestTag,
-      downloadUrl:
-          "https://github.com/bozmund/Harmony-Music/releases/tag/$latestTag",
-      releaseUrl:
-          "https://github.com/bozmund/Harmony-Music/releases/tag/$latestTag",
+  if (Get.isRegistered<UpdateServiceContract>()) {
+    return Get.find<UpdateServiceContract>().checkNewVersion(
+      currentVersion,
+      channel: channel,
     );
-  } catch (e) {
-    return null;
+  }
+  return const GithubUpdateService().checkNewVersion(
+    currentVersion,
+    channel: channel,
+  );
+}
+
+class GithubUpdateService implements UpdateServiceContract {
+  const GithubUpdateService();
+
+  @override
+  Future<UpdateInfo?> checkNewVersion(
+    String currentVersion, {
+    UpdateChannel channel = UpdateChannel.stable,
+  }) async {
+    try {
+      if (channel == UpdateChannel.rolling) {
+        return await _rollingVersionCheck();
+      }
+
+      final tags = (await Dio().get(
+        "https://api.github.com/repos/bozmund/Harmony-Music/tags",
+      )).data;
+
+      final versionTagPattern = RegExp(r'^v\d+\.\d+\.\d+$');
+      final semanticTags = (tags as List)
+          .map((tag) => tag['name'])
+          .whereType<String>()
+          .where((tag) => versionTagPattern.hasMatch(tag))
+          .toList();
+      if (semanticTags.isEmpty) return null;
+      semanticTags.sort((a, b) => _compareSemanticVersions(b, a));
+
+      final currentVersion_ = currentVersion
+          .toLowerCase()
+          .replaceFirst('v', '')
+          .split(".");
+      final latestTag = semanticTags.first;
+      final availableVersion_ = latestTag.substring(1).split(".");
+      final isNewer =
+          int.parse(availableVersion_[0]) > int.parse(currentVersion_[0]) ||
+          (int.parse(availableVersion_[1]) > int.parse(currentVersion_[1]) &&
+              int.parse(availableVersion_[0]) ==
+                  int.parse(currentVersion_[0])) ||
+          (int.parse(availableVersion_[2]) > int.parse(currentVersion_[2]) &&
+              int.parse(availableVersion_[0]) ==
+                  int.parse(currentVersion_[0]) &&
+              int.parse(availableVersion_[1]) == int.parse(currentVersion_[1]));
+      if (!isNewer) return null;
+
+      final releasePage =
+          "https://github.com/bozmund/Harmony-Music/releases/tag/$latestTag";
+      String? downloadUrl;
+      String? releaseUrl;
+      try {
+        final release = (await Dio().get(
+          "https://api.github.com/repos/bozmund/Harmony-Music/releases/tags/$latestTag",
+        )).data;
+        downloadUrl = _releaseApkDownloadUrl(release);
+        releaseUrl = release['html_url'] as String?;
+      } catch (_) {
+        // Keep the update notification useful even if release metadata fails.
+      }
+
+      return UpdateInfo(
+        channel: UpdateChannel.stable,
+        version: latestTag,
+        downloadUrl: downloadUrl ?? releaseUrl ?? releasePage,
+        releaseUrl: releaseUrl ?? releasePage,
+      );
+    } catch (e) {
+      return null;
+    }
   }
 }
 
 Future<UpdateInfo?> _rollingVersionCheck() async {
   final release = (await Dio().get(
-          "https://api.github.com/repos/bozmund/Harmony-Music/releases/tags/main-latest"))
-      .data;
+    "https://api.github.com/repos/bozmund/Harmony-Music/releases/tags/main-latest",
+  )).data;
   final remoteSha = _rollingReleaseSha(release);
   if (remoteSha == null || remoteSha.isEmpty || remoteSha == BuildInfo.sha) {
     return null;
   }
 
-  final assets = (release['assets'] as List?) ?? [];
-  final apkAsset = assets.cast<dynamic>().firstWhere(
-        (asset) =>
-            asset is Map &&
-            (asset['name'] as String? ?? '').toLowerCase().endsWith('.apk'),
-        orElse: () => null,
-      );
-  final browserDownloadUrl = apkAsset is Map
-      ? apkAsset['browser_download_url'] as String?
-      : release['html_url'] as String?;
+  final browserDownloadUrl = _releaseApkDownloadUrl(release);
 
   return UpdateInfo(
     channel: UpdateChannel.rolling,
     version: release['tag_name'] ?? 'main-latest',
-    downloadUrl: browserDownloadUrl ??
+    downloadUrl:
+        browserDownloadUrl ??
         release['html_url'] ??
         'https://github.com/bozmund/Harmony-Music/releases/tag/main-latest',
-    releaseUrl: release['html_url'] ??
+    releaseUrl:
+        release['html_url'] ??
         'https://github.com/bozmund/Harmony-Music/releases/tag/main-latest',
     sha: remoteSha,
   );
+}
+
+String? _releaseApkDownloadUrl(dynamic release) {
+  final assets = (release['assets'] as List?) ?? [];
+  final apkAsset = assets.cast<dynamic>().firstWhere(
+    (asset) =>
+        asset is Map &&
+        (asset['name'] as String? ?? '').toLowerCase().endsWith('.apk'),
+    orElse: () => null,
+  );
+  return apkAsset is Map ? apkAsset['browser_download_url'] as String? : null;
 }
 
 String? _rollingReleaseSha(dynamic release) {

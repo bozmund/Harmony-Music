@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/models/playing_from.dart';
 import 'package:harmonymusic/models/thumbnail.dart';
+import 'package:harmonymusic/services/app_platform_service.dart';
 import 'package:harmonymusic/ui/widgets/playlist_album_scroll_behaviour.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../../services/downloader.dart';
@@ -396,11 +396,8 @@ class AlbumScreen extends StatelessWidget {
                                           ),
                                           splashRadius: 10,
                                           onPressed: () {
-                                            SharePlus.instance.share(
-                                              ShareParams(
-                                                text:
-                                                    "https://youtube.com/playlist?list=${albumController.album.value.audioPlaylistId}",
-                                              ),
+                                            AppPlatformService.shareText(
+                                              "https://youtube.com/playlist?list=${albumController.album.value.audioPlaylistId}",
                                             );
                                           },
                                           icon: const Icon(

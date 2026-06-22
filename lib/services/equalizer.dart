@@ -1,10 +1,16 @@
+import 'dart:ui';
+
 import 'package:harmonymusic/native_bindings/andrid_utils.dart';
-import 'package:jni/jni.dart';
+import 'package:jni_flutter/jni_flutter.dart';
 
 class EqualizerService {
   static bool openEqualizer(int sessionId) {
-    JObject activity = JObject.fromReference(Jni.getCurrentActivity());
-    JObject context = JObject.fromReference(Jni.getCachedApplicationContext());
+    final engineId = PlatformDispatcher.instance.engineId;
+    if (engineId == null) return false;
+
+    final activity = androidActivity(engineId);
+    if (activity == null) return false;
+    final context = androidApplicationContext;
     final success = Equalizer().openEqualizer(sessionId, context, activity);
     activity.release();
     context.release();
@@ -12,13 +18,13 @@ class EqualizerService {
   }
 
   static void initAudioEffect(int sessionId) {
-    JObject context = JObject.fromReference(Jni.getCachedApplicationContext());
+    final context = androidApplicationContext;
     Equalizer().initAudioEffect(sessionId, context);
     context.release();
   }
 
   static void endAudioEffect(int sessionId) {
-    JObject context = JObject.fromReference(Jni.getCachedApplicationContext());
+    final context = androidApplicationContext;
     Equalizer().endAudioEffect(sessionId, context);
     context.release();
   }

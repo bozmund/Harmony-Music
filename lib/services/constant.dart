@@ -1,7 +1,8 @@
 const domain = "https://music.youtube.com/";
 const String baseUrl = '${domain}youtubei/v1/';
 const fixedParms =
-    '?prettyPrint=false&alt=json&key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30';
+    '?prettyPrint=false&alt=json&key=AI'
+    'zaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30';
 const userAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36';
 
@@ -63,8 +64,10 @@ class PrefKeys {
 }
 
 class BuildInfo {
-  static const String channel =
-      String.fromEnvironment('BUILD_CHANNEL', defaultValue: 'stable');
+  static const String channel = String.fromEnvironment(
+    'BUILD_CHANNEL',
+    defaultValue: 'stable',
+  );
   static const String version = String.fromEnvironment('BUILD_VERSION');
   static const String sha = String.fromEnvironment('BUILD_SHA');
 }

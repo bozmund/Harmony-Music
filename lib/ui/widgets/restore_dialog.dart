@@ -1,13 +1,13 @@
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
+import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:terminate_restart/terminate_restart.dart';
 
+import '../../services/app_platform_service.dart';
 import '../../services/constant.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
 import '/utils/helper.dart';
@@ -23,92 +23,94 @@ class RestoreDialog extends StatelessWidget {
     return CommonDialog(
       child: Container(
         height: 300,
-        padding:
-            const EdgeInsets.only(top: 20, bottom: 30, left: 20, right: 20),
+        padding: const EdgeInsets.only(
+          top: 20,
+          bottom: 30,
+          left: 20,
+          right: 20,
+        ),
         child: Stack(
           children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              Container(
-                padding: const EdgeInsets.only(bottom: 10.0, top: 10),
-                child: Text(
-                  "restoreAppData".tr,
-                  style: Theme.of(context).textTheme.titleMedium,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.only(bottom: 10.0, top: 10),
+                  child: Text(
+                    "restoreAppData".tr,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
-              ),
-              SizedBox(
-                height: 150,
-                child: Center(
-                  child: Obx(() => restoreDialogController
-                          .restoreError.value.isNotEmpty
-                      ? Text(
-                          restoreDialogController.restoreError.value,
-                          textAlign: TextAlign.center,
-                        )
-                      : restoreDialogController.restoreCompleted
+                SizedBox(
+                  height: 150,
+                  child: Center(
+                    child: Obx(
+                      () =>
+                          restoreDialogController.restoreError.value.isNotEmpty
                           ? Text(
-                              "restoreMsg".tr,
+                              restoreDialogController.restoreError.value,
                               textAlign: TextAlign.center,
                             )
+                          : restoreDialogController.restoreCompleted
+                          ? Text("restoreMsg".tr, textAlign: TextAlign.center)
                           : restoreDialogController.processingFiles.isTrue
-                              ? Text("processFiles".tr)
-                              : restoreDialogController.restoreRunning.isTrue
-                                  ? Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                            "${restoreDialogController.restoreProgress.toInt()}/${restoreDialogController.filesToRestore.toInt()}",
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleLarge),
-                                        const SizedBox(
-                                          height: 10,
-                                        ),
-                                        Text("restoring".tr)
-                                      ],
-                                    )
-                                  : Text("letsStrart".tr)),
+                          ? Text("processFiles".tr)
+                          : restoreDialogController.restoreRunning.isTrue
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  "${restoreDialogController.restoreProgress.toInt()}/${restoreDialogController.filesToRestore.toInt()}",
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 10),
+                                Text("restoring".tr),
+                              ],
+                            )
+                          : Text("letsStrart".tr),
+                    ),
+                  ),
                 ),
-              ),
-              SizedBox(
-                width: double.maxFinite,
-                child: Align(
-                  child: Container(
-                    decoration: BoxDecoration(
+                SizedBox(
+                  width: double.maxFinite,
+                  child: Align(
+                    child: Container(
+                      decoration: BoxDecoration(
                         color: Theme.of(context).textTheme.titleLarge!.color,
-                        borderRadius: BorderRadius.circular(10)),
-                    child: InkWell(
-                      onTap: () {
-                        if (restoreDialogController.restoreCompleted) {
-                          GetPlatform.isAndroid
-                              ? TerminateRestart.instance.restartApp(
-                                  options: const TerminateRestartOptions(
-                                    terminate: true,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          if (restoreDialogController.restoreCompleted) {
+                            GetPlatform.isAndroid
+                                ? AppPlatformService.restartApp()
+                                : exit(0);
+                          } else {
+                            restoreDialogController.restore();
+                          }
+                        },
+                        child: Obx(
+                          () => Visibility(
+                            visible:
+                                restoreDialogController
+                                    .processingFiles
+                                    .isFalse &&
+                                restoreDialogController.restoreRunning.isFalse,
+                            replacement: const SizedBox(height: 40),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 15.0,
+                                vertical: 10,
+                              ),
+                              child: Obx(
+                                () => Text(
+                                  restoreDialogController.restoreCompleted
+                                      ? "restartApp".tr
+                                      : "restore".tr,
+                                  style: TextStyle(
+                                    color: Theme.of(context).canvasColor,
                                   ),
-                                )
-                              : exit(0);
-                        } else {
-                          restoreDialogController.restore();
-                        }
-                      },
-                      child: Obx(
-                        () => Visibility(
-                          visible: restoreDialogController
-                                  .processingFiles.isFalse &&
-                              restoreDialogController.restoreRunning.isFalse,
-                          replacement: const SizedBox(
-                            height: 40,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 15.0, vertical: 10),
-                            child: Obx(
-                              () => Text(
-                                restoreDialogController.restoreCompleted
-                                    ? "restartApp".tr
-                                    : "restore".tr,
-                                style: TextStyle(
-                                    color: Theme.of(context).canvasColor),
+                                ),
                               ),
                             ),
                           ),
@@ -117,8 +119,8 @@ class RestoreDialog extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            ]),
+              ],
+            ),
           ],
         ),
       ),
@@ -142,10 +144,12 @@ class RestoreDialogController extends GetxController {
       return;
     }
 
-    final pickedFileResult = await FilePicker.pickFile(
-        dialogTitle: "Select backup file",
-        type: GetPlatform.isWindows ? FileType.custom : FileType.any,
-        allowedExtensions: GetPlatform.isWindows ? ['hmb'] : null);
+    final pickedFileResult = await FilePickerService.openFile(
+      acceptedTypeGroups: [
+        const XTypeGroup(label: 'Harmony backup', extensions: ['hmb']),
+      ],
+      confirmButtonText: "Select backup file",
+    );
 
     final String? pickedFile = pickedFileResult?.path;
 
@@ -188,8 +192,10 @@ class RestoreDialogController extends GetxController {
 
         final filename = _safeArchiveFileName(file.name);
         if (filename == null) {
-          printWarning("Skipping invalid restore entry: ${file.name}",
-              tag: LogTags.backup);
+          printWarning(
+            "Skipping invalid restore entry: ${file.name}",
+            tag: LogTags.backup,
+          );
           continue;
         }
 
@@ -203,14 +209,6 @@ class RestoreDialogController extends GetxController {
         await outputFile.parent.create(recursive: true);
         await _writeArchiveFileToDisk(file, outputFile.path);
         restoreProgress.value++;
-      }
-
-      // Clear file picker temp directory
-      final tempFilePickerDirPath =
-          "${(await getApplicationCacheDirectory()).path}/file_picker";
-      final tempFilePickerDir = Directory(tempFilePickerDirPath);
-      if (tempFilePickerDir.existsSync()) {
-        await tempFilePickerDir.delete(recursive: true);
       }
 
       await rewriteRestoredDownloadPaths(supportDirPath: supportDirPath);
@@ -263,12 +261,14 @@ Map<dynamic, dynamic>? rewriteRestoredDownloadSong(
   final usablePath = exists(restoredPath)
       ? restoredPath
       : originalPath != null && exists(originalPath)
-          ? originalPath
-          : null;
+      ? originalPath
+      : null;
 
   if (usablePath == null) {
-    printWarning("Skipping restored download with missing file: $fileName",
-        tag: LogTags.backup);
+    printWarning(
+      "Skipping restored download with missing file: $fileName",
+      tag: LogTags.backup,
+    );
     return null;
   }
 
@@ -319,8 +319,10 @@ String? restoredFileName(String? path) {
 
 String? _safeArchiveFileName(String archiveName) {
   final normalizedName = archiveName.replaceAll('\\', '/');
-  final parts =
-      normalizedName.split('/').where((part) => part.isNotEmpty).toList();
+  final parts = normalizedName
+      .split('/')
+      .where((part) => part.isNotEmpty)
+      .toList();
   final fileName = parts.isEmpty ? null : parts.last;
   if (fileName == null || fileName == '.' || fileName == '..') {
     return null;
@@ -344,7 +346,9 @@ String _restoreTargetDir(
 }
 
 Future<void> _writeArchiveFileToDisk(
-    ArchiveFile file, String outputFilePath) async {
+  ArchiveFile file,
+  String outputFilePath,
+) async {
   final output = OutputFileStream(outputFilePath);
   try {
     file.writeContent(output);

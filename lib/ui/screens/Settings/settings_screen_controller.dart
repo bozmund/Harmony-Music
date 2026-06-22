@@ -1,15 +1,17 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
+import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:harmonymusic/services/app_platform_service.dart';
 import 'package:harmonymusic/services/permission_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:terminate_restart/terminate_restart.dart';
 
 import '../../../utils/update_check_flag_file.dart';
 import '/services/piped_service.dart';
@@ -17,10 +19,10 @@ import '../Library/library_controller.dart';
 import '../../widgets/snackbar.dart';
 import '../../../utils/helper.dart';
 import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 import '/ui/player/player_controller.dart';
 import '../Home/home_screen_controller.dart';
 import '/ui/utils/theme_controller.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '/services/constant.dart';
 import '../../navigator.dart';
@@ -42,6 +44,9 @@ class SettingsScreenController extends GetxController {
   final isNewVersionAvailable = false.obs;
   final updateInfo = Rxn<UpdateInfo>();
   final updateChannel = UpdateChannel.stable.obs;
+  final isUpdateDownloading = false.obs;
+  final updateDownloadProgress = 0.0.obs;
+  final updateDownloadError = "".obs;
   final isLinkedWithPiped = false.obs;
   final stopPlyabackOnSwipeAway = false.obs;
   final currentAppLanguageCode = "en".obs;
@@ -55,7 +60,8 @@ class SettingsScreenController extends GetxController {
   final keepScreenAwake = false.obs;
   final restorePlaybackSession = false.obs;
   final cacheHomeScreenData = true.obs;
-  final currentVersion = "V1.12.2";
+  final currentVersion =
+      "V${(BuildInfo.version.isEmpty ? '5.9.2' : BuildInfo.version).split('+').first.split('-').first}";
 
   @override
   void onInit() {
@@ -63,6 +69,7 @@ class SettingsScreenController extends GetxController {
       if (updateCheckFlag) checkNewVersion();
     });
     _createInAppSongDownDir();
+    unawaited(clearCachedUpdateApks());
     super.onInit();
   }
 
@@ -75,13 +82,115 @@ class SettingsScreenController extends GetxController {
   Future<UpdateInfo?> checkNewVersion() async {
     updateChannel.value =
         (setBox.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
-            ? UpdateChannel.rolling
-            : UpdateChannel.stable;
-    final info =
-        await newVersionCheck(currentVersion, channel: selectedUpdateChannel);
+        ? UpdateChannel.rolling
+        : UpdateChannel.stable;
+    final info = await newVersionCheck(
+      currentVersion,
+      channel: selectedUpdateChannel,
+    );
     updateInfo.value = info;
     isNewVersionAvailable.value = info != null;
     return info;
+  }
+
+  Future<void> downloadAndInstallUpdate(UpdateInfo? info) async {
+    final update = info ?? updateInfo.value;
+    final fallbackUrl =
+        update?.releaseUrl ??
+        update?.downloadUrl ??
+        'https://github.com/bozmund/Harmony-Music/releases/latest';
+
+    if (isUpdateDownloading.value) return;
+    if (update == null ||
+        !GetPlatform.isAndroid ||
+        !_isApkUrl(update.downloadUrl)) {
+      await AppPlatformService.openUrl(fallbackUrl);
+      return;
+    }
+
+    isUpdateDownloading.value = true;
+    updateDownloadProgress.value = 0;
+    updateDownloadError.value = "";
+
+    try {
+      final updateDir = await _updateCacheDir();
+      await clearCachedUpdateApks();
+      if (!await updateDir.exists()) {
+        await updateDir.create(recursive: true);
+      }
+
+      final apkPath = "${updateDir.path}/${_updateApkFileName(update)}";
+      await Dio().download(
+        update.downloadUrl,
+        apkPath,
+        options: Options(responseType: ResponseType.bytes),
+        onReceiveProgress: (received, total) {
+          if (total <= 0) return;
+          updateDownloadProgress.value = received / total;
+        },
+      );
+
+      final apkFile = File(apkPath);
+      if (!await apkFile.exists() || await apkFile.length() == 0) {
+        throw const FileSystemException('Downloaded APK is missing or empty');
+      }
+
+      updateDownloadProgress.value = 1;
+      await AppPlatformService.installApk(apkPath);
+    } on PlatformException catch (e) {
+      if (e.code == "INSTALL_PERMISSION_REQUIRED") {
+        updateDownloadError.value =
+            e.message ?? "Allow install permission, then tap update again.";
+        _showUpdateMessage(updateDownloadError.value);
+      } else {
+        updateDownloadError.value = "Update install failed. Opening browser.";
+        _showUpdateMessage(updateDownloadError.value);
+        await AppPlatformService.openUrl(fallbackUrl);
+      }
+    } catch (e) {
+      updateDownloadError.value = "Update download failed. Opening browser.";
+      _showUpdateMessage(updateDownloadError.value);
+      await AppPlatformService.openUrl(fallbackUrl);
+    } finally {
+      isUpdateDownloading.value = false;
+    }
+  }
+
+  Future<void> clearCachedUpdateApks() async {
+    try {
+      final updateDir = await _updateCacheDir();
+      if (await updateDir.exists()) {
+        await updateDir.delete(recursive: true);
+      }
+    } catch (_) {
+      // Cache cleanup should never block app startup or Settings.
+    }
+  }
+
+  Future<Directory> _updateCacheDir() async {
+    final tempDir = await getTemporaryDirectory();
+    return Directory("${tempDir.path}/updates");
+  }
+
+  bool _isApkUrl(String url) {
+    final uri = Uri.tryParse(url);
+    return uri != null && uri.path.toLowerCase().endsWith(".apk");
+  }
+
+  String _updateApkFileName(UpdateInfo info) {
+    final safeVersion = info.version.replaceAll(
+      RegExp(r'[^a-zA-Z0-9._-]'),
+      '_',
+    );
+    return "harmonymusic-${info.channel.name}-$safeVersion.apk";
+  }
+
+  void _showUpdateMessage(String message) {
+    final context = Get.context;
+    if (context == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(snackbar(context, message, size: SanckBarSize.MEDIUM));
   }
 
   Future<String> _createInAppSongDownDir() async {
@@ -99,12 +208,12 @@ class SettingsScreenController extends GetxController {
     currentAppLanguageCode.value = appLang == "zh_Hant"
         ? "zh-TW"
         : appLang == "zh_Hans"
-            ? "zh-CN"
-            : appLang;
+        ? "zh-CN"
+        : appLang;
     updateChannel.value =
         (setBox.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
-            ? UpdateChannel.rolling
-            : UpdateChannel.stable;
+        ? UpdateChannel.rolling
+        : UpdateChannel.stable;
     isBottomNavBarEnabled.value = isDesktop
         ? false
         : (setBox.get(PrefKeys.isBottomNavBarEnabled) ?? false);
@@ -115,8 +224,9 @@ class SettingsScreenController extends GetxController {
     cacheSongs.value = setBox.get(PrefKeys.cacheSongs) ?? false;
     themeModetype.value =
         ThemeType.values[setBox.get(PrefKeys.themeModeType) ?? 0];
-    skipSilenceEnabled.value =
-        isDesktop ? false : setBox.get(PrefKeys.skipSilenceEnabled);
+    skipSilenceEnabled.value = isDesktop
+        ? false
+        : setBox.get(PrefKeys.skipSilenceEnabled);
     loudnessNormalizationEnabled.value = isDesktop
         ? false
         : (setBox.get(PrefKeys.loudnessNormalizationEnabled) ?? false);
@@ -132,14 +242,15 @@ class SettingsScreenController extends GetxController {
         setBox.get(PrefKeys.backgroundPlayEnabled) ?? true;
     keepScreenAwake.value =
         setBox.get(PrefKeys.keepScreenAwake) ?? GetPlatform.isDesktop
-            ? true
-            : false;
-    final downloadPath = setBox.get(PrefKeys.downloadLocationPath) ??
+        ? true
+        : false;
+    final downloadPath =
+        setBox.get(PrefKeys.downloadLocationPath) ??
         await _createInAppSongDownDir();
     downloadLocationPath.value =
         (isDesktop && downloadPath.contains("emulated"))
-            ? await _createInAppSongDownDir()
-            : downloadPath;
+        ? await _createInAppSongDownDir()
+        : downloadPath;
 
     exportLocationPath.value =
         setBox.get(PrefKeys.exportLocationPath) ?? "/storage/emulated/0/Music";
@@ -162,8 +273,9 @@ class SettingsScreenController extends GetxController {
   }
 
   void changeUpdateChannel(String? val) {
-    final next =
-        val == 'rolling' ? UpdateChannel.rolling : UpdateChannel.stable;
+    final next = val == 'rolling'
+        ? UpdateChannel.rolling
+        : UpdateChannel.stable;
     updateChannel.value = next;
     setBox.put(PrefKeys.updateChannel, next.name);
     if (updateCheckFlag) checkNewVersion();
@@ -171,7 +283,7 @@ class SettingsScreenController extends GetxController {
 
   void setAppLanguage(String? val) {
     Get.updateLocale(Locale(val!));
-    Get.find<MusicServices>().hlCode = val;
+    Get.find<MusicServiceContract>().hlCode = val;
     Get.find<HomeScreenController>().loadContentFromNetwork(silent: true);
     currentAppLanguageCode.value = val;
     setBox.put(PrefKeys.currentAppLanguageCode, val);
@@ -208,8 +320,9 @@ class SettingsScreenController extends GetxController {
       homeScrCon.onSideBarTabSelected(5);
     }
     if (!Get.find<PlayerController>().initFlagForPlayer) {
-      playerCon.playerPanelMinHeight.value =
-          val ? 75.0 : 75.0 + Get.mediaQuery.viewPadding.bottom;
+      playerCon.playerPanelMinHeight.value = val
+          ? 75.0
+          : 75.0 + Get.mediaQuery.viewPadding.bottom;
     }
     setBox.put(PrefKeys.isBottomNavBarEnabled, val);
   }
@@ -229,8 +342,9 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await FilePicker.getDirectoryPath(
-        dialogTitle: "Select export file folder");
+    final String? pickedFolderPath = await FilePickerService.getDirectoryPath(
+      confirmButtonText: "Select export file folder",
+    );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
       return;
     }
@@ -244,8 +358,9 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await FilePicker.getDirectoryPath(
-        dialogTitle: "Select downloads folder");
+    final String? pickedFolderPath = await FilePickerService.getDirectoryPath(
+      confirmButtonText: "Select downloads folder",
+    );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
       return;
     }
@@ -340,10 +455,12 @@ class SettingsScreenController extends GetxController {
     homeController.networkError.value = false;
     homeController.isContentFetched.value = false;
 
-    final nestedNavigator =
-        Get.nestedKey(ScreenNavigationSetup.id)?.currentState;
+    final nestedNavigator = Get.nestedKey(
+      ScreenNavigationSetup.id,
+    )?.currentState;
     nestedNavigator?.popUntil(
-        (route) => route.settings.name == ScreenNavigationSetup.homeScreen);
+      (route) => route.settings.name == ScreenNavigationSetup.homeScreen,
+    );
 
     final playerController = Get.find<PlayerController>();
     if (playerController.playerPanelController.isAttached &&
@@ -364,8 +481,9 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await FilePicker.getDirectoryPath(
-        dialogTitle: "Select clone export folder");
+    final String? pickedFolderPath = await FilePickerService.getDirectoryPath(
+      confirmButtonText: "Select clone export folder",
+    );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
       return;
     }
@@ -373,11 +491,12 @@ class SettingsScreenController extends GetxController {
     try {
       await _flushOpenCloneBoxes();
 
-      final packageInfo = await PackageInfo.fromPlatform();
+      final packageInfo = await AppPlatformService.getAppInfo();
       final sourceSupportDir = (await getApplicationSupportDirectory()).path;
       final sourceDbDir = await dbDir;
       final cloneDir = Directory(
-          "$pickedFolderPath/HarmonyMusicClone/${DateTime.now().millisecondsSinceEpoch}");
+        "$pickedFolderPath/HarmonyMusicClone/${DateTime.now().millisecondsSinceEpoch}",
+      );
       await cloneDir.create(recursive: true);
 
       await _copyDirectoryFiles(
@@ -401,12 +520,15 @@ class SettingsScreenController extends GetxController {
         "sourceDbPath": sourceDbDir,
         "createdAt": DateTime.now().toIso8601String(),
       };
-      await File("${cloneDir.path}/manifest.json")
-          .writeAsString(const JsonEncoder.withIndent("  ").convert(manifest));
+      await File(
+        "${cloneDir.path}/manifest.json",
+      ).writeAsString(const JsonEncoder.withIndent("  ").convert(manifest));
 
       _showSettingsSnack("Clone package exported");
-      printINFO("Developer clone exported to ${cloneDir.path}",
-          tag: LogTags.settings);
+      printINFO(
+        "Developer clone exported to ${cloneDir.path}",
+        tag: LogTags.settings,
+      );
     } catch (e, stackTrace) {
       printERROR("Developer clone export failed: $e", tag: LogTags.settings);
       printERROR(stackTrace, tag: LogTags.settings);
@@ -420,8 +542,9 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? cloneFolderPath = await FilePicker.getDirectoryPath(
-        dialogTitle: "Select HarmonyMusicClone package");
+    final String? cloneFolderPath = await FilePickerService.getDirectoryPath(
+      confirmButtonText: "Select HarmonyMusicClone package",
+    );
     if (cloneFolderPath == '/' || cloneFolderPath == null) {
       return;
     }
@@ -467,9 +590,7 @@ class SettingsScreenController extends GetxController {
 
       _showSettingsSnack("Clone imported. Restarting app.");
       await Future.delayed(const Duration(milliseconds: 350));
-      await TerminateRestart.instance.restartApp(
-        options: const TerminateRestartOptions(terminate: true),
-      );
+      await AppPlatformService.restartApp();
     } catch (e, stackTrace) {
       printERROR("Developer clone import failed: $e", tag: LogTags.settings);
       printERROR(stackTrace, tag: LogTags.settings);
@@ -495,10 +616,10 @@ class SettingsScreenController extends GetxController {
         // enable wakelock immediately if music is playing
         if (Get.find<PlayerController>().buttonState.value ==
             PlayButtonState.playing) {
-          WakelockPlus.enable();
+          AppPlatformService.setKeepScreenAwake(true);
         }
       } else {
-        WakelockPlus.disable();
+        AppPlatformService.setKeepScreenAwake(false);
       }
     } catch (e) {
       // ignore if player/controller not available
@@ -523,7 +644,8 @@ class SettingsScreenController extends GetxController {
     final box = await Hive.openBox('blacklistedPlaylist');
     box.clear();
     ScaffoldMessenger.of(Get.context!).showSnackBar(
-        snackbar(Get.context!, "unlinkAlert".tr, size: SanckBarSize.MEDIUM));
+      snackbar(Get.context!, "unlinkAlert".tr, size: SanckBarSize.MEDIUM),
+    );
     box.close();
   }
 
@@ -578,8 +700,10 @@ class SettingsScreenController extends GetxController {
     String? extensionFilter,
   }) async {
     if (!await sourceDir.exists()) {
-      printWarning("Clone source folder missing: ${sourceDir.path}",
-          tag: LogTags.settings);
+      printWarning(
+        "Clone source folder missing: ${sourceDir.path}",
+        tag: LogTags.settings,
+      );
       return;
     }
     await targetDir.create(recursive: true);
@@ -590,8 +714,10 @@ class SettingsScreenController extends GetxController {
         continue;
       }
       if (!await entity.exists()) {
-        printWarning("Skipping missing clone file: ${entity.path}",
-            tag: LogTags.settings);
+        printWarning(
+          "Skipping missing clone file: ${entity.path}",
+          tag: LogTags.settings,
+        );
         continue;
       }
       final fileName = entity.path.split(RegExp(r'[\\/]')).last;
@@ -658,8 +784,11 @@ class SettingsScreenController extends GetxController {
 
     final appPrefsBox = await Hive.openBox(BoxNames.appPrefs);
     final downloadPath = appPrefsBox.get(PrefKeys.downloadLocationPath);
-    final updatedDownloadPath =
-        _rewriteClonePath(downloadPath, oldMusicPath, newMusicPath);
+    final updatedDownloadPath = _rewriteClonePath(
+      downloadPath,
+      oldMusicPath,
+      newMusicPath,
+    );
     if (updatedDownloadPath != downloadPath) {
       await appPrefsBox.put(PrefKeys.downloadLocationPath, updatedDownloadPath);
     }
@@ -679,8 +808,8 @@ class SettingsScreenController extends GetxController {
   void _showSettingsSnack(String message) {
     final context = Get.context;
     if (context == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      snackbar(context, message, size: SanckBarSize.MEDIUM),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(snackbar(context, message, size: SanckBarSize.MEDIUM));
   }
 }

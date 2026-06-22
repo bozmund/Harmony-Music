@@ -3,13 +3,12 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
-import 'package:audiotags/audiotags.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 import '/services/constant.dart';
+import '/services/app_contracts.dart';
 import '../ui/screens/Album/album_screen_controller.dart';
 import '../ui/screens/Playlist/playlist_screen_controller.dart';
 import '/services/stream_service.dart';
@@ -19,15 +18,17 @@ import '../ui/screens/Settings/settings_screen_controller.dart';
 import '/utils/helper.dart';
 import '/models/media_Item_builder.dart';
 import '../ui/screens/Library/library_controller.dart';
-import 'music_service.dart';
 //import '../models/thumbnail.dart' as th;
 
-class Downloader extends GetxService {
-  final _dio = Dio(BaseOptions(
-    connectTimeout: const Duration(seconds: 20),
-    receiveTimeout: const Duration(minutes: 3),
-    sendTimeout: const Duration(seconds: 20),
-  ));
+class Downloader extends GetxService implements DownloaderContract {
+  final _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(minutes: 3),
+      sendTimeout: const Duration(seconds: 20),
+    ),
+  );
+  @override
   MediaItem? currentSong;
   RxMap<String, List<MediaItem>> playlistQueue =
       <String, List<MediaItem>>{}.obs;
@@ -43,7 +44,6 @@ class Downloader extends GetxService {
   static const _streamFetchTimeout = Duration(seconds: 45);
   static const _audioDownloadTimeout = Duration(minutes: 5);
   static const _thumbnailDownloadTimeout = Duration(seconds: 20);
-  static const _metadataWriteTimeout = Duration(seconds: 30);
   static const _audioDownloadMaxAttempts = 3;
   static const _playlistDownloadDelay = Duration(seconds: 1);
 
@@ -66,8 +66,11 @@ class Downloader extends GetxService {
     return true;
   }
 
+  @override
   Future<void> downloadPlaylist(
-      String playlistId, List<MediaItem> songList) async {
+    String playlistId,
+    List<MediaItem> songList,
+  ) async {
     if (!(await checkPermissionNDir())) return;
 
     // for toggle between downloading request & cancelling
@@ -88,6 +91,7 @@ class Downloader extends GetxService {
     }
   }
 
+  @override
   Future<void> download(MediaItem? song, {List<MediaItem>? songList}) async {
     if (!(await checkPermissionNDir())) return;
     if (songList != null) {
@@ -115,24 +119,26 @@ class Downloader extends GetxService {
             //checked in case download cancel request
             if (playlistQueue.containsKey(playlistId)) {
               currentPlaylistId.value = playlistId;
-              await downloadSongList((playlistQueue[playlistId]!).toList(),
-                  isPlaylist: true);
+              await downloadSongList(
+                (playlistQueue[playlistId]!).toList(),
+                isPlaylist: true,
+              );
               if (Get.isRegistered<PlaylistScreenController>(
-                      tag: Key(playlistId).hashCode.toString()) &&
+                    tag: Key(playlistId).hashCode.toString(),
+                  ) &&
                   playlistQueue.containsKey(playlistId)) {
                 Get.find<PlaylistScreenController>(
-                        tag: Key(playlistId).hashCode.toString())
-                    .isDownloaded
-                    .value = true;
+                  tag: Key(playlistId).hashCode.toString(),
+                ).isDownloaded.value = true;
               }
               // in case of album
               else if (Get.isRegistered<AlbumScreenController>(
-                      tag: Key(playlistId).hashCode.toString()) &&
+                    tag: Key(playlistId).hashCode.toString(),
+                  ) &&
                   playlistQueue.containsKey(playlistId)) {
                 Get.find<AlbumScreenController>(
-                        tag: Key(playlistId).hashCode.toString())
-                    .isDownloaded
-                    .value = true;
+                  tag: Key(playlistId).hashCode.toString(),
+                ).isDownloaded.value = true;
               }
               playlistQueue.remove(playlistId);
             }
@@ -157,8 +163,10 @@ class Downloader extends GetxService {
     }
   }
 
-  Future<void> downloadSongList(List<MediaItem> jobSongList,
-      {bool isPlaylist = false}) async {
+  Future<void> downloadSongList(
+    List<MediaItem> jobSongList, {
+    bool isPlaylist = false,
+  }) async {
     for (MediaItem song in jobSongList) {
       // interrupt downloading task in case of playlist download cancel request
       if (isPlaylist && !playlistQueue.containsKey(currentPlaylistId.value)) {
@@ -206,8 +214,9 @@ class Downloader extends GetxService {
     final downloadingFormat = settingsScreenController.downloadingFormat.string;
 
     _setPhase("resolvingStream", "Resolving stream", song, traceId);
-    final playerResponse =
-        await StreamProvider.fetch(song.id).timeout(_streamFetchTimeout);
+    final playerResponse = await StreamProvider.fetch(
+      song.id,
+    ).timeout(_streamFetchTimeout);
 
     if (!playerResponse.playable) {
       currentDownloadPhase.value = "failed";
@@ -215,33 +224,40 @@ class Downloader extends GetxService {
       lastDownloadError.value =
           "${song.title}: ${playerResponse.statusMSG == "networkError" ? playerResponse.statusMSG.tr : playerResponse.statusMSG}";
       _showDownloadError(
-          song,
-          playerResponse.statusMSG == "networkError"
-              ? playerResponse.statusMSG.tr
-              : playerResponse.statusMSG);
+        song,
+        playerResponse.statusMSG == "networkError"
+            ? playerResponse.statusMSG.tr
+            : playerResponse.statusMSG,
+      );
       printINFO(
-          "[$traceId] Requested song ${song.title} is not downloadable: ${playerResponse.statusMSG}",
-          tag: LogTags.downloader);
+        "[$traceId] Requested song ${song.title} is not downloadable: ${playerResponse.statusMSG}",
+        tag: LogTags.downloader,
+      );
       return;
     }
 
-    final requiredAudioStream =
-        _selectAudioStream(playerResponse, downloadingFormat);
+    final requiredAudioStream = _selectAudioStream(
+      playerResponse,
+      downloadingFormat,
+    );
     if (requiredAudioStream == null) {
       throw StateError(
-          "No audio streams available for ${song.title} (${song.id})");
+        "No audio streams available for ${song.title} (${song.id})",
+      );
     }
 
     final dirPath = settingsScreenController.downloadLocationPath.string;
-    final actualDownFormat =
-        requiredAudioStream.audioCodec.name.contains("mp") ? "m4a" : "opus";
+    final actualDownFormat = requiredAudioStream.audioCodec.name.contains("mp")
+        ? "m4a"
+        : "opus";
     final RegExp invalidChar = RegExp(r'[\/\\"<>\*\?:!\[\]¡\|%]');
     final songTitle = "${song.title.trim()} (${song.artist?.trim()})"
         .replaceAll(invalidChar, "");
     String filePath = "$dirPath/$songTitle.$actualDownFormat";
     printINFO(
-        "[$traceId] Downloading ${song.title} as $actualDownFormat to $filePath",
-        tag: LogTags.downloader);
+      "[$traceId] Downloading ${song.title} as $actualDownFormat to $filePath",
+      tag: LogTags.downloader,
+    );
     _setPhase("downloadingAudio", "Downloading audio", song, traceId);
     await _downloadAudioWithRetries(
       song: song,
@@ -249,21 +265,6 @@ class Downloader extends GetxService {
       stream: requiredAudioStream,
       filePath: filePath,
     );
-
-    String? year;
-    try {
-      if (song.extras?['year'] != null) {
-        year = song.extras?['year'];
-      } else {
-        if (song.album != null) {
-          final musicServ = Get.find<MusicServices>();
-          year = await musicServ.getSongYear(song.id);
-        }
-      }
-    } catch (e) {
-      printWarning("[$traceId] Failed to fetch song year: $e",
-          tag: LogTags.downloader);
-    }
 
     // Save Thumbnail
     try {
@@ -274,8 +275,10 @@ class Downloader extends GetxService {
           .downloadUri(song.artUri!, thumbnailPath)
           .timeout(_thumbnailDownloadTimeout);
     } catch (e) {
-      printWarning("[$traceId] Thumbnail download failed: $e",
-          tag: LogTags.downloader);
+      printWarning(
+        "[$traceId] Thumbnail download failed: $e",
+        tag: LogTags.downloader,
+      );
     }
 
     _setPhase("savingLibraryEntry", "Saving library entry", song, traceId);
@@ -290,52 +293,19 @@ class Downloader extends GetxService {
     Get.find<LibrarySongsController>().librarySongsList.add(song);
     try {
       Get.find<PlaylistScreenController>(
-              tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString())
-          .addNRemoveItemsinList(song, action: 'remove');
+        tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
+      ).addNRemoveItemsinList(song, action: 'remove');
       // ignore: empty_catches
     } catch (e) {}
 
-    final trackDetails = (song.extras?['trackDetails'])?.split("/");
-    final int? trackNumber = int.tryParse(trackDetails?[0] ?? "");
-    final int? totalTracks = int.tryParse(trackDetails?[1] ?? "");
-
-    try {
-      _setPhase("writingMetadata", "Writing metadata", song, traceId);
-
-      /// Reverted -- Removed AudioTags as using this package, app is flagged as TROJ_GEN.R002V01K623 by TrendMicro-HouseCall
-      final imageUrl = song.artUri!.toString();
-      Tag tag = Tag(
-          title: song.title,
-          trackArtist: song.artist,
-          album: song.album,
-          year: int.tryParse(year ?? ""),
-          trackNumber: trackNumber,
-          trackTotal: totalTracks,
-          albumArtist: song.artist,
-          genre: song.genre,
-          pictures: [
-            Picture(
-                bytes: (await NetworkAssetBundle(Uri.parse((imageUrl)))
-                        .load(imageUrl)
-                        .timeout(_thumbnailDownloadTimeout))
-                    .buffer
-                    .asUint8List(),
-                mimeType: MimeType.png,
-                pictureType: PictureType.coverFront)
-          ]);
-
-      await AudioTags.write(filePath, tag).timeout(_metadataWriteTimeout);
-    } catch (e) {
-      printERROR("[$traceId] Metadata write failed: $e",
-          tag: LogTags.downloader);
-    }
-
     _setPhase("completed", "Downloaded", song, traceId);
     printINFO(
-        "[$traceId] Downloaded ${song.title} successfully in ${stopwatch.elapsed}",
-        tag: LogTags.downloader);
+      "[$traceId] Downloaded ${song.title} successfully in ${stopwatch.elapsed}",
+      tag: LogTags.downloader,
+    );
   }
 
+  @override
   void cancelSongDownload(MediaItem song) {
     songQueue.remove(song);
     for (final playlistId in playlistQueue.keys.toList()) {
@@ -359,14 +329,18 @@ class Downloader extends GetxService {
   }
 
   Audio? _selectAudioStream(
-      StreamProvider playerResponse, String downloadingFormat) {
+    StreamProvider playerResponse,
+    String downloadingFormat,
+  ) {
     final audioFormats = playerResponse.audioFormats;
     if (audioFormats == null || audioFormats.isEmpty) return null;
 
-    final preferredCodec =
-        downloadingFormat == "opus" ? Codec.opus : Codec.mp4a;
-    final preferredStreams =
-        audioFormats.where((audio) => audio.audioCodec == preferredCodec);
+    final preferredCodec = downloadingFormat == "opus"
+        ? Codec.opus
+        : Codec.mp4a;
+    final preferredStreams = audioFormats.where(
+      (audio) => audio.audioCodec == preferredCodec,
+    );
 
     return _highestBitrate(preferredStreams) ?? _highestBitrate(audioFormats);
   }
@@ -401,20 +375,25 @@ class Downloader extends GetxService {
       songDownloadingProgress.value = 0;
       final attemptLabel = "attempt $attempt/$_audioDownloadMaxAttempts";
       currentDownloadDebugMessage.value = "Downloading audio ($attemptLabel)";
-      printINFO("[$traceId] Audio download $attemptLabel",
-          tag: LogTags.downloader);
+      printINFO(
+        "[$traceId] Audio download $attemptLabel",
+        tag: LogTags.downloader,
+      );
 
       try {
         await _deletePartialFile(filePath);
-        await _dio.download(stream.url, filePath,
-            cancelToken: _activeCancelToken,
-            options: Options(receiveTimeout: _audioDownloadTimeout),
-            onReceiveProgress: (count, total) {
-          if (total <= 0) return;
-          songDownloadingProgress.value = ((count / total) * 100).toInt();
-          currentDownloadDebugMessage.value =
-              "Downloading audio ${songDownloadingProgress.value}%";
-        });
+        await _dio.download(
+          stream.url,
+          filePath,
+          cancelToken: _activeCancelToken,
+          options: Options(receiveTimeout: _audioDownloadTimeout),
+          onReceiveProgress: (count, total) {
+            if (total <= 0) return;
+            songDownloadingProgress.value = ((count / total) * 100).toInt();
+            currentDownloadDebugMessage.value =
+                "Downloading audio ${songDownloadingProgress.value}%";
+          },
+        );
         return;
       } on DioException catch (e) {
         lastDioError = e;
@@ -428,8 +407,9 @@ class Downloader extends GetxService {
         currentDownloadDebugMessage.value =
             "Retrying audio download in ${delay.inSeconds}s";
         printWarning(
-            "[$traceId] Audio download failed on $attemptLabel, retrying in ${delay.inSeconds}s: ${_dioErrorSummary(e)}",
-            tag: LogTags.downloader);
+          "[$traceId] Audio download failed on $attemptLabel, retrying in ${delay.inSeconds}s: ${_dioErrorSummary(e)}",
+          tag: LogTags.downloader,
+        );
         await _deletePartialFile(filePath);
         await Future.delayed(delay);
       }
@@ -470,24 +450,36 @@ class Downloader extends GetxService {
   }
 
   void _setPhase(
-      String phase, String debugMessage, MediaItem song, String traceId) {
+    String phase,
+    String debugMessage,
+    MediaItem song,
+    String traceId,
+  ) {
     if (phase == "resolvingStream") {
       lastDownloadError.value = "";
     }
     currentDownloadPhase.value = phase;
     currentDownloadDebugMessage.value = debugMessage;
-    printINFO("[$traceId] $debugMessage: ${song.title} (${song.id})",
-        tag: LogTags.downloader);
+    printINFO(
+      "[$traceId] $debugMessage: ${song.title} (${song.id})",
+      tag: LogTags.downloader,
+    );
   }
 
-  void _setFailed(String message, Object error, StackTrace stackTrace,
-      {bool showSnack = true}) {
+  void _setFailed(
+    String message,
+    Object error,
+    StackTrace stackTrace, {
+    bool showSnack = true,
+  }) {
     final song = currentSong;
     currentDownloadPhase.value = "failed";
     lastDownloadError.value = "$message: $error";
     currentDownloadDebugMessage.value = message;
-    printERROR("$message${song == null ? "" : " for ${song.title}"}: $error",
-        tag: LogTags.downloader);
+    printERROR(
+      "$message${song == null ? "" : " for ${song.title}"}: $error",
+      tag: LogTags.downloader,
+    );
     printERROR(stackTrace, tag: LogTags.downloader);
     if (showSnack && song != null) {
       _showDownloadError(song, "downloadError3".tr);
@@ -497,10 +489,14 @@ class Downloader extends GetxService {
   void _showDownloadError(MediaItem song, String message) {
     final context = Get.context;
     if (context == null) return;
-    ScaffoldMessenger.of(context).showSnackBar(snackbar(
-        context, "${song.title}: $message",
+    ScaffoldMessenger.of(context).showSnackBar(
+      snackbar(
+        context,
+        "${song.title}: $message",
         size: SanckBarSize.BIG,
         duration: const Duration(seconds: 2),
-        top: !GetPlatform.isDesktop));
+        top: !GetPlatform.isDesktop,
+      ),
+    );
   }
 }

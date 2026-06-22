@@ -6,15 +6,15 @@ import 'package:hive/hive.dart';
 import '../models/album.dart';
 import '../models/media_Item_builder.dart';
 import '../models/playlist.dart';
-import '../services/music_service.dart';
+import '../services/app_contracts.dart';
 import '../ui/widgets/sort_widget.dart';
 
 /// An abstract base class for managing playlist and album screens in the application.
 /// This class provides a set of methods and properties to handle various operations
 /// such as fetching album/playlist details, managing songs, and performing additional operations.
 abstract class PlaylistAlbumScreenControllerBase extends GetxController {
-  /// Instance of [MusicServices] used to interact with music-related services.
-  final MusicServices musicServices = Get.find<MusicServices>();
+  /// Instance used to interact with music-related services.
+  final MusicServiceContract musicServices = Get.find<MusicServiceContract>();
 
   /// Observable boolean indicating whether the album is offline.
   final RxBool isOffline = false.obs;
@@ -67,8 +67,9 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
         .whereType<MediaItem>()
         .toList();
     if (id != "SongDownloads") await box.close();
-    songList.value =
-        id == "LIBRP" ? songList.reversed.toList() : songList.toList();
+    songList.value = id == "LIBRP"
+        ? songList.reversed.toList()
+        : songList.toList();
     checkDownloadStatus();
   }
 
@@ -141,7 +142,9 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   /// [sortWidgetController_] - The controller for the sort widget.
   /// [mode] - The mode of the operation.
   void startAdditionalOperation(
-      SortWidgetController sortWidgetController_, OperationMode mode);
+    SortWidgetController sortWidgetController_,
+    OperationMode mode,
+  );
 
   /// Selects or deselects all items.
   ///

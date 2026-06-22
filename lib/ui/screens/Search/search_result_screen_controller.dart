@@ -4,7 +4,7 @@ import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart
 
 import '../../../utils/helper.dart';
 import '../Home/home_screen_controller.dart';
-import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 import '/ui/widgets/sort_widget.dart';
 
 class SearchResultScreenController extends GetxController
@@ -14,7 +14,7 @@ class SearchResultScreenController extends GetxController
   final isSeparatedResultContentFetced = false.obs;
   final resultContent = <String, dynamic>{}.obs;
   final separatedResultContent = <String, dynamic>{}.obs;
-  final musicServices = Get.find<MusicServices>();
+  final musicServices = Get.find<MusicServiceContract>();
   final queryString = ''.obs;
   final railItems = <String>[].obs;
   final railitemHeight = Get.size.height.obs;
@@ -31,7 +31,7 @@ class SearchResultScreenController extends GetxController
     "Albums",
     "Featured playlists",
     "Community playlists",
-    "Artists"
+    "Artists",
   ];
 
   @override
@@ -41,8 +41,10 @@ class SearchResultScreenController extends GetxController
     super.onReady();
   }
 
-  Future<void> onDestinationSelected(int value,
-      {bool ignoreTabCommand = false}) async {
+  Future<void> onDestinationSelected(
+    int value, {
+    bool ignoreTabCommand = false,
+  }) async {
     if (value < 0 || value > railItems.length) {
       return;
     }
@@ -62,10 +64,12 @@ class SearchResultScreenController extends GetxController
       final tabName = railItems[value - 1];
       final itemCount = (tabName == 'Songs' || tabName == 'Videos') ? 25 : 10;
       final filterParams = _filterParamsFor(tabName);
-      final x = await musicServices.search(queryString.value,
-          filter: tabName.replaceAll(" ", "_").toLowerCase(),
-          limit: itemCount,
-          filterParams: filterParams);
+      final x = await musicServices.search(
+        queryString.value,
+        filter: tabName.replaceAll(" ", "_").toLowerCase(),
+        limit: itemCount,
+        filterParams: filterParams,
+      );
       separatedResultContent[tabName] = x[tabName] ?? [];
       additionalParamNext[tabName] = x['params'];
       isSeparatedResultContentFetced.value = true;
@@ -123,14 +127,18 @@ class SearchResultScreenController extends GetxController
     if (args != null) {
       queryString.value = args;
       resultContent.value = await musicServices.search(args);
-      final allKeys = _searchRailItems.where((element) =>
-          _hasInitialContent(element) || _canLoadFilteredTab(element));
+      final allKeys = _searchRailItems.where(
+        (element) =>
+            _hasInitialContent(element) || _canLoadFilteredTab(element),
+      );
       railItems.value = List<String>.from(allKeys);
-      final len =
-          railItems.where((element) => element.contains("playlists")).length;
+      final len = railItems
+          .where((element) => element.contains("playlists"))
+          .length;
       final calH = 30 + (railItems.length + 1 - len) * 123 + len * 150.0;
-      railitemHeight.value =
-          calH >= railitemHeight.value ? calH : railitemHeight.value;
+      railitemHeight.value = calH >= railitemHeight.value
+          ? calH
+          : railitemHeight.value;
 
       //ScrollControlers for list Continuation callback implementarion
       for (String item in railItems) {
@@ -146,8 +154,10 @@ class SearchResultScreenController extends GetxController
         }
 
         //tab controller for v2
-        tabController =
-            TabController(length: railItems.length + 1, vsync: this);
+        tabController = TabController(
+          length: railItems.length + 1,
+          vsync: this,
+        );
 
         tabController?.animation?.addListener(() {
           int indexChange = tabController!.offset.round();
