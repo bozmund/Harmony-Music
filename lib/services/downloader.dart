@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 import '/services/constant.dart';
+import '/services/app_contracts.dart';
 import '../ui/screens/Album/album_screen_controller.dart';
 import '../ui/screens/Playlist/playlist_screen_controller.dart';
 import '/services/stream_service.dart';
@@ -19,7 +20,7 @@ import '/models/media_Item_builder.dart';
 import '../ui/screens/Library/library_controller.dart';
 //import '../models/thumbnail.dart' as th;
 
-class Downloader extends GetxService {
+class Downloader extends GetxService implements DownloaderContract {
   final _dio = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 20),
@@ -27,6 +28,7 @@ class Downloader extends GetxService {
       sendTimeout: const Duration(seconds: 20),
     ),
   );
+  @override
   MediaItem? currentSong;
   RxMap<String, List<MediaItem>> playlistQueue =
       <String, List<MediaItem>>{}.obs;
@@ -64,6 +66,7 @@ class Downloader extends GetxService {
     return true;
   }
 
+  @override
   Future<void> downloadPlaylist(
     String playlistId,
     List<MediaItem> songList,
@@ -88,6 +91,7 @@ class Downloader extends GetxService {
     }
   }
 
+  @override
   Future<void> download(MediaItem? song, {List<MediaItem>? songList}) async {
     if (!(await checkPermissionNDir())) return;
     if (songList != null) {
@@ -301,6 +305,7 @@ class Downloader extends GetxService {
     );
   }
 
+  @override
   void cancelSongDownload(MediaItem song) {
     songQueue.remove(song);
     for (final playlistId in playlistQueue.keys.toList()) {

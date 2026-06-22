@@ -6,6 +6,10 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '/services/constant.dart';
+import '/services/app_contracts.dart';
+import '/services/app_platform_service.dart';
+import '/services/file_picker_service.dart';
+import '/utils/helper.dart';
 import '/ui/screens/Search/search_screen_controller.dart';
 import '/utils/get_localization.dart';
 import '/services/downloader.dart';
@@ -25,7 +29,7 @@ import 'utils/update_check_flag_file.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initHive();
-  _setAppInitPrefs();
+  setAppInitPrefs();
   startApplicationServices();
   Get.put<AudioHandler>(await initAudioService(), permanent: true);
   WidgetsBinding.instance.addObserver(LifecycleHandler());
@@ -87,20 +91,73 @@ class MyApp extends StatelessWidget {
 }
 
 Future<void> startApplicationServices() async {
-  Get.lazyPut(() => PipedServices(), fenix: true);
-  Get.lazyPut(() => MusicServices(), fenix: true);
-  Get.lazyPut(() => ThemeController(), fenix: true);
-  Get.lazyPut(() => PlayerController(), fenix: true);
-  Get.lazyPut(() => HomeScreenController(), fenix: true);
-  Get.lazyPut(() => LibrarySongsController(), fenix: true);
-  Get.lazyPut(() => LibraryPlaylistsController(), fenix: true);
-  Get.lazyPut(() => LibraryAlbumsController(), fenix: true);
-  Get.lazyPut(() => LibraryArtistsController(), fenix: true);
-  Get.lazyPut(() => SettingsScreenController(), fenix: true);
-  Get.lazyPut(() => Downloader(), fenix: true);
+  if (!Get.isRegistered<PipedServices>()) {
+    Get.lazyPut(() => PipedServices(), fenix: true);
+  }
+  if (!Get.isRegistered<MusicServices>()) {
+    Get.lazyPut(() => MusicServices(), fenix: true);
+  }
+  if (!Get.isRegistered<MusicServiceContract>()) {
+    Get.lazyPut<MusicServiceContract>(
+      () => Get.find<MusicServices>(),
+      fenix: true,
+    );
+  }
+  if (!Get.isRegistered<AppPlatformContract>()) {
+    Get.lazyPut<AppPlatformContract>(
+      () => const DefaultAppPlatformService(),
+      fenix: true,
+    );
+  }
+  if (!Get.isRegistered<UpdateServiceContract>()) {
+    Get.lazyPut<UpdateServiceContract>(
+      () => const GithubUpdateService(),
+      fenix: true,
+    );
+  }
+  if (!Get.isRegistered<FilePickerContract>()) {
+    Get.lazyPut<FilePickerContract>(
+      () => const DefaultFilePickerService(),
+      fenix: true,
+    );
+  }
+  if (!Get.isRegistered<ThemeController>()) {
+    Get.lazyPut(() => ThemeController(), fenix: true);
+  }
+  if (!Get.isRegistered<PlayerController>()) {
+    Get.lazyPut(() => PlayerController(), fenix: true);
+  }
+  if (!Get.isRegistered<HomeScreenController>()) {
+    Get.lazyPut(() => HomeScreenController(), fenix: true);
+  }
+  if (!Get.isRegistered<LibrarySongsController>()) {
+    Get.lazyPut(() => LibrarySongsController(), fenix: true);
+  }
+  if (!Get.isRegistered<LibraryPlaylistsController>()) {
+    Get.lazyPut(() => LibraryPlaylistsController(), fenix: true);
+  }
+  if (!Get.isRegistered<LibraryAlbumsController>()) {
+    Get.lazyPut(() => LibraryAlbumsController(), fenix: true);
+  }
+  if (!Get.isRegistered<LibraryArtistsController>()) {
+    Get.lazyPut(() => LibraryArtistsController(), fenix: true);
+  }
+  if (!Get.isRegistered<SettingsScreenController>()) {
+    Get.lazyPut(() => SettingsScreenController(), fenix: true);
+  }
+  if (!Get.isRegistered<Downloader>()) {
+    Get.lazyPut(() => Downloader(), fenix: true);
+  }
+  if (!Get.isRegistered<DownloaderContract>()) {
+    Get.lazyPut<DownloaderContract>(() => Get.find<Downloader>(), fenix: true);
+  }
   if (GetPlatform.isDesktop) {
-    Get.lazyPut(() => SearchScreenController(), fenix: true);
-    Get.put(DesktopSystemTray());
+    if (!Get.isRegistered<SearchScreenController>()) {
+      Get.lazyPut(() => SearchScreenController(), fenix: true);
+    }
+    if (!Get.isRegistered<DesktopSystemTray>()) {
+      Get.put(DesktopSystemTray());
+    }
   }
 }
 
@@ -120,7 +177,7 @@ initHive() async {
   await Hive.openBox(BoxNames.appPrefs);
 }
 
-void _setAppInitPrefs() {
+void setAppInitPrefs() {
   final appPrefs = Hive.box(BoxNames.appPrefs);
   if (appPrefs.isEmpty) {
     appPrefs.putAll({

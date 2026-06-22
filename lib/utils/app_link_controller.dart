@@ -9,7 +9,7 @@ import '../models/playing_from.dart';
 import '/ui/widgets/songinfo_bottom_sheet.dart';
 import '/utils/helper.dart';
 import '../ui/widgets/loader.dart';
-import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 import '/ui/player/player_controller.dart';
 import '../ui/navigator.dart';
 import '../ui/widgets/snackbar.dart';
@@ -63,15 +63,16 @@ mixin ProcessLink {
         uri.host == "www.youtube.com" ||
         uri.host == "m.youtube.com") {
       printINFO(
-          "pathsegmet: ${uri.pathSegments} params:${uri.queryParameters}");
+        "pathsegmet: ${uri.pathSegments} params:${uri.queryParameters}",
+      );
       if (uri.pathSegments[0] == "playlist" &&
           uri.queryParameters.containsKey("list")) {
         final browseId = uri.queryParameters['list'];
         await openPlaylistOrAlbum(browseId!);
       } else if (uri.pathSegments[0] == "shorts") {
-        ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-            Get.context!, "notaSongVideo".tr,
-            size: SanckBarSize.MEDIUM));
+        ScaffoldMessenger.of(Get.context!).showSnackBar(
+          snackbar(Get.context!, "notaSongVideo".tr, size: SanckBarSize.MEDIUM),
+        );
       } else if (uri.pathSegments[0] == "watch") {
         final songId = uri.queryParameters['v'];
         await playSong(songId!);
@@ -84,44 +85,55 @@ mixin ProcessLink {
         await playSong(songId);
       }
     } else {
-      ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-          Get.context!, "notaValidLink".tr,
-          size: SanckBarSize.MEDIUM));
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        snackbar(Get.context!, "notaValidLink".tr, size: SanckBarSize.MEDIUM),
+      );
     }
   }
 
   Future<void> openPlaylistOrAlbum(String browseId) async {
     if (browseId.contains("OLAK5uy")) {
-      Get.toNamed(ScreenNavigationSetup.albumScreen,
-          id: ScreenNavigationSetup.id, arguments: (null, browseId));
+      Get.toNamed(
+        ScreenNavigationSetup.albumScreen,
+        id: ScreenNavigationSetup.id,
+        arguments: (null, browseId),
+      );
     } else {
-      Get.toNamed(ScreenNavigationSetup.playlistScreen,
-          id: ScreenNavigationSetup.id, arguments: [null, browseId]);
+      Get.toNamed(
+        ScreenNavigationSetup.playlistScreen,
+        id: ScreenNavigationSetup.id,
+        arguments: [null, browseId],
+      );
     }
   }
 
   Future<void> openArtist(String channelId) async {
-    await Get.toNamed(ScreenNavigationSetup.artistScreen,
-        id: ScreenNavigationSetup.id, arguments: [true, channelId]);
+    await Get.toNamed(
+      ScreenNavigationSetup.artistScreen,
+      id: ScreenNavigationSetup.id,
+      arguments: [true, channelId],
+    );
   }
 
   Future<void> playSong(String songId) async {
     showDialog(
-        context: Get.context!,
-        builder: (context) => const Center(
-                child: LoadingIndicator(
-              strokeWidth: 5,
-            )),
-        barrierDismissible: false);
-    final result = await Get.find<MusicServices>().getSongWithId(songId);
+      context: Get.context!,
+      builder: (context) =>
+          const Center(child: LoadingIndicator(strokeWidth: 5)),
+      barrierDismissible: false,
+    );
+    final result = await Get.find<MusicServiceContract>().getSongWithId(songId);
     Navigator.of(Get.context!).pop();
     if (result[0]) {
-      Get.find<PlayerController>().playPlayListSong(List.from(result[1]), 0,
-          playfrom: PlayingFrom(type: PlayingFromType.SELECTION));
+      Get.find<PlayerController>().playPlayListSong(
+        List.from(result[1]),
+        0,
+        playfrom: PlayingFrom(type: PlayingFromType.SELECTION),
+      );
     } else {
-      ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-          Get.context!, "notaSongVideo".tr,
-          size: SanckBarSize.MEDIUM));
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        snackbar(Get.context!, "notaSongVideo".tr, size: SanckBarSize.MEDIUM),
+      );
     }
   }
 }

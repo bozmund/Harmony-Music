@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:archive/archive_io.dart';
 import 'package:file_selector/file_selector.dart';
+import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../services/app_platform_service.dart';
 import '../../services/constant.dart';
@@ -144,7 +144,7 @@ class RestoreDialogController extends GetxController {
       return;
     }
 
-    final pickedFileResult = await openFile(
+    final pickedFileResult = await FilePickerService.openFile(
       acceptedTypeGroups: [
         const XTypeGroup(label: 'Harmony backup', extensions: ['hmb']),
       ],

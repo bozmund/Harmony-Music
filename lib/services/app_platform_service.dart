@@ -1,23 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 
+import 'app_contracts.dart';
 import 'constant.dart';
 
-class AppPlatformInfo {
-  const AppPlatformInfo({
-    required this.appName,
-    required this.packageName,
-    required this.version,
-    required this.buildNumber,
-  });
+class DefaultAppPlatformService implements AppPlatformContract {
+  const DefaultAppPlatformService();
 
-  final String appName;
-  final String packageName;
-  final String version;
-  final String buildNumber;
-
-  static AppPlatformInfo fallback() {
+  static AppPlatformInfo fallbackInfo() {
     final version = BuildInfo.version.isEmpty ? '5.9.2' : BuildInfo.version;
     final parts = version.split('+');
     return AppPlatformInfo(
@@ -29,24 +21,21 @@ class AppPlatformInfo {
       buildNumber: parts.length > 1 ? parts.last : '1',
     );
   }
-}
-
-class AppPlatformService {
-  AppPlatformService._();
 
   static const _channel = MethodChannel('harmonymusic/app_platform');
 
-  static Future<AppPlatformInfo> getAppInfo() async {
+  @override
+  Future<AppPlatformInfo> getAppInfo() async {
     if (!Platform.isAndroid) {
-      return AppPlatformInfo.fallback();
+      return fallbackInfo();
     }
 
     try {
       final result = await _channel.invokeMapMethod<String, dynamic>(
         'getAppInfo',
       );
-      if (result == null) return AppPlatformInfo.fallback();
-      final fallback = AppPlatformInfo.fallback();
+      if (result == null) return fallbackInfo();
+      final fallback = fallbackInfo();
       return AppPlatformInfo(
         appName: result['appName']?.toString() ?? fallback.appName,
         packageName: result['packageName']?.toString() ?? fallback.packageName,
@@ -54,11 +43,12 @@ class AppPlatformService {
         buildNumber: result['buildNumber']?.toString() ?? fallback.buildNumber,
       );
     } catch (_) {
-      return AppPlatformInfo.fallback();
+      return fallbackInfo();
     }
   }
 
-  static Future<void> setKeepScreenAwake(bool enable) async {
+  @override
+  Future<void> setKeepScreenAwake(bool enable) async {
     if (!Platform.isAndroid) return;
     try {
       await _channel.invokeMethod<void>('setKeepScreenAwake', enable);
@@ -67,7 +57,8 @@ class AppPlatformService {
     }
   }
 
-  static Future<void> shareText(String text) async {
+  @override
+  Future<void> shareText(String text) async {
     if (Platform.isAndroid) {
       try {
         await _channel.invokeMethod<void>('shareText', text);
@@ -79,7 +70,8 @@ class AppPlatformService {
     await Clipboard.setData(ClipboardData(text: text));
   }
 
-  static Future<void> openUrl(String url) async {
+  @override
+  Future<void> openUrl(String url) async {
     if (Platform.isAndroid) {
       try {
         await _channel.invokeMethod<void>('openUrl', url);
@@ -98,14 +90,16 @@ class AppPlatformService {
     }
   }
 
-  static Future<void> installApk(String path) async {
+  @override
+  Future<void> installApk(String path) async {
     if (!Platform.isAndroid) {
       throw UnsupportedError('APK installation is only supported on Android');
     }
     await _channel.invokeMethod<void>('installApk', path);
   }
 
-  static Future<void> restartApp({bool terminate = true}) async {
+  @override
+  Future<void> restartApp({bool terminate = true}) async {
     if (Platform.isAndroid) {
       try {
         await _channel.invokeMethod<void>('restartApp', terminate);
@@ -116,4 +110,27 @@ class AppPlatformService {
     }
     exit(0);
   }
+}
+
+class AppPlatformService {
+  AppPlatformService._();
+
+  static AppPlatformContract get _service =>
+      Get.isRegistered<AppPlatformContract>()
+      ? Get.find<AppPlatformContract>()
+      : const DefaultAppPlatformService();
+
+  static Future<AppPlatformInfo> getAppInfo() => _service.getAppInfo();
+
+  static Future<void> setKeepScreenAwake(bool enable) =>
+      _service.setKeepScreenAwake(enable);
+
+  static Future<void> shareText(String text) => _service.shareText(text);
+
+  static Future<void> openUrl(String url) => _service.openUrl(url);
+
+  static Future<void> installApk(String path) => _service.installApk(path);
+
+  static Future<void> restartApp({bool terminate = true}) =>
+      _service.restartApp(terminate: terminate);
 }

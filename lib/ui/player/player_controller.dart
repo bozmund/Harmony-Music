@@ -20,14 +20,14 @@ import '/models/media_Item_builder.dart';
 import '../screens/Home/home_screen_controller.dart';
 import '../widgets/sliding_up_panel.dart';
 import '/models/durationstate.dart';
-import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 
 import '/services/constant.dart';
 
 class PlayerController extends GetxController
     with GetSingleTickerProviderStateMixin {
   final _audioHandler = Get.find<AudioHandler>();
-  final _musicServices = Get.find<MusicServices>();
+  final _musicServices = Get.find<MusicServiceContract>();
   final currentQueue = <MediaItem>[].obs;
 
   final playerPaneOpacity = (1.0).obs;

@@ -8,7 +8,7 @@ import '/ui/widgets/sort_widget.dart';
 import '../../../models/artist.dart';
 import '../../../utils/helper.dart';
 import '../Library/library_controller.dart';
-import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 import '/ui/screens/Home/home_screen_controller.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
 
@@ -16,7 +16,7 @@ class ArtistScreenController extends GetxController
     with GetSingleTickerProviderStateMixin {
   final isArtistContentFetced = false.obs;
   final navigationRailCurrentIndex = 0.obs;
-  final musicServices = Get.find<MusicServices>();
+  final musicServices = Get.find<MusicServiceContract>();
   final railItems = <String>[].obs;
   final artistData = <String, dynamic>{}.obs;
   final sepataredContent = <String, dynamic>{}.obs;
@@ -80,12 +80,14 @@ class ArtistScreenController extends GetxController
     //inspect(artistData.value);
     final data = artistData;
     artist_ = Artist(
-        browseId: id,
-        name: data['name'],
-        thumbnailUrl:
-            data['thumbnails'] != null ? data['thumbnails'][0]['url'] : "",
-        subscribers: "${data['subscribers']} subscribers",
-        radioId: data["radioId"]);
+      browseId: id,
+      name: data['name'],
+      thumbnailUrl: data['thumbnails'] != null
+          ? data['thumbnails'][0]['url']
+          : "",
+      subscribers: "${data['subscribers']} subscribers",
+      radioId: data["radioId"],
+    );
   }
 
   Future<bool> addNremoveFromLibrary({bool add = true}) async {
@@ -126,7 +128,9 @@ class ArtistScreenController extends GetxController
     //tab browse endpoint & top result stored in [artistData], tabContent & addtionalParams for continuation stored in Separated Content
     if ((artistData[tabName]).containsKey("params")) {
       sepataredContent[tabName] = await musicServices.getArtistRealtedContent(
-          artistData[tabName], tabName);
+        artistData[tabName],
+        tabName,
+      );
     } else {
       sepataredContent[tabName] = {"results": artistData[tabName]['content']};
       isSeparatedArtistContentFetced.value = true;
@@ -135,34 +139,36 @@ class ArtistScreenController extends GetxController
 
     // observered - continuation available only for song & vid
     if (val != 0) {
-    final scrollController = val == 1
-        ? songScrollController
-        : val == 2
-            ? videoScrollController
-            : val == 3
-                ? albumScrollController
-                : singlesScrollController;
+      final scrollController = val == 1
+          ? songScrollController
+          : val == 2
+          ? videoScrollController
+          : val == 3
+          ? albumScrollController
+          : singlesScrollController;
 
-    scrollController.addListener(() {
-      double maxScroll = scrollController.position.maxScrollExtent;
-      double currentScroll = scrollController.position.pixels;
-      if (currentScroll >= maxScroll / 2 &&
-          sepataredContent[tabName]['additionalParams'] !=
-              '&ctoken=null&continuation=null') {
-        if (!continuationInProgress) {
-          continuationInProgress = true;
-          getContinuationContents(artistData[tabName], tabName);
+      scrollController.addListener(() {
+        double maxScroll = scrollController.position.maxScrollExtent;
+        double currentScroll = scrollController.position.pixels;
+        if (currentScroll >= maxScroll / 2 &&
+            sepataredContent[tabName]['additionalParams'] !=
+                '&ctoken=null&continuation=null') {
+          if (!continuationInProgress) {
+            continuationInProgress = true;
+            getContinuationContents(artistData[tabName], tabName);
+          }
         }
-      }
-    });
-   }
+      });
+    }
     isSeparatedArtistContentFetced.value = true;
   }
 
   Future<void> getContinuationContents(browseEndpoint, tabName) async {
     final x = await musicServices.getArtistRealtedContent(
-        browseEndpoint, tabName,
-        additionalParams: sepataredContent[tabName]['additionalParams']);
+      browseEndpoint,
+      tabName,
+      additionalParams: sepataredContent[tabName]['additionalParams'],
+    );
     (sepataredContent[tabName]['results']).addAll(x['results']);
     sepataredContent[tabName]['additionalParams'] = x['additionalParams'];
     sepataredContent.refresh();
@@ -194,8 +200,10 @@ class ArtistScreenController extends GetxController
   void onSearch(String value, String? tag) {
     final title = tag?.split("_")[0];
     final list = tempListContainer[title]!
-        .where((element) =>
-            element.title.toLowerCase().contains(value.toLowerCase()))
+        .where(
+          (element) =>
+              element.title.toLowerCase().contains(value.toLowerCase()),
+        )
         .toList();
     sepataredContent[title]['results'] = list;
     sepataredContent.refresh();
@@ -213,17 +221,19 @@ class ArtistScreenController extends GetxController
   final additionalOperationTempMap = <int, bool>{}.obs;
 
   void startAdditionalOperation(
-      SortWidgetController sortWidgetController_, OperationMode mode) {
+    SortWidgetController sortWidgetController_,
+    OperationMode mode,
+  ) {
     sortWidgetController = sortWidgetController_;
     final tabName = [
       "About",
       "Songs",
       "Videos",
       "Albums",
-      "Singles"
+      "Singles",
     ][navigationRailCurrentIndex.value];
-    additionalOperationTempList.value =
-        sepataredContent[tabName]['results'].toList();
+    additionalOperationTempList.value = sepataredContent[tabName]['results']
+        .toList();
     if (mode == OperationMode.addToPlaylist || mode == OperationMode.delete) {
       for (int i = 0; i < additionalOperationTempList.length; i++) {
         additionalOperationTempMap[i] = false;
@@ -233,8 +243,8 @@ class ArtistScreenController extends GetxController
   }
 
   void checkIfAllSelected() {
-    sortWidgetController!.isAllSelected.value =
-        !additionalOperationTempMap.containsValue(false);
+    sortWidgetController!.isAllSelected.value = !additionalOperationTempMap
+        .containsValue(false);
   }
 
   void selectAll(bool selected) {

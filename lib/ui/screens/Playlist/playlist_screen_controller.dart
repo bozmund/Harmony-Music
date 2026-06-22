@@ -1,3 +1,4 @@
+import 'package:harmonymusic/services/app_contracts.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:audio_service/audio_service.dart' show MediaItem;
@@ -17,7 +18,6 @@ import '../../../mixins/additional_opeartion_mixin.dart';
 import '../../../models/album.dart' show Album;
 import '../../../models/media_Item_builder.dart';
 import '../../../models/playlist.dart';
-import '../../../services/music_service.dart';
 import '../../../services/piped_service.dart';
 import '../Home/home_screen_controller.dart';
 import '../Library/library_controller.dart';
@@ -27,7 +27,7 @@ import '../Library/library_controller.dart';
 ///Playlist title,image,songs
 class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     with AdditionalOpeartionMixin, GetSingleTickerProviderStateMixin {
-  final MusicServices _musicServices = Get.find<MusicServices>();
+  final MusicServiceContract _musicServices = Get.find<MusicServiceContract>();
   final playlist = Playlist(
     title: "",
     playlistId: "",
@@ -56,15 +56,19 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       duration: const Duration(milliseconds: 400),
     );
 
-    _scaleAnimation =
-        Tween<double>(begin: 0, end: 1.0).animate(animationController);
+    _scaleAnimation = Tween<double>(
+      begin: 0,
+      end: 1.0,
+    ).animate(animationController);
 
     final args = Get.arguments as List;
     final Playlist? playlist = args[0];
     final playlistId = args[1];
     fetchPlaylistDetails(playlist, playlistId);
-    Future.delayed(const Duration(milliseconds: 200),
-        () => Get.find<HomeScreenController>().whenHomeScreenOnTop());
+    Future.delayed(
+      const Duration(milliseconds: 200),
+      () => Get.find<HomeScreenController>().whenHomeScreenOnTop(),
+    );
   }
 
   ///Fetches playlist details from the service
@@ -72,7 +76,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   void fetchPlaylistDetails(Playlist? playlist_, String playlistId) async {
     final isIdOnly = playlist_ == null;
     final isPipedPlaylist = playlist_?.isPipedPlaylist ?? false;
-    isDefaultPlaylist.value = (playlistId == BoxNames.songDownloads ||
+    isDefaultPlaylist.value =
+        (playlistId == BoxNames.songDownloads ||
         playlistId == BoxNames.songsCache ||
         playlistId == BoxNames.libRP ||
         playlistId == BoxNames.libFav ||
@@ -91,7 +96,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       isContentFetched.value = true;
 
       Future.delayed(
-          const Duration(seconds: 1), () => _updatePlaylistThumbSongBased());
+        const Duration(seconds: 1),
+        () => _updatePlaylistThumbSongBased(),
+      );
 
       return;
     }
@@ -135,7 +142,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   }
 
   Future<void> _fetchSongOnline(
-      String id, bool isIdOnly, bool isPipedPlaylist) async {
+    String id,
+    bool isIdOnly,
+    bool isPipedPlaylist,
+  ) async {
     isContentFetched.value = false;
 
     if (isPipedPlaylist) {
@@ -145,8 +155,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       return;
     }
 
-    final content =
-        await _musicServices.getPlaylistOrAlbumSongs(playlistId: id);
+    final content = await _musicServices.getPlaylistOrAlbumSongs(
+      playlistId: id,
+    );
 
     if (isIdOnly) {
       content['playlistId'] = id;
@@ -179,8 +190,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     try {
       if (content.isPipedPlaylist && !add) {
         //remove piped playlist from lib
-        final res =
-            await Get.find<PipedServices>().deletePlaylist(content.playlistId);
+        final res = await Get.find<PipedServices>().deletePlaylist(
+          content.playlistId,
+        );
         Get.find<LibraryPlaylistsController>().syncPipedPlaylist();
         return (res.code == 1);
       } else {
@@ -250,14 +262,16 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     final box_ = await Hive.openBox(id);
     for (MediaItem element in songs) {
-      final index = box_.values
-          .toList()
-          .indexWhere((ele) => ele['videoId'] == element.id);
+      final index = box_.values.toList().indexWhere(
+        (ele) => ele['videoId'] == element.id,
+      );
       await box_.deleteAt(index);
 
       if (isoffline) {
-        await Get.find<LibrarySongsController>()
-            .removeSong(element, id == BoxNames.songDownloads);
+        await Get.find<LibrarySongsController>().removeSong(
+          element,
+          id == BoxNames.songDownloads,
+        );
       }
 
       songList.removeWhere((song) => song.id == element.id);
@@ -268,8 +282,11 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     _updatePlaylistThumbSongBased();
   }
 
-  void addNRemoveItemsinList(MediaItem? item,
-      {required String action, int? index}) {
+  void addNRemoveItemsinList(
+    MediaItem? item, {
+    required String action,
+    int? index,
+  }) {
     if (action == 'add') {
       if (tempListContainer.isNotEmpty) {
         index != null
@@ -292,8 +309,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   }
 
   @override
-  void fetchAlbumDetails(
-      Album? album_, String albumId) {} // Not used in this class
+  void fetchAlbumDetails(Album? album_, String albumId) {} // Not used in this class
 
   /// This function updates the local playlist thumbnail based on the first song's thumbnail
   void _updatePlaylistThumbSongBased() {
@@ -305,11 +321,13 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     Playlist updatedplaylist;
     if (songList.isNotEmpty) {
-      updatedplaylist =
-          currentPlaylist.copyWith(thumbnailUrl: songList[0].artUri.toString());
+      updatedplaylist = currentPlaylist.copyWith(
+        thumbnailUrl: songList[0].artUri.toString(),
+      );
     } else {
-      updatedplaylist =
-          currentPlaylist.copyWith(thumbnailUrl: Playlist.thumbPlaceholderUrl);
+      updatedplaylist = currentPlaylist.copyWith(
+        thumbnailUrl: Playlist.thumbPlaceholderUrl,
+      );
     }
 
     // Check if the thumbnail URL is the same as the current one
@@ -321,8 +339,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     // Update the playlist thumbnail URL
     playlist.value = updatedplaylist;
-    Get.find<LibraryPlaylistsController>()
-        .updatePlaylistIntoDb(updatedplaylist);
+    Get.find<LibraryPlaylistsController>().updatePlaylistIntoDb(
+      updatedplaylist,
+    );
   }
 
   @override
@@ -336,9 +355,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   Future<void> exportPlaylistToJson(BuildContext context) async {
     if (!await PermissionService.getExtStoragePermission()) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(snackbar(
-            context, "permissionDenied".tr,
-            size: SanckBarSize.MEDIUM));
+        ScaffoldMessenger.of(context).showSnackBar(
+          snackbar(context, "permissionDenied".tr, size: SanckBarSize.MEDIUM),
+        );
       }
       return;
     }
@@ -366,8 +385,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       exportProgress.value = 0.5;
 
       // Generate filename with playlist name
-      final sanitizedName =
-          playlist.value.title.replaceAll(RegExp(r'[^\w\s]+'), '_');
+      final sanitizedName = playlist.value.title.replaceAll(
+        RegExp(r'[^\w\s]+'),
+        '_',
+      );
 
       // Find available filename with incremental suffix if needed
       String filename = "$sanitizedName.json";
@@ -396,9 +417,13 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       // Show success message with platform-specific path info
       String locationMsg = _getLocationMessage(exportDir.path);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(snackbar(
-            context, "${"playlistExportedMsg".tr}: $locationMsg",
-            size: SanckBarSize.MEDIUM));
+        ScaffoldMessenger.of(context).showSnackBar(
+          snackbar(
+            context,
+            "${"playlistExportedMsg".tr}: $locationMsg",
+            size: SanckBarSize.MEDIUM,
+          ),
+        );
       }
     } catch (e) {
       // Close progress dialog if it's still open
@@ -420,8 +445,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
       }
     } finally {
       isExporting.value = false;
@@ -432,9 +458,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   Future<void> exportPlaylistToCsv(BuildContext context) async {
     if (!await PermissionService.getExtStoragePermission()) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(snackbar(
-            context, "permissionDenied".tr,
-            size: SanckBarSize.MEDIUM));
+        ScaffoldMessenger.of(context).showSnackBar(
+          snackbar(context, "permissionDenied".tr, size: SanckBarSize.MEDIUM),
+        );
       }
       return;
     }
@@ -457,8 +483,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       exportProgress.value = 0.5;
 
       // Generate filename with playlist name
-      final sanitizedName =
-          playlist.value.title.replaceAll(RegExp(r'[^\w\s]+'), '_');
+      final sanitizedName = playlist.value.title.replaceAll(
+        RegExp(r'[^\w\s]+'),
+        '_',
+      );
 
       // Find available filename with incremental suffix if needed
       String filename = "$sanitizedName.csv";
@@ -487,9 +515,13 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       // Show success message with platform-specific path info
       String locationMsg = _getLocationMessage(exportDir.path);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(snackbar(
-            context, "${"playlistExportedMsg".tr}: $locationMsg",
-            size: SanckBarSize.MEDIUM));
+        ScaffoldMessenger.of(context).showSnackBar(
+          snackbar(
+            context,
+            "${"playlistExportedMsg".tr}: $locationMsg",
+            size: SanckBarSize.MEDIUM,
+          ),
+        );
       }
     } catch (e) {
       // Close progress dialog if it's still open
@@ -511,8 +543,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
       }
     } finally {
       isExporting.value = false;
@@ -525,15 +558,16 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     // CSV Header
     buffer.writeln(
-        'PlaylistBrowseId,PlaylistName,MediaId,Title,Artists,Duration,ThumbnailUrl,AlbumId,AlbumTitle,ArtistIds');
+      'PlaylistBrowseId,PlaylistName,MediaId,Title,Artists,Duration,ThumbnailUrl,AlbumId,AlbumTitle,ArtistIds',
+    );
 
     // CSV Rows - one for each song
     for (final song in songList) {
       // Keep playlistBrowseId blank for offline/piped playlists
       final playlistBrowseId =
           (!playlist.value.isCloudPlaylist || playlist.value.isPipedPlaylist)
-              ? ''
-              : _escapeCsvField(playlist.value.playlistId);
+          ? ''
+          : _escapeCsvField(playlist.value.playlistId);
       final playlistName = _escapeCsvField(playlist.value.title);
       final mediaId = _escapeCsvField(song.id);
       final title = _escapeCsvField(song.title);
@@ -545,17 +579,20 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
           : '';
 
       // Format duration as HH:MM:SS or MM:SS
-      final duration =
-          song.duration != null ? _formatDuration(song.duration!) : '';
+      final duration = song.duration != null
+          ? _formatDuration(song.duration!)
+          : '';
 
       final thumbnailUrl = _escapeCsvField(song.artUri.toString());
 
       // Extract album information
       final albumData = song.extras?['album'] as Map?;
-      final albumId =
-          albumData != null ? _escapeCsvField(albumData['id'] ?? '') : '';
-      final albumTitle =
-          albumData != null ? _escapeCsvField(albumData['name'] ?? '') : '';
+      final albumId = albumData != null
+          ? _escapeCsvField(albumData['id'] ?? '')
+          : '';
+      final albumTitle = albumData != null
+          ? _escapeCsvField(albumData['name'] ?? '')
+          : '';
 
       // Extract all artist IDs (comma-separated)
       final artistIds = artistsList != null && artistsList.isNotEmpty
@@ -563,7 +600,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
           : '';
 
       buffer.writeln(
-          '$playlistBrowseId,$playlistName,$mediaId,$title,$artists,$duration,$thumbnailUrl,$albumId,$albumTitle,$artistIds');
+        '$playlistBrowseId,$playlistName,$mediaId,$title,$artists,$duration,$thumbnailUrl,$albumId,$albumTitle,$artistIds',
+      );
     }
 
     return buffer.toString();
@@ -610,7 +648,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         directory = Directory('${docDir.path}/$appFolderName');
       } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         // Desktop platforms: use Downloads folder in user's home directory
-        final homeDir = Platform.environment['HOME'] ??
+        final homeDir =
+            Platform.environment['HOME'] ??
             Platform.environment['USERPROFILE'] ??
             '.';
         directory = Directory('$homeDir/Downloads/$appFolderName');
@@ -655,31 +694,29 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     Get.dialog(
       AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
-        title: Text(
-          title,
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        content: Obx(() => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(
-                  value: exportProgress.value,
-                  backgroundColor:
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context).colorScheme.secondary,
-                  ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Text(title, style: Theme.of(context).textTheme.titleLarge),
+        content: Obx(
+          () => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: exportProgress.value,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.secondary,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  "${(exportProgress.value * 100).toInt()}%",
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            )),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "${(exportProgress.value * 100).toInt()}%",
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
       ),
       barrierDismissible: false,
     );

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
+import '/services/app_contracts.dart';
 import '/services/constant.dart';
 import '/ui/navigator.dart';
 import '/ui/widgets/sort_widget.dart';
@@ -168,61 +169,84 @@ Future<UpdateInfo?> newVersionCheck(
   String currentVersion, {
   UpdateChannel channel = UpdateChannel.stable,
 }) async {
-  try {
-    if (channel == UpdateChannel.rolling) {
-      return await _rollingVersionCheck();
-    }
-
-    final tags = (await Dio().get(
-      "https://api.github.com/repos/bozmund/Harmony-Music/tags",
-    )).data;
-
-    final versionTagPattern = RegExp(r'^v\d+\.\d+\.\d+$');
-    final semanticTags = (tags as List)
-        .map((tag) => tag['name'])
-        .whereType<String>()
-        .where((tag) => versionTagPattern.hasMatch(tag))
-        .toList();
-    if (semanticTags.isEmpty) return null;
-    semanticTags.sort((a, b) => _compareSemanticVersions(b, a));
-
-    final currentVersion_ = currentVersion
-        .toLowerCase()
-        .replaceFirst('v', '')
-        .split(".");
-    final latestTag = semanticTags.first;
-    final availableVersion_ = latestTag.substring(1).split(".");
-    final isNewer =
-        int.parse(availableVersion_[0]) > int.parse(currentVersion_[0]) ||
-        (int.parse(availableVersion_[1]) > int.parse(currentVersion_[1]) &&
-            int.parse(availableVersion_[0]) == int.parse(currentVersion_[0])) ||
-        (int.parse(availableVersion_[2]) > int.parse(currentVersion_[2]) &&
-            int.parse(availableVersion_[0]) == int.parse(currentVersion_[0]) &&
-            int.parse(availableVersion_[1]) == int.parse(currentVersion_[1]));
-    if (!isNewer) return null;
-
-    final releasePage =
-        "https://github.com/bozmund/Harmony-Music/releases/tag/$latestTag";
-    String? downloadUrl;
-    String? releaseUrl;
-    try {
-      final release = (await Dio().get(
-        "https://api.github.com/repos/bozmund/Harmony-Music/releases/tags/$latestTag",
-      )).data;
-      downloadUrl = _releaseApkDownloadUrl(release);
-      releaseUrl = release['html_url'] as String?;
-    } catch (_) {
-      // Keep the update notification useful even if release metadata fails.
-    }
-
-    return UpdateInfo(
-      channel: UpdateChannel.stable,
-      version: latestTag,
-      downloadUrl: downloadUrl ?? releaseUrl ?? releasePage,
-      releaseUrl: releaseUrl ?? releasePage,
+  if (Get.isRegistered<UpdateServiceContract>()) {
+    return Get.find<UpdateServiceContract>().checkNewVersion(
+      currentVersion,
+      channel: channel,
     );
-  } catch (e) {
-    return null;
+  }
+  return const GithubUpdateService().checkNewVersion(
+    currentVersion,
+    channel: channel,
+  );
+}
+
+class GithubUpdateService implements UpdateServiceContract {
+  const GithubUpdateService();
+
+  @override
+  Future<UpdateInfo?> checkNewVersion(
+    String currentVersion, {
+    UpdateChannel channel = UpdateChannel.stable,
+  }) async {
+    try {
+      if (channel == UpdateChannel.rolling) {
+        return await _rollingVersionCheck();
+      }
+
+      final tags = (await Dio().get(
+        "https://api.github.com/repos/bozmund/Harmony-Music/tags",
+      )).data;
+
+      final versionTagPattern = RegExp(r'^v\d+\.\d+\.\d+$');
+      final semanticTags = (tags as List)
+          .map((tag) => tag['name'])
+          .whereType<String>()
+          .where((tag) => versionTagPattern.hasMatch(tag))
+          .toList();
+      if (semanticTags.isEmpty) return null;
+      semanticTags.sort((a, b) => _compareSemanticVersions(b, a));
+
+      final currentVersion_ = currentVersion
+          .toLowerCase()
+          .replaceFirst('v', '')
+          .split(".");
+      final latestTag = semanticTags.first;
+      final availableVersion_ = latestTag.substring(1).split(".");
+      final isNewer =
+          int.parse(availableVersion_[0]) > int.parse(currentVersion_[0]) ||
+          (int.parse(availableVersion_[1]) > int.parse(currentVersion_[1]) &&
+              int.parse(availableVersion_[0]) ==
+                  int.parse(currentVersion_[0])) ||
+          (int.parse(availableVersion_[2]) > int.parse(currentVersion_[2]) &&
+              int.parse(availableVersion_[0]) ==
+                  int.parse(currentVersion_[0]) &&
+              int.parse(availableVersion_[1]) == int.parse(currentVersion_[1]));
+      if (!isNewer) return null;
+
+      final releasePage =
+          "https://github.com/bozmund/Harmony-Music/releases/tag/$latestTag";
+      String? downloadUrl;
+      String? releaseUrl;
+      try {
+        final release = (await Dio().get(
+          "https://api.github.com/repos/bozmund/Harmony-Music/releases/tags/$latestTag",
+        )).data;
+        downloadUrl = _releaseApkDownloadUrl(release);
+        releaseUrl = release['html_url'] as String?;
+      } catch (_) {
+        // Keep the update notification useful even if release metadata fails.
+      }
+
+      return UpdateInfo(
+        channel: UpdateChannel.stable,
+        version: latestTag,
+        downloadUrl: downloadUrl ?? releaseUrl ?? releasePage,
+        releaseUrl: releaseUrl ?? releasePage,
+      );
+    } catch (e) {
+      return null;
+    }
   }
 }
 

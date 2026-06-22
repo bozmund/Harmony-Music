@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
-import 'package:file_selector/file_selector.dart';
+import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
@@ -301,7 +301,7 @@ class BackupDialogController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await getDirectoryPath(
+    final String? pickedFolderPath = await FilePickerService.getDirectoryPath(
       confirmButtonText: "Select backup file folder",
     );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {

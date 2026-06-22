@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:file_selector/file_selector.dart';
+import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -19,6 +19,7 @@ import '../Library/library_controller.dart';
 import '../../widgets/snackbar.dart';
 import '../../../utils/helper.dart';
 import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 import '/ui/player/player_controller.dart';
 import '../Home/home_screen_controller.dart';
 import '/ui/utils/theme_controller.dart';
@@ -282,7 +283,7 @@ class SettingsScreenController extends GetxController {
 
   void setAppLanguage(String? val) {
     Get.updateLocale(Locale(val!));
-    Get.find<MusicServices>().hlCode = val;
+    Get.find<MusicServiceContract>().hlCode = val;
     Get.find<HomeScreenController>().loadContentFromNetwork(silent: true);
     currentAppLanguageCode.value = val;
     setBox.put(PrefKeys.currentAppLanguageCode, val);
@@ -341,7 +342,7 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await getDirectoryPath(
+    final String? pickedFolderPath = await FilePickerService.getDirectoryPath(
       confirmButtonText: "Select export file folder",
     );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
@@ -357,7 +358,7 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await getDirectoryPath(
+    final String? pickedFolderPath = await FilePickerService.getDirectoryPath(
       confirmButtonText: "Select downloads folder",
     );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
@@ -480,7 +481,7 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await getDirectoryPath(
+    final String? pickedFolderPath = await FilePickerService.getDirectoryPath(
       confirmButtonText: "Select clone export folder",
     );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
@@ -541,7 +542,7 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? cloneFolderPath = await getDirectoryPath(
+    final String? cloneFolderPath = await FilePickerService.getDirectoryPath(
       confirmButtonText: "Select HarmonyMusicClone package",
     );
     if (cloneFolderPath == '/' || cloneFolderPath == null) {

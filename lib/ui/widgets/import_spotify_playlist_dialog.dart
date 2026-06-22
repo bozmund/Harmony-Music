@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:file_selector/file_selector.dart';
+import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
@@ -32,7 +33,7 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
     status.value = "Reading export";
 
     try {
-      final picked = await openFile(
+      final picked = await FilePickerService.openFile(
         acceptedTypeGroups: [
           const XTypeGroup(
             label: 'Spotify export',

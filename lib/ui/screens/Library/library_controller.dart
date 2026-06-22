@@ -6,6 +6,7 @@ import 'package:harmonymusic/ui/widgets/snackbar.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_selector/file_selector.dart';
+import '/services/file_picker_service.dart';
 import 'dart:convert';
 
 import '/utils/search_filter.dart';
@@ -14,7 +15,7 @@ import '../../../utils/house_keeping.dart';
 import '../../widgets/add_to_playlist.dart';
 import '/ui/widgets/sort_widget.dart';
 import '../Settings/settings_screen_controller.dart';
-import '/services/music_service.dart';
+import '/services/app_contracts.dart';
 import '/services/piped_service.dart';
 import '/services/utils.dart';
 import '../../../utils/helper.dart';
@@ -592,7 +593,7 @@ class LibraryPlaylistsController extends GetxController
     onStatus?.call("Fetching playlist");
     late Map<String, dynamic> content;
     try {
-      content = await Get.find<MusicServices>().getPlaylistOrAlbumSongs(
+      content = await Get.find<MusicServiceContract>().getPlaylistOrAlbumSongs(
         playlistId: playlistId,
       );
     } catch (e) {
@@ -702,7 +703,7 @@ class LibraryPlaylistsController extends GetxController
   Future<_SpotifyTrackMatch?> _matchSpotifyTrack(
     SpotifyImportTrack track,
   ) async {
-    final results = await Get.find<MusicServices>().search(
+    final results = await Get.find<MusicServiceContract>().search(
       track.query,
       filter: 'songs',
       limit: 5,
@@ -953,7 +954,7 @@ class LibraryPlaylistsController extends GetxController
         _showImportProgressDialog(context);
       }
 
-      final result = await openFile(
+      final result = await FilePickerService.openFile(
         acceptedTypeGroups: [
           const XTypeGroup(label: 'JSON', extensions: ['json']),
         ],
