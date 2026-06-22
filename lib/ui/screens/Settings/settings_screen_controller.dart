@@ -276,7 +276,12 @@ class SettingsScreenController extends GetxController {
     }
     autoDownloadFavoriteSongEnabled.value =
         setBox.get(PrefKeys.autoDownloadFavoriteSongEnabled) ?? false;
-    libraryFirstTab.value = setBox.get(PrefKeys.libraryFirstTab) ?? 0;
+    final normalizedLibraryFirstTab =
+        SettingsScreenController.normalizeLibraryFirstTab(
+          setBox.get(PrefKeys.libraryFirstTab),
+        );
+    libraryFirstTab.value = normalizedLibraryFirstTab;
+    setBox.put(PrefKeys.libraryFirstTab, normalizedLibraryFirstTab);
   }
 
   void changeUpdateChannel(String? val) {
@@ -645,11 +650,18 @@ class SettingsScreenController extends GetxController {
   }
 
   void setFirstLibraryTab(int index) {
-    setBox.put(PrefKeys.libraryFirstTab, index);
-    libraryFirstTab.value = index;
-    if (Get.isRegistered<CombinedLibraryController>()) {
-      Get.delete<CombinedLibraryController>();
+    final normalizedIndex = SettingsScreenController.normalizeLibraryFirstTab(
+      index,
+    );
+    setBox.put(PrefKeys.libraryFirstTab, normalizedIndex);
+    libraryFirstTab.value = normalizedIndex;
+  }
+
+  static int normalizeLibraryFirstTab(dynamic value) {
+    if (value is! int || value < 0 || value >= libraryTabKeys.length) {
+      return 0;
     }
+    return value;
   }
 
   Future<void> unlinkPiped() async {

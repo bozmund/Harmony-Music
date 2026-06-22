@@ -2148,6 +2148,8 @@ class Languages extends Translations {
           "autoOpenPlayer": "Auto open player screen",
           "autoOpenPlayerDes":
               "Enable/disable auto opening of player full screen on selection of song for play",
+          "firstLibraryTab": "First library tab",
+          "firstLibraryTabDes": "Select which tab to show first in Library",
           "homeContentCount": "Home content count",
           "homeContentCountDes":
               "Select the number of initial homescreen-content(approx). Lesser results faster loading",

@@ -365,6 +365,22 @@ class LibraryPlaylistsController extends GetxController
       isCloudPlaylist: false,
     ),
   ];
+
+  static bool isInitialPlaylistId(String playlistId) {
+    return initialPlaylists.any(
+      (playlist) => playlist.playlistId == playlistId,
+    );
+  }
+
+  static List<Playlist> withInitialPlaylistsTail(Iterable<Playlist> playlists) {
+    return [
+      ...playlists.where(
+        (playlist) => !isInitialPlaylistId(playlist.playlistId),
+      ),
+      ...initialPlaylists,
+    ];
+  }
+
   late RxList<Playlist> libraryPlaylists = RxList(initialPlaylists);
   final isContentFetched = false.obs;
   final creationInProgress = false.obs;
@@ -387,13 +403,12 @@ class LibraryPlaylistsController extends GetxController
 
   void refreshLib() async {
     final box = await Hive.openBox(BoxNames.libraryPlaylists);
-    libraryPlaylists.value = [
-      ...(box.values
-          .map<Playlist?>((item) => Playlist.fromJson(item))
-          .whereType<Playlist>()
-          .toList()),
-      ...initialPlaylists,
-    ];
+    final localPlaylists = box.values
+        .map<Playlist?>((item) => Playlist.fromJson(item))
+        .whereType<Playlist>()
+        .toList()
+        .reversed;
+    libraryPlaylists.value = withInitialPlaylistsTail(localPlaylists);
 
     final appPrefsBox = Hive.box(BoxNames.appPrefs);
     if (appPrefsBox.containsKey(PrefKeys.piped)) {
@@ -446,13 +461,15 @@ class LibraryPlaylistsController extends GetxController
       //add new playlist from cloud
       for (dynamic playlist in res.response) {
         if (!libPipedPlaylistsId.contains(playlist['id'])) {
-          libraryPlaylists.add(Playlist(
-            title: playlist['name'],
-            playlistId: playlist['id'],
-            description: "Piped Playlist",
-            thumbnailUrl: playlist['thumbnail'],
-            isPipedPlaylist: true,
-          ));
+          _insertBeforeInitialPlaylists(
+            Playlist(
+              title: playlist['name'],
+              playlistId: playlist['id'],
+              description: "Piped Playlist",
+              thumbnailUrl: playlist['thumbnail'],
+              isPipedPlaylist: true,
+            ),
+          );
         }
       }
 
@@ -572,11 +589,23 @@ class LibraryPlaylistsController extends GetxController
   }
 
   void onSort(SortType sortType, bool isAscending) {
-    final playlists = libraryPlaylists.toList();
-    playlists.removeRange(0, initialPlaylists.length);
+    final playlists = libraryPlaylists
+        .where((playlist) => !isInitialPlaylistId(playlist.playlistId))
+        .toList();
     sortPlayLists(playlists, sortType, isAscending);
-    playlists.insertAll(0, initialPlaylists);
-    libraryPlaylists.value = playlists;
+    libraryPlaylists.value = withInitialPlaylistsTail(playlists);
+  }
+
+  void _insertBeforeInitialPlaylists(Playlist playlist) {
+    final firstInitialPlaylistIndex = libraryPlaylists.indexWhere(
+      (playlist) => isInitialPlaylistId(playlist.playlistId),
+    );
+    libraryPlaylists.insert(
+      firstInitialPlaylistIndex == -1
+          ? libraryPlaylists.length
+          : firstInitialPlaylistIndex,
+      playlist,
+    );
   }
 
   Future<YouTubePlaylistImportResult> importPlaylistFromYouTubeMusic(
