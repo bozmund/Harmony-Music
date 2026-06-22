@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:terminate_restart/terminate_restart.dart';
 
 import '/services/constant.dart';
 import '/ui/screens/Search/search_screen_controller.dart';
@@ -31,7 +30,6 @@ Future<void> main() async {
   Get.put<AudioHandler>(await initAudioService(), permanent: true);
   WidgetsBinding.instance.addObserver(LifecycleHandler());
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  TerminateRestart.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -44,42 +42,47 @@ class MyApp extends StatelessWidget {
     if (!GetPlatform.isDesktop) Get.put(AppLinksController());
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     return GetMaterialApp(
-        title: 'Harmony Music',
-        home: const Home(),
-        debugShowCheckedModeBanner: false,
-        translations: Languages(),
-        locale: Locale(
-            Hive.box(BoxNames.appPrefs).get(PrefKeys.currentAppLanguageCode) ??
-                "en"),
-        fallbackLocale: const Locale("en"),
-        builder: (context, child) {
-          final mQuery = MediaQuery.of(context);
-          final scale =
-              mQuery.textScaler.clamp(minScaleFactor: 1.0, maxScaleFactor: 1.1);
-          return Stack(
-            children: [
-              GetX<ThemeController>(
-                builder: (controller) => MediaQuery(
-                  data: mQuery.copyWith(textScaler: scale),
-                  child: AnimatedTheme(
-                      duration: const Duration(milliseconds: 700),
-                      data: controller.themeData.value!,
-                      child: child!),
+      title: 'Harmony Music',
+      home: const Home(),
+      debugShowCheckedModeBanner: false,
+      translations: Languages(),
+      locale: Locale(
+        Hive.box(BoxNames.appPrefs).get(PrefKeys.currentAppLanguageCode) ??
+            "en",
+      ),
+      fallbackLocale: const Locale("en"),
+      builder: (context, child) {
+        final mQuery = MediaQuery.of(context);
+        final scale = mQuery.textScaler.clamp(
+          minScaleFactor: 1.0,
+          maxScaleFactor: 1.1,
+        );
+        return Stack(
+          children: [
+            GetX<ThemeController>(
+              builder: (controller) => MediaQuery(
+                data: mQuery.copyWith(textScaler: scale),
+                child: AnimatedTheme(
+                  duration: const Duration(milliseconds: 700),
+                  data: controller.themeData.value!,
+                  child: child!,
                 ),
               ),
-              GestureDetector(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    color: Colors.transparent,
-                    height: mQuery.padding.bottom,
-                    width: mQuery.size.width,
-                  ),
+            ),
+            GestureDetector(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  color: Colors.transparent,
+                  height: mQuery.padding.bottom,
+                  width: mQuery.size.width,
                 ),
-              )
-            ],
-          );
-        });
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -128,10 +131,11 @@ void _setAppInitPrefs() {
       PrefKeys.themePrimaryColor: 4278199603,
       PrefKeys.discoverContentType: "QP",
       PrefKeys.newVersionVisibility: updateCheckFlag,
-      PrefKeys.updateChannel:
-          BuildInfo.channel == 'rolling' ? 'rolling' : 'stable',
+      PrefKeys.updateChannel: BuildInfo.channel == 'rolling'
+          ? 'rolling'
+          : 'stable',
       PrefKeys.cacheHomeScreenData: true,
-      PrefKeys.queueLoopModeEnabled: true
+      PrefKeys.queueLoopModeEnabled: true,
     });
   } else if (!appPrefs.containsKey(PrefKeys.queueLoopModeEnabled)) {
     appPrefs.put(PrefKeys.queueLoopModeEnabled, true);

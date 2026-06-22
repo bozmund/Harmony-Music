@@ -4,8 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:harmonymusic/services/app_platform_service.dart';
 
 import 'common_dialog_widget.dart';
 
@@ -64,16 +63,18 @@ class IssueReportDialogController extends GetxController {
 
   Future<void> openManualIssue() async {
     final payload = await _buildPayload();
-    final uri = Uri.parse(_manualIssueUrl).replace(queryParameters: {
-      'labels': 'bug',
-      'title': titleController.text.trim(),
-      'body': _markdownBody(payload),
-    });
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final uri = Uri.parse(_manualIssueUrl).replace(
+      queryParameters: {
+        'labels': 'bug',
+        'title': titleController.text.trim(),
+        'body': _markdownBody(payload),
+      },
+    );
+    await AppPlatformService.openUrl(uri.toString());
   }
 
   Future<Map<String, dynamic>> _buildPayload() async {
-    final info = await PackageInfo.fromPlatform();
+    final info = await AppPlatformService.getAppInfo();
     final diagnostics = {
       'appName': info.appName,
       'packageName': info.packageName,
@@ -214,8 +215,8 @@ class IssueReportDialog extends StatelessWidget {
                     Text(
                       controller.error.value!,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ],
                   if (controller.submitted.value) ...[
@@ -236,7 +237,8 @@ class IssueReportDialog extends StatelessWidget {
                             ? null
                             : () => Get.back(),
                         child: Text(
-                            controller.submitted.value ? "Close" : "Cancel"),
+                          controller.submitted.value ? "Close" : "Cancel",
+                        ),
                       ),
                       const SizedBox(width: 8),
                       TextButton(
@@ -269,8 +271,9 @@ class IssueReportDialog extends StatelessWidget {
 ButtonStyle _issueDialogButtonStyle(BuildContext context) {
   return TextButton.styleFrom(
     foregroundColor: Theme.of(context).textTheme.titleMedium!.color,
-    disabledForegroundColor:
-        Theme.of(context).textTheme.bodyMedium!.color?.withValues(alpha: 0.45),
+    disabledForegroundColor: Theme.of(
+      context,
+    ).textTheme.bodyMedium!.color?.withValues(alpha: 0.45),
     textStyle: Theme.of(context).textTheme.titleMedium!.copyWith(fontSize: 14),
   );
 }
@@ -305,13 +308,11 @@ class _IssueTextField extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                  fontSize: 13,
-                  color: Theme.of(context)
-                      .textTheme
-                      .titleMedium!
-                      .color
-                      ?.withValues(alpha: 0.78),
-                ),
+              fontSize: 13,
+              color: Theme.of(
+                context,
+              ).textTheme.titleMedium!.color?.withValues(alpha: 0.78),
+            ),
           ),
           const SizedBox(height: 6),
           ConstrainedBox(
@@ -322,18 +323,19 @@ class _IssueTextField extends StatelessWidget {
               maxLines: maxLines,
               textAlignVertical: TextAlignVertical.top,
               cursorColor: Theme.of(context).textTheme.titleMedium!.color,
-              style: Theme.of(context).textTheme.titleMedium!.copyWith(
-                    fontSize: 14,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium!.copyWith(fontSize: 14),
               decoration: InputDecoration(
                 isDense: true,
                 filled: true,
-                fillColor: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withValues(alpha: 0.35),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 border: border,
                 enabledBorder: border,
                 focusedBorder: border.copyWith(

@@ -65,6 +65,7 @@ app.*.map.json
 .fvmrc
 
 settings.json
+.codex-remote-attachments/
 
 android/app/.cxx/Debug/*
 

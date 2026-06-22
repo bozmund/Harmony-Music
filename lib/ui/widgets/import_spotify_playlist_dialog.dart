@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
@@ -32,25 +32,23 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
     status.value = "Reading export";
 
     try {
-      final picked = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['zip', 'json'],
-        dialogTitle: "Import Spotify playlist export",
+      final picked = await openFile(
+        acceptedTypeGroups: [
+          const XTypeGroup(
+            label: 'Spotify export',
+            extensions: ['zip', 'json'],
+          ),
+        ],
+        confirmButtonText: "Import Spotify playlist export",
       );
 
-      if (picked == null || picked.files.isEmpty) {
+      if (picked == null) {
         status.value = "Select a Spotify data export ZIP or Playlist JSON";
         return;
       }
 
-      final filePath = picked.files.single.path;
-      if (filePath == null) {
-        throw const SpotifyPlaylistImportException(
-            "Invalid Spotify export file");
-      }
-
       status.value = "Parsing playlists";
-      final parsed = await _parseSpotifyExport(File(filePath));
+      final parsed = await _parseSpotifyExport(File(picked.path));
       if (parsed.playlists.isEmpty) {
         throw const SpotifyPlaylistImportException("No playlists found");
       }
@@ -90,11 +88,11 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
     isImporting.value = true;
 
     try {
-      result.value =
-          await Get.find<LibraryPlaylistsController>().importSpotifyPlaylists(
-        selected,
-        onStatus: (value) => status.value = value,
-      );
+      result.value = await Get.find<LibraryPlaylistsController>()
+          .importSpotifyPlaylists(
+            selected,
+            onStatus: (value) => status.value = value,
+          );
       status.value = "Completed";
     } on SpotifyPlaylistImportException catch (e) {
       error.value = e.message;
@@ -131,8 +129,10 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
       var unsupportedItems = 0;
 
       for (final archiveFile in archive.files) {
-        final fileName =
-            archiveFile.name.split(RegExp(r'[\\/]')).last.toLowerCase();
+        final fileName = archiveFile.name
+            .split(RegExp(r'[\\/]'))
+            .last
+            .toLowerCase();
         if (!archiveFile.isFile ||
             !fileName.startsWith('playlist') ||
             !fileName.endsWith('.json')) {
@@ -189,26 +189,30 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
           continue;
         }
 
-        tracks.add(SpotifyImportTrack(
-          trackName: trackName.trim(),
-          artistName: artistName.trim(),
-          albumName: track['albumName'] is String
-              ? (track['albumName'] as String).trim()
-              : null,
-          trackUri: track['trackUri'] is String
-              ? (track['trackUri'] as String).trim()
-              : null,
-        ));
+        tracks.add(
+          SpotifyImportTrack(
+            trackName: trackName.trim(),
+            artistName: artistName.trim(),
+            albumName: track['albumName'] is String
+                ? (track['albumName'] as String).trim()
+                : null,
+            trackUri: track['trackUri'] is String
+                ? (track['trackUri'] as String).trim()
+                : null,
+          ),
+        );
       }
 
       if (tracks.isNotEmpty) {
-        playlists.add(SpotifyImportPlaylist(
-          name: name.trim(),
-          description: playlistJson['description'] is String
-              ? (playlistJson['description'] as String).trim()
-              : null,
-          tracks: tracks,
-        ));
+        playlists.add(
+          SpotifyImportPlaylist(
+            name: name.trim(),
+            description: playlistJson['description'] is String
+                ? (playlistJson['description'] as String).trim()
+                : null,
+            tracks: tracks,
+          ),
+        );
       }
     }
 
@@ -276,9 +280,9 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
                         onChanged: controller.isImporting.value
                             ? null
                             : (value) => controller.togglePlaylist(
-                                  index,
-                                  value ?? false,
-                                ),
+                                index,
+                                value ?? false,
+                              ),
                         title: Text(playlist.name),
                         subtitle: Text("${playlist.tracks.length} tracks"),
                       );
@@ -295,10 +299,9 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
               if (controller.error.value != null) ...[
                 Text(
                   controller.error.value!,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: Theme.of(context).colorScheme.error),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -319,22 +322,27 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   TextButton(
-                    onPressed: controller.isReading.value ||
+                    onPressed:
+                        controller.isReading.value ||
                             controller.isImporting.value
                         ? null
                         : () => Get.back(),
                     child: Text(
-                        controller.result.value == null ? "Cancel" : "Close"),
+                      controller.result.value == null ? "Cancel" : "Close",
+                    ),
                   ),
                   const SizedBox(width: 8),
                   TextButton(
-                    onPressed: controller.isReading.value ||
+                    onPressed:
+                        controller.isReading.value ||
                             controller.isImporting.value
                         ? null
                         : controller.pickExport,
-                    child: Text(controller.detectedPlaylists.isEmpty
-                        ? "Choose file"
-                        : "Choose another"),
+                    child: Text(
+                      controller.detectedPlaylists.isEmpty
+                          ? "Choose file"
+                          : "Choose another",
+                    ),
                   ),
                   if (controller.detectedPlaylists.isNotEmpty &&
                       controller.result.value == null) ...[

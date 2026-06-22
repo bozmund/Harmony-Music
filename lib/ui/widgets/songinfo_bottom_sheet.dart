@@ -2,14 +2,13 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/constant.dart';
 import '../../services/downloader.dart';
 import '../screens/Playlist/playlist_screen_controller.dart';
 import '../screens/Settings/settings_screen_controller.dart';
 import '/utils/helper.dart';
+import '../../services/app_platform_service.dart';
 import '/services/piped_service.dart';
 import '/ui/widgets/sleep_timer_bottom_sheet.dart';
 import '/ui/player/player_controller.dart';
@@ -290,8 +289,8 @@ class SongInfoBottomSheet extends StatelessWidget {
                     IconButton(
                       splashRadius: 10,
                       onPressed: () {
-                        launchUrl(
-                          Uri.parse("https://youtube.com/watch?v=${song.id}"),
+                        AppPlatformService.openUrl(
+                          "https://youtube.com/watch?v=${song.id}",
                         );
                       },
                       icon: const Icon(Icons.smart_display),
@@ -299,10 +298,8 @@ class SongInfoBottomSheet extends StatelessWidget {
                     IconButton(
                       splashRadius: 10,
                       onPressed: () {
-                        launchUrl(
-                          Uri.parse(
-                            "https://music.youtube.com/watch?v=${song.id}",
-                          ),
+                        AppPlatformService.openUrl(
+                          "https://music.youtube.com/watch?v=${song.id}",
                         );
                       },
                       icon: const Icon(Icons.play_circle),
@@ -339,8 +336,8 @@ class SongInfoBottomSheet extends StatelessWidget {
               visualDensity: const VisualDensity(vertical: -1),
               leading: const Icon(Icons.share),
               title: Text("shareSong".tr),
-              onTap: () => SharePlus.instance.share(
-                ShareParams(text: "https://youtube.com/watch?v=${song.id}"),
+              onTap: () => AppPlatformService.shareText(
+                "https://youtube.com/watch?v=${song.id}",
               ),
             ),
           ],

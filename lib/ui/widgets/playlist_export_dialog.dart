@@ -2,9 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:html/parser.dart' as html_parser;
 
+import '../../services/app_platform_service.dart';
 import '/ui/screens/Playlist/playlist_screen_controller.dart';
 import 'common_dialog_widget.dart';
 import 'snackbar.dart';
@@ -96,10 +96,7 @@ class PlaylistExportDialog extends StatelessWidget {
     final url = 'https://www.youtube.com/watch_videos?video_ids=$videoIds';
     final ytmUrl = await _generateYTMUrl(url);
 
-    launchUrl(
-      Uri.parse(ytmUrl ?? url),
-      mode: LaunchMode.externalApplication,
-    );
+    AppPlatformService.openUrl(ytmUrl ?? url);
   }
 
   Future<String?> _generateYTMUrl(String ytSimpleUrl) async {
@@ -134,11 +131,7 @@ class PlaylistExportDialog extends StatelessWidget {
     Clipboard.setData(ClipboardData(text: ytmUrl ?? url)).then((_) {
       if (parentContext.mounted) {
         ScaffoldMessenger.of(parentContext).showSnackBar(
-          snackbar(
-            parentContext,
-            "linkCopied".tr,
-            size: SanckBarSize.MEDIUM,
-          ),
+          snackbar(parentContext, "linkCopied".tr, size: SanckBarSize.MEDIUM),
         );
       }
     });
@@ -176,19 +169,13 @@ class _ExportButton extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(
-                icon,
-                color: Theme.of(context).textTheme.titleMedium!.color,
-              ),
+              Icon(icon, color: Theme.of(context).textTheme.titleMedium!.color),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,

@@ -15,19 +15,17 @@ class WindowsAudioService extends GetxService {
   }
 
   _initService() {
-    smtc = SMTCWindows(
-      enabled: false,
-    );
+    smtc = SMTCWindows(enabled: false);
     try {
       smtc.buttonPressStream.listen((event) {
         switch (event) {
           case PressedButton.play:
             playerController.play();
-            smtc.setPlaybackStatus(PlaybackStatus.Playing);
+            smtc.setPlaybackStatus(PlaybackStatus.playing);
             break;
           case PressedButton.pause:
             playerController.pause();
-            smtc.setPlaybackStatus(PlaybackStatus.Paused);
+            smtc.setPlaybackStatus(PlaybackStatus.paused);
             break;
           case PressedButton.next:
             playerController.next();
@@ -47,13 +45,13 @@ class WindowsAudioService extends GetxService {
     playerController.buttonState.listen((state) {
       switch (state) {
         case PlayButtonState.playing:
-          smtc.setPlaybackStatus(PlaybackStatus.Playing);
+          smtc.setPlaybackStatus(PlaybackStatus.playing);
           break;
         case PlayButtonState.paused:
-          smtc.setPlaybackStatus(PlaybackStatus.Paused);
+          smtc.setPlaybackStatus(PlaybackStatus.paused);
           break;
         case PlayButtonState.loading:
-          smtc.setPlaybackStatus(PlaybackStatus.Paused);
+          smtc.setPlaybackStatus(PlaybackStatus.paused);
           break;
       }
     });

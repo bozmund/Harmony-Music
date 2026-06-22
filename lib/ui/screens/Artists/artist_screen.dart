@@ -6,9 +6,9 @@ import '/ui/screens/Settings/settings_screen_controller.dart';
 import '../../widgets/animated_screen_transition.dart';
 import '../../widgets/loader.dart';
 import '../../widgets/separate_tab_item_widget.dart';
+import '../../../services/app_platform_service.dart';
 import '/ui/player/player_controller.dart';
 import '/ui/widgets/image_widget.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../navigator.dart';
 import '../../widgets/snackbar.dart';
 import 'artist_screen_controller.dart';
@@ -22,42 +22,54 @@ class ArtistScreen extends StatelessWidget {
     final tag = key.hashCode.toString();
     final ArtistScreenController artistScreenController =
         Get.isRegistered<ArtistScreenController>(tag: tag)
-            ? Get.find<ArtistScreenController>(tag: tag)
-            : Get.put(ArtistScreenController(), tag: tag);
+        ? Get.find<ArtistScreenController>(tag: tag)
+        : Get.put(ArtistScreenController(), tag: tag);
     return Scaffold(
       floatingActionButton: Obx(
         () => Padding(
           padding: EdgeInsets.only(
-              bottom: playerController.playerPanelMinHeight.value),
+            bottom: playerController.playerPanelMinHeight.value,
+          ),
           child: SizedBox(
             height: 60,
             width: 60,
             child: FittedBox(
               child: FloatingActionButton(
-                  focusElevation: 0,
-                  shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(14))),
-                  elevation: 0,
-                  onPressed: () async {
-                    final radioId = artistScreenController.artist_.radioId;
-                    if (radioId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(snackbar(
-                          context, "radioNotAvailable".tr,
-                          size: SanckBarSize.BIG));
-                      return;
-                    }
-                    playerController.startRadio(null,
-                        playlistid: artistScreenController.artist_.radioId);
-                  },
-                  child: const Icon(Icons.sensors)),
+                focusElevation: 0,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                ),
+                elevation: 0,
+                onPressed: () async {
+                  final radioId = artistScreenController.artist_.radioId;
+                  if (radioId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      snackbar(
+                        context,
+                        "radioNotAvailable".tr,
+                        size: SanckBarSize.BIG,
+                      ),
+                    );
+                    return;
+                  }
+                  playerController.startRadio(
+                    null,
+                    playlistid: artistScreenController.artist_.radioId,
+                  );
+                },
+                child: const Icon(Icons.sensors),
+              ),
             ),
           ),
         ),
       ),
-      body: GetPlatform.isDesktop ||
+      body:
+          GetPlatform.isDesktop ||
               Get.find<SettingsScreenController>().isBottomNavBarEnabled.value
           ? ArtistScreenBN(
-              artistScreenController: artistScreenController, tag: tag)
+              artistScreenController: artistScreenController,
+              tag: tag,
+            )
           : Row(
               children: [
                 Align(
@@ -75,7 +87,7 @@ class ArtistScreen extends StatelessWidget {
                             "songs".tr,
                             "videos".tr,
                             "albums".tr,
-                            "singles".tr
+                            "singles".tr,
                           ].map((e) => railDestination(e)).toList(),
                           leading: Column(
                             children: [
@@ -85,25 +97,23 @@ class ArtistScreen extends StatelessWidget {
                               IconButton(
                                 icon: Icon(
                                   Icons.arrow_back_ios_new,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium!
-                                      .color,
+                                  color: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium!.color,
                                 ),
                                 onPressed: () {
-                                  Get.nestedKey(ScreenNavigationSetup.id)!
-                                      .currentState!
-                                      .pop();
+                                  Get.nestedKey(
+                                    ScreenNavigationSetup.id,
+                                  )!.currentState!.pop();
                                 },
                               ),
-                              const SizedBox(
-                                height: 10,
-                              ),
+                              const SizedBox(height: 10),
                             ],
                           ),
                           labelType: NavigationRailLabelType.all,
                           selectedIndex: artistScreenController
-                              .navigationRailCurrentIndex.value,
+                              .navigationRailCurrentIndex
+                              .value,
                         ),
                       ),
                     ),
@@ -117,8 +127,11 @@ class ArtistScreen extends StatelessWidget {
                           .isFalse,
                       resverse: artistScreenController.isTabTransitionReversed,
                       child: Center(
-                        key: ValueKey<int>(artistScreenController
-                            .navigationRailCurrentIndex.value),
+                        key: ValueKey<int>(
+                          artistScreenController
+                              .navigationRailCurrentIndex
+                              .value,
+                        ),
                         child: Body(tag: tag),
                       ),
                     ),
@@ -138,10 +151,7 @@ class ArtistScreen extends StatelessWidget {
 }
 
 class Body extends StatelessWidget {
-  const Body({
-    super.key,
-    required this.tag,
-  });
+  const Body({super.key, required this.tag});
 
   final String tag;
 
@@ -153,17 +163,20 @@ class Body extends StatelessWidget {
     final tabIndex = artistScreenController.navigationRailCurrentIndex.value;
 
     if (tabIndex == 0) {
-      return Obx(() => artistScreenController.isArtistContentFetced.isTrue
-          ? AboutArtist(
-              artistScreenController: artistScreenController,
-            )
-          : const Center(
-              child: LoadingIndicator(),
-            ));
+      return Obx(
+        () => artistScreenController.isArtistContentFetced.isTrue
+            ? AboutArtist(artistScreenController: artistScreenController)
+            : const Center(child: LoadingIndicator()),
+      );
     } else {
       final separatedContent = artistScreenController.sepataredContent;
-      final currentTabName =
-          ["About", "Songs", "Videos", "Albums", "Singles"][tabIndex];
+      final currentTabName = [
+        "About",
+        "Songs",
+        "Videos",
+        "Albums",
+        "Singles",
+      ][tabIndex];
       return Obx(() {
         if (artistScreenController.isSeparatedArtistContentFetced.isFalse &&
             artistScreenController.navigationRailCurrentIndex.value != 0) {
@@ -180,12 +193,12 @@ class Body extends StatelessWidget {
           scrollController: currentTabName == "Songs"
               ? artistScreenController.songScrollController
               : currentTabName == "Videos"
-                  ? artistScreenController.videoScrollController
-                  : currentTabName == "Albums"
-                      ? artistScreenController.albumScrollController
-                      : currentTabName == "Singles"
-                          ? artistScreenController.singlesScrollController
-                          : null,
+              ? artistScreenController.videoScrollController
+              : currentTabName == "Albums"
+              ? artistScreenController.albumScrollController
+              : currentTabName == "Singles"
+              ? artistScreenController.singlesScrollController
+              : null,
         );
       });
     }
@@ -193,10 +206,11 @@ class Body extends StatelessWidget {
 }
 
 class AboutArtist extends StatelessWidget {
-  const AboutArtist(
-      {super.key,
-      required this.artistScreenController,
-      this.padding = const EdgeInsets.only(bottom: 90, top: 70)});
+  const AboutArtist({
+    super.key,
+    required this.artistScreenController,
+    this.padding = const EdgeInsets.only(bottom: 90, top: 70),
+  });
   final EdgeInsetsGeometry padding;
   final ArtistScreenController artistScreenController;
 
@@ -228,49 +242,57 @@ class AboutArtist extends StatelessWidget {
                             child: Column(
                               children: [
                                 InkWell(
-                                    onTap: () {
-                                      final bool add = artistScreenController
-                                          .isAddedToLibrary.isFalse;
-                                      artistScreenController
-                                          .addNremoveFromLibrary(add: add)
-                                          .then((value) {
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(snackbar(
-                                                  context,
-                                                  value
-                                                      ? add
+                                  onTap: () {
+                                    final bool add = artistScreenController
+                                        .isAddedToLibrary
+                                        .isFalse;
+                                    artistScreenController
+                                        .addNremoveFromLibrary(add: add)
+                                        .then((value) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              snackbar(
+                                                context,
+                                                value
+                                                    ? add
                                                           ? "artistBookmarkAddAlert"
-                                                              .tr
+                                                                .tr
                                                           : "artistBookmarkRemoveAlert"
-                                                              .tr
-                                                      : "operationFailed".tr,
-                                                  size: SanckBarSize.MEDIUM));
-                                        }
-                                      });
-                                    },
-                                    child: Obx(
-                                      () => artistScreenController
-                                              .isArtistContentFetced.isFalse
-                                          ? const SizedBox.shrink()
-                                          : Icon(artistScreenController
-                                                  .isAddedToLibrary.isFalse
-                                              ? Icons.bookmark_add
-                                              : Icons.bookmark_added),
-                                    )),
+                                                                .tr
+                                                    : "operationFailed".tr,
+                                                size: SanckBarSize.MEDIUM,
+                                              ),
+                                            );
+                                          }
+                                        });
+                                  },
+                                  child: Obx(
+                                    () =>
+                                        artistScreenController
+                                            .isArtistContentFetced
+                                            .isFalse
+                                        ? const SizedBox.shrink()
+                                        : Icon(
+                                            artistScreenController
+                                                    .isAddedToLibrary
+                                                    .isFalse
+                                                ? Icons.bookmark_add
+                                                : Icons.bookmark_added,
+                                          ),
+                                  ),
+                                ),
                                 IconButton(
-                                    icon: const Icon(
-                                      Icons.share,
-                                      size: 20,
-                                    ),
-                                    splashRadius: 18,
-                                    onPressed: () => SharePlus.instance.share(
-                                        ShareParams(
-                                            text:
-                                                "https://music.youtube.com/channel/${artistScreenController.artist_.browseId}"))),
+                                  icon: const Icon(Icons.share, size: 20),
+                                  splashRadius: 18,
+                                  onPressed: () => AppPlatformService.shareText(
+                                    "https://music.youtube.com/channel/${artistScreenController.artist_.browseId}",
+                                  ),
+                                ),
                               ],
                             ),
-                          )
+                          ),
                         ],
                       ),
                     ),
