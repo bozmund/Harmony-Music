@@ -558,9 +558,9 @@ class LibraryPlaylistsController extends GetxController
       if (createPlaylistNAddSong && playlistCreationMode.value == "local") {
         final playlistBox = await Hive.openBox(newPlaylist.playlistId);
         for (MediaItem item in songItems!) {
-          playlistBox.add(MediaItemBuilder.toJson(item));
+          await playlistBox.add(MediaItemBuilder.toJson(item));
         }
-        playlistBox.close();
+        await playlistBox.close();
       } else if ((createPlaylistNAddSong &&
           playlistCreationMode.value == "piped")) {
         final songIds = songItems!.map((e) => e.id).toList();

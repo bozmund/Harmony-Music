@@ -14,8 +14,8 @@ import '../../widgets/import_ytmusic_playlist_dialog.dart';
 import '../../widgets/issue_report_dialog.dart';
 import '../../widgets/backup_dialog.dart';
 import '../../widgets/restore_dialog.dart';
+import '/services/constant.dart';
 import '../Library/library_controller.dart';
-import '../Library/library_combined.dart';
 import '../../widgets/snackbar.dart';
 import '/ui/widgets/link_piped.dart';
 import '/services/music_service.dart';
@@ -234,8 +234,10 @@ class SettingsScreen extends StatelessWidget {
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (val) => settingsController
-                                .setFirstLibraryTab(val as int),
+                            onChanged: (val) {
+                              if (val == null) return;
+                              settingsController.setFirstLibraryTab(val);
+                            },
                           ),
                         ),
                       ),

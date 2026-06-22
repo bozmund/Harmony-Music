@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '/services/constant.dart';
 import '/ui/player/player_controller.dart';
 import '/ui/screens/Home/home_screen_controller.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
@@ -8,14 +9,6 @@ import '/ui/widgets/piped_sync_widget.dart';
 import '/ui/widgets/scroll_to_hide.dart';
 import '../../widgets/create_playlist_dialog.dart';
 import 'library.dart';
-
-const List<String> libraryTabKeys = [
-  "songs",
-  "searches",
-  "playlists",
-  "albums",
-  "artists",
-];
 
 List<String> getOrderedTabKeys(int firstTabIndex) {
   final keys = List<String>.from(libraryTabKeys);
@@ -31,7 +24,9 @@ List<Widget> getOrderedLibraryWidgets(int firstTabIndex) {
     const SongsLibraryWidget(isBottomNavActive: true),
     const LibrarySearchWidget(isBottomNavActive: true),
     const PlaylistNAlbumLibraryWidget(
-        isAlbumContent: false, isBottomNavActive: true),
+      isAlbumContent: false,
+      isBottomNavActive: true,
+    ),
     const PlaylistNAlbumLibraryWidget(isBottomNavActive: true),
     const LibraryArtistWidget(isBottomNavActive: true),
   ];
@@ -60,19 +55,24 @@ class CombinedLibrary extends StatelessWidget {
             child: Obx(() {
               const double tabBarHeight = 50;
               final bottomOffset = _tabBarBottomOffset(
-                  context, settingScreenController, homeScreenController,
-                  playerController);
+                context,
+                settingScreenController,
+                homeScreenController,
+                playerController,
+              );
 
               return Stack(
                 children: [
                   Positioned.fill(
                     child: Padding(
-                      padding:
-                          EdgeInsets.only(bottom: bottomOffset + tabBarHeight),
+                      padding: EdgeInsets.only(
+                        bottom: bottomOffset + tabBarHeight,
+                      ),
                       child: TabBarView(
                         controller: tabCon.tabController,
                         children: getOrderedLibraryWidgets(
-                            settingScreenController.libraryFirstTab.value),
+                          settingScreenController.libraryFirstTab.value,
+                        ),
                       ),
                     ),
                   ),
@@ -102,24 +102,27 @@ class CombinedLibrary extends StatelessWidget {
   }
 
   double _tabBarBottomOffset(
-      BuildContext context,
-      SettingsScreenController settingsController,
-      HomeScreenController homeScreenController,
-      PlayerController playerController) {
-    final bottomNavHeight = settingsController.isBottomNavBarEnabled.isTrue &&
+    BuildContext context,
+    SettingsScreenController settingsController,
+    HomeScreenController homeScreenController,
+    PlayerController playerController,
+  ) {
+    final bottomNavHeight =
+        settingsController.isBottomNavBarEnabled.isTrue &&
             homeScreenController.isHomeSreenOnTop.isTrue &&
             playerController.isPanelGTHOpened.isFalse
         ? ScrollToHideWidget.visibleHeight(context) + 55
         : 0.0;
 
     final panelHeight = playerController.playerPanelMinHeight.value;
-    final miniPlayerHeight = playerController.currentSong.value != null &&
+    final miniPlayerHeight =
+        playerController.currentSong.value != null &&
             playerController.isPlayerpanelTopVisible.isTrue
         ? settingsController.isBottomNavBarEnabled.isTrue
-            ? 75.0
-            : panelHeight > 0
-                ? panelHeight
-                : 75.0
+              ? 75.0
+              : panelHeight > 0
+              ? panelHeight
+              : 75.0
         : 0.0;
 
     return bottomNavHeight + miniPlayerHeight;
@@ -147,30 +150,29 @@ class _LibraryHeader extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
-              Obx(() => settingsController.isLinkedWithPiped.isTrue
-                  ? const PipedSyncWidget(
-                      padding: EdgeInsets.only(right: 10))
-                  : const SizedBox.shrink()),
+              Obx(
+                () => settingsController.isLinkedWithPiped.isTrue
+                    ? const PipedSyncWidget(padding: EdgeInsets.only(right: 10))
+                    : const SizedBox.shrink(),
+              ),
               SizedBox(
                 height: 40,
                 width: 50,
                 child: FittedBox(
                   child: FloatingActionButton.extended(
-                      elevation: 0,
-                      onPressed: () {
-                        showDialog(
-                            context: context,
-                            builder: (context) =>
-                                const CreateNRenamePlaylistPopup());
-                      },
-                      label: const Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Icon(
-                            Icons.add,
-                          ),
-                        ],
-                      )),
+                    elevation: 0,
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) =>
+                            const CreateNRenamePlaylistPopup(),
+                      );
+                    },
+                    label: const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [Icon(Icons.add)],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -202,9 +204,9 @@ class _LibraryTabBar extends StatelessWidget {
         ),
         insets: const EdgeInsets.symmetric(horizontal: 16.0),
       ),
-      tabs: getOrderedTabKeys(firstTabIndex)
-          .map((key) => Tab(text: key.tr))
-          .toList(),
+      tabs: getOrderedTabKeys(
+        firstTabIndex,
+      ).map((key) => Tab(text: key.tr)).toList(),
     );
   }
 }
@@ -212,6 +214,7 @@ class _LibraryTabBar extends StatelessWidget {
 class CombinedLibraryController extends GetxController
     with GetSingleTickerProviderStateMixin {
   late TabController tabController;
+  late final Worker _libraryFirstTabWorker;
 
   @override
   void onInit() {
@@ -221,10 +224,20 @@ class CombinedLibraryController extends GetxController
       length: libraryTabKeys.length,
       initialIndex: 0,
     );
+    _libraryFirstTabWorker = ever<int>(
+      Get.find<SettingsScreenController>().libraryFirstTab,
+      (_) => _resetToFirstTab(),
+    );
+  }
+
+  void _resetToFirstTab() {
+    if (tabController.index == 0) return;
+    tabController.animateTo(0);
   }
 
   @override
   void onClose() {
+    _libraryFirstTabWorker.dispose();
     tabController.dispose();
     super.onClose();
   }
