@@ -482,6 +482,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           ),
         );
         if (_playList.children.isNotEmpty) {
+          await _player.stop();
           await _playList.clear();
         }
 
@@ -564,6 +565,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         final futureStreamInfo = checkNGetUrl(currMed.id);
         isSongLoading = true;
         currentIndex = 0;
+        await _player.stop();
         await _playList.clear();
         mediaItem.add(currMed);
         queue.add([currMed]);
