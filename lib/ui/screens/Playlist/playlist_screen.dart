@@ -403,7 +403,6 @@ class PlaylistScreen extends StatelessWidget {
                                                     playlistController.songList,
                                                   );
                                               songsToPlay.shuffle();
-                                              songsToPlay.shuffle();
                                               playerController.playPlayListSong(
                                                 songsToPlay,
                                                 0,
