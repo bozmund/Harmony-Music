@@ -186,13 +186,13 @@ void setAppInitPrefs() {
       PrefKeys.skipSilenceEnabled: false,
       PrefKeys.streamingQuality: 1,
       PrefKeys.themePrimaryColor: 4278199603,
-      PrefKeys.discoverContentType: "QP",
+      PrefKeys.discoverContentType: "BOLI",
       PrefKeys.newVersionVisibility: updateCheckFlag,
-      PrefKeys.updateChannel: BuildInfo.channel == 'rolling'
-          ? 'rolling'
-          : 'stable',
+      PrefKeys.updateChannel: 'rolling',
       PrefKeys.cacheHomeScreenData: true,
       PrefKeys.queueLoopModeEnabled: true,
+      PrefKeys.isBottomNavBarEnabled: true,
+      PrefKeys.downloadingFormat: "opus",
     });
   } else if (!appPrefs.containsKey(PrefKeys.queueLoopModeEnabled)) {
     appPrefs.put(PrefKeys.queueLoopModeEnabled, true);

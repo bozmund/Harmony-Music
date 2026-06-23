@@ -40,10 +40,10 @@ class SettingsScreenController extends GetxController {
   final slidableActionEnabled = true.obs;
   final isIgnoringBatteryOptimizations = false.obs;
   final autoOpenPlayer = false.obs;
-  final discoverContentType = "QP".obs;
+  final discoverContentType = "BOLI".obs;
   final isNewVersionAvailable = false.obs;
   final updateInfo = Rxn<UpdateInfo>();
-  final updateChannel = UpdateChannel.stable.obs;
+  final updateChannel = UpdateChannel.rolling.obs;
   final isUpdateDownloading = false.obs;
   final updateDownloadProgress = 0.0.obs;
   final updateDownloadError = "".obs;
@@ -52,10 +52,10 @@ class SettingsScreenController extends GetxController {
   final currentAppLanguageCode = "en".obs;
   final downloadLocationPath = "".obs;
   final exportLocationPath = "".obs;
-  final downloadingFormat = "".obs;
+  final downloadingFormat = "opus".obs;
   final autoDownloadFavoriteSongEnabled = false.obs;
   final isTransitionAnimationDisabled = false.obs;
-  final isBottomNavBarEnabled = false.obs;
+  final isBottomNavBarEnabled = true.obs;
   final backgroundPlayEnabled = true.obs;
   final keepScreenAwake = false.obs;
   final restorePlaybackSession = false.obs;
@@ -86,7 +86,7 @@ class SettingsScreenController extends GetxController {
 
   Future<UpdateInfo?> checkNewVersion() async {
     updateChannel.value =
-        (setBox.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
+        (setBox.get(PrefKeys.updateChannel) ?? 'rolling') == 'rolling'
         ? UpdateChannel.rolling
         : UpdateChannel.stable;
     final info = await newVersionCheck(
@@ -216,12 +216,12 @@ class SettingsScreenController extends GetxController {
         ? "zh-CN"
         : appLang;
     updateChannel.value =
-        (setBox.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
+        (setBox.get(PrefKeys.updateChannel) ?? 'rolling') == 'rolling'
         ? UpdateChannel.rolling
         : UpdateChannel.stable;
     isBottomNavBarEnabled.value = isDesktop
         ? false
-        : (setBox.get(PrefKeys.isBottomNavBarEnabled) ?? false);
+        : (setBox.get(PrefKeys.isBottomNavBarEnabled) ?? true);
     noOfHomeScreenContent.value =
         setBox.get(PrefKeys.noOfHomeScreenContent) ?? 3;
     isTransitionAnimationDisabled.value =
@@ -241,7 +241,7 @@ class SettingsScreenController extends GetxController {
     cacheHomeScreenData.value =
         setBox.get(PrefKeys.cacheHomeScreenData) ?? true;
     streamingQuality.value =
-        AudioQuality.values[setBox.get(PrefKeys.streamingQuality)];
+        AudioQuality.values[setBox.get(PrefKeys.streamingQuality) ?? 1];
     playerUi.value = isDesktop ? 0 : (setBox.get(PrefKeys.playerUi) ?? 0);
     backgroundPlayEnabled.value =
         setBox.get(PrefKeys.backgroundPlayEnabled) ?? true;
@@ -259,9 +259,9 @@ class SettingsScreenController extends GetxController {
 
     exportLocationPath.value =
         setBox.get(PrefKeys.exportLocationPath) ?? "/storage/emulated/0/Music";
-    downloadingFormat.value = setBox.get(PrefKeys.downloadingFormat) ?? "m4a";
+    downloadingFormat.value = setBox.get(PrefKeys.downloadingFormat) ?? "opus";
     discoverContentType.value =
-        setBox.get(PrefKeys.discoverContentType) ?? "QP";
+        setBox.get(PrefKeys.discoverContentType) ?? "BOLI";
     slidableActionEnabled.value =
         setBox.get(PrefKeys.slidableActionEnabled) ?? true;
     if (setBox.containsKey(PrefKeys.piped)) {
@@ -272,6 +272,9 @@ class SettingsScreenController extends GetxController {
     if (GetPlatform.isAndroid) {
       isIgnoringBatteryOptimizations.value =
           (await Permission.ignoreBatteryOptimizations.isGranted);
+      if (isIgnoringBatteryOptimizations.isFalse) {
+        await enableIgnoringBatteryOptimizations();
+      }
     }
     autoDownloadFavoriteSongEnabled.value =
         setBox.get(PrefKeys.autoDownloadFavoriteSongEnabled) ?? false;
