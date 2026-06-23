@@ -11,7 +11,7 @@ import '../screens/Settings/settings_screen_controller.dart';
 import 'add_to_playlist.dart';
 import 'image_widget.dart';
 import 'snackbar.dart';
-import 'songinfo_bottom_sheet.dart';
+import 'song_info_bottom_sheet.dart';
 
 class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
   const SongListTile(

@@ -967,12 +967,9 @@ class MediaLibrary {
 
   Future<List<MediaItem>> getPlaylists() async {
     final box = await Hive.openBox(BoxNames.libraryPlaylists);
-    final playlists = [
-      ...LibraryPlaylistsController.initPlst.map((e) => e.toMediaItem()),
-      ...(box.values
-          .map((item) => Playlist.fromJson(item).toMediaItem())
-          .toList()),
-    ];
+    final playlists = LibraryPlaylistsController.withInitialPlaylistsTail(
+      box.values.map((item) => Playlist.fromJson(item)).toList().reversed,
+    ).map((e) => e.toMediaItem()).toList();
     await box.close();
     return playlists;
   }

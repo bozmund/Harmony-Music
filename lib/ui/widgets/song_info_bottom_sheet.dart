@@ -419,9 +419,9 @@ class SongInfoController extends GetxController
 
   Future<void> toggleFav() async {
     if (calledFromPlayer) {
-      final cntrl = Get.find<PlayerController>();
-      if (cntrl.currentSong.value == song) {
-        cntrl.toggleFavourite();
+      final playerController = Get.find<PlayerController>();
+      if (playerController.currentSong.value == song) {
+        playerController.toggleFavourite();
         isCurrentSongFav.value = !isCurrentSongFav.value;
         return;
       }
@@ -436,13 +436,13 @@ class SongInfoController extends GetxController
       );
       if (isCurrentSongFav.isFalse &&
           !Hive.box(BoxNames.songDownloads).containsKey(song.id)) {
-        likedNotDownloadedController.addNRemoveItemsinList(
+        likedNotDownloadedController.addNRemoveItemsInList(
           song,
           action: 'add',
           index: 0,
         );
       } else {
-        likedNotDownloadedController.addNRemoveItemsinList(
+        likedNotDownloadedController.addNRemoveItemsInList(
           song,
           action: 'remove',
         );
@@ -468,7 +468,7 @@ mixin RemoveSongFromPlaylistMixin {
       try {
         Get.find<PlaylistScreenController>(
           tag: Key(playlist.playlistId).hashCode.toString(),
-        ).addNRemoveItemsinList(item, action: 'remove');
+        ).addNRemoveItemsInList(item, action: 'remove');
       } catch (e) {
         printERROR(e, tag: LogTags.library);
       }
@@ -482,7 +482,7 @@ mixin RemoveSongFromPlaylistMixin {
       try {
         Get.find<PlaylistScreenController>(
           tag: Key(playlist.playlistId).hashCode.toString(),
-        ).addNRemoveItemsinList(item, action: 'remove');
+        ).addNRemoveItemsInList(item, action: 'remove');
       } catch (e) {
         printERROR(e, tag: LogTags.library);
       }
@@ -512,7 +512,7 @@ mixin RemoveSongFromPlaylistMixin {
 
     // this try catch block is to handle the case when song is removed from libsongs sections
     try {
-      final plstCntroller = Get.find<PlaylistScreenController>(
+      final playlistController = Get.find<PlaylistScreenController>(
         tag: Key(playlist.playlistId).hashCode.toString(),
       );
       if (playlist.isPipedPlaylist) {
@@ -526,19 +526,19 @@ mixin RemoveSongFromPlaylistMixin {
             songIndex,
           );
           if (res.code == 1) {
-            plstCntroller.addNRemoveItemsinList(item, action: 'remove');
+            playlistController.addNRemoveItemsInList(item, action: 'remove');
           }
         }
         return;
       }
 
       try {
-        plstCntroller.addNRemoveItemsinList(item, action: 'remove');
+        playlistController.addNRemoveItemsInList(item, action: 'remove');
       } catch (e) {
         printERROR(e, tag: LogTags.library);
       }
     } catch (e) {
-      printERROR("Some Error in removeSongFromPlaylist (might irrelavant): $e");
+      printERROR("Some Error in removeSongFromPlaylist (might irrelevant): $e");
     }
 
     if (playlist.playlistId == BoxNames.songDownloads ||

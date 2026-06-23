@@ -5,7 +5,7 @@ import 'package:get/get.dart';
 import '/models/quick_picks.dart';
 import '../player/player_controller.dart';
 import 'image_widget.dart';
-import 'songinfo_bottom_sheet.dart';
+import 'song_info_bottom_sheet.dart';
 
 class QuickPicksWidget extends StatelessWidget {
   const QuickPicksWidget(

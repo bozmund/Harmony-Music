@@ -23,6 +23,8 @@
     "CreateNewPlaylist": "Napravi novu playlistu",
     "selectSongs": "Odaberi pjesme",
     "selectAll": "Odaberi sve",
+    "firstLibraryTab": "Prva kartica biblioteke",
+    "firstLibraryTabDes": "Odaberi koja će se kartica prva prikazati u biblioteci",
     "keepScreenOnWhilePlaying": "Ostavi zaslon uključen tijekom reprodukcije",
     "keepScreenOnWhilePlayingDes": "Ako je omogućeno, zaslon uređaja ostat će uključen tijekom reprodukcije glazbe"
 }

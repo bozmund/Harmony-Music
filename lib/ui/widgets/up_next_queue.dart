@@ -5,7 +5,7 @@ import 'package:widget_marquee/widget_marquee.dart';
 
 import 'image_widget.dart';
 import 'snackbar.dart';
-import 'songinfo_bottom_sheet.dart';
+import 'song_info_bottom_sheet.dart';
 
 class UpNextQueue extends StatelessWidget {
   const UpNextQueue({

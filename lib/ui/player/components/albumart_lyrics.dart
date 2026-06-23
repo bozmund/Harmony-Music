@@ -5,7 +5,7 @@ import '/ui/player/components/lyrics_widget.dart';
 import '/ui/player/player_controller.dart';
 import '../../widgets/image_widget.dart';
 import '../../widgets/sleep_timer_bottom_sheet.dart';
-import '../../widgets/songinfo_bottom_sheet.dart';
+import '../../widgets/song_info_bottom_sheet.dart';
 
 class AlbumArtNLyrics extends StatelessWidget {
   const AlbumArtNLyrics({super.key, required this.playerArtImageSize});

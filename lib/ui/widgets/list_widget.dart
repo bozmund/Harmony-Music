@@ -10,7 +10,7 @@ import '../navigator.dart';
 import '../player/player_controller.dart';
 import 'image_widget.dart';
 import 'song_list_tile.dart';
-import 'songinfo_bottom_sheet.dart';
+import 'song_info_bottom_sheet.dart';
 
 class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
   const ListWidget(this.items, this.title, this.isCompleteList,

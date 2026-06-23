@@ -103,9 +103,9 @@ class PlaylistNAlbumLibraryWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final libralbumCntrller = Get.find<LibraryAlbumsController>();
-    final librplstCntrller = Get.find<LibraryPlaylistsController>();
-    final settingscrnController = Get.find<SettingsScreenController>();
+    final libraryAlbumController = Get.find<LibraryAlbumsController>();
+    final libraryPlaylistController = Get.find<LibraryPlaylistsController>();
+    final settingsScreenController = Get.find<SettingsScreenController>();
     final size = MediaQuery.of(context).size;
 
     const double itemHeight = 180;
@@ -134,9 +134,9 @@ class PlaylistNAlbumLibraryWidget extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
-                (settingscrnController.isBottomNavBarEnabled.isTrue ||
+                (settingsScreenController.isBottomNavBarEnabled.isTrue ||
                         isAlbumContent ||
-                        settingscrnController.isLinkedWithPiped.isFalse)
+                        settingsScreenController.isLinkedWithPiped.isFalse)
                     ? const SizedBox.shrink()
                     : PipedSyncWidget(
                         padding: EdgeInsets.only(right: size.width * .05),
@@ -148,41 +148,41 @@ class PlaylistNAlbumLibraryWidget extends StatelessWidget {
             () => isAlbumContent
                 ? SortWidget(
                     tag: "LibAlbumSort",
-                    screenController: libralbumCntrller,
+                    screenController: libraryAlbumController,
                     isAdditionalOperationRequired: false,
                     isSearchFeatureRequired: true,
                     itemCountTitle:
-                        "${libralbumCntrller.libraryAlbums.length} ${"items".tr}",
+                        "${libraryAlbumController.libraryAlbums.length} ${"items".tr}",
                     requiredSortTypes: buildSortTypeSet(true),
                     onSort: (type, ascending) {
-                      libralbumCntrller.onSort(type, ascending);
+                      libraryAlbumController.onSort(type, ascending);
                     },
-                    onSearch: libralbumCntrller.onSearch,
-                    onSearchClose: libralbumCntrller.onSearchClose,
-                    onSearchStart: libralbumCntrller.onSearchStart,
+                    onSearch: libraryAlbumController.onSearch,
+                    onSearchClose: libraryAlbumController.onSearchClose,
+                    onSearchStart: libraryAlbumController.onSearchStart,
                   )
                 : SortWidget(
                     tag: "LibPlaylistSort",
-                    screenController: librplstCntrller,
+                    screenController: libraryPlaylistController,
                     isAdditionalOperationRequired: false,
                     isSearchFeatureRequired: true,
                     itemCountTitle:
-                        "${librplstCntrller.libraryPlaylists.length} ${"items".tr}",
+                        "${libraryPlaylistController.libraryPlaylists.length} ${"items".tr}",
                     requiredSortTypes: buildSortTypeSet(),
                     onSort: (type, ascending) {
-                      librplstCntrller.onSort(type, ascending);
+                      libraryPlaylistController.onSort(type, ascending);
                     },
-                    onSearch: librplstCntrller.onSearch,
-                    onSearchClose: librplstCntrller.onSearchClose,
-                    onSearchStart: librplstCntrller.onSearchStart,
+                    onSearch: libraryPlaylistController.onSearch,
+                    onSearchClose: libraryPlaylistController.onSearchClose,
+                    onSearchStart: libraryPlaylistController.onSearchStart,
                     isImportFeatureRequired: true,
                   ),
           ),
           Expanded(
             child: Obx(
               () => (isAlbumContent
-                      ? libralbumCntrller.libraryAlbums.isNotEmpty
-                      : librplstCntrller.libraryPlaylists.isNotEmpty)
+                      ? libraryAlbumController.libraryAlbums.isNotEmpty
+                      : libraryPlaylistController.libraryPlaylists.isNotEmpty)
                   ? LayoutBuilder(builder: (context, constraints) {
                       //Fix for grid in mobile screen
                       final availableWidth = constraints.maxWidth > 300 &&
@@ -206,13 +206,13 @@ class PlaylistNAlbumLibraryWidget extends StatelessWidget {
                             padding:
                                 const EdgeInsets.only(bottom: 200, top: 10),
                             itemCount: isAlbumContent
-                                ? libralbumCntrller.libraryAlbums.length
-                                : librplstCntrller.libraryPlaylists.length,
+                                ? libraryAlbumController.libraryAlbums.length
+                                : libraryPlaylistController.libraryPlaylists.length,
                             itemBuilder: (context, index) => Center(
                                   child: ContentListItem(
                                     content: isAlbumContent
-                                        ? libralbumCntrller.libraryAlbums[index]
-                                        : librplstCntrller
+                                        ? libraryAlbumController.libraryAlbums[index]
+                                        : libraryPlaylistController
                                             .libraryPlaylists[index],
                                     isLibraryItem: true,
                                   ),
@@ -238,7 +238,7 @@ class LibraryArtistWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cntrller = Get.find<LibraryArtistsController>();
+    final libraryArtistsController = Get.find<LibraryArtistsController>();
     final topPadding = context.isLandscape ? 50.0 : 90.0;
     return Padding(
       padding: isBottomNavActive
@@ -260,20 +260,20 @@ class LibraryArtistWidget extends StatelessWidget {
           Obx(
             () => SortWidget(
               tag: "LibArtistSort",
-              screenController: cntrller,
+              screenController: libraryArtistsController,
               isAdditionalOperationRequired: false,
               isSearchFeatureRequired: true,
-              itemCountTitle: "${cntrller.libraryArtists.length} ${"items".tr}",
+              itemCountTitle: "${libraryArtistsController.libraryArtists.length} ${"items".tr}",
               onSort: (type, ascending) {
-                cntrller.onSort(type, ascending);
+                libraryArtistsController.onSort(type, ascending);
               },
-              onSearch: cntrller.onSearch,
-              onSearchClose: cntrller.onSearchClose,
-              onSearchStart: cntrller.onSearchStart,
+              onSearch: libraryArtistsController.onSearch,
+              onSearchClose: libraryArtistsController.onSearchClose,
+              onSearchStart: libraryArtistsController.onSearchStart,
             ),
           ),
-          Obx(() => cntrller.libraryArtists.isNotEmpty
-              ? ListWidget(cntrller.libraryArtists, "Library Artists", true)
+          Obx(() => libraryArtistsController.libraryArtists.isNotEmpty
+              ? ListWidget(libraryArtistsController.libraryArtists, "Library Artists", true)
               : Expanded(
                   child: Center(
                       child: Text(

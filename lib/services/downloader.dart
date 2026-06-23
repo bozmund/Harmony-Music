@@ -294,7 +294,7 @@ class Downloader extends GetxService implements DownloaderContract {
     try {
       Get.find<PlaylistScreenController>(
         tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
-      ).addNRemoveItemsinList(song, action: 'remove');
+      ).addNRemoveItemsInList(song, action: 'remove');
       // ignore: empty_catches
     } catch (e) {}
 

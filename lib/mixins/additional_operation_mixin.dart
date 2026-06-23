@@ -7,7 +7,7 @@ import '../ui/widgets/add_to_playlist.dart';
 import '../ui/widgets/sort_widget.dart';
 import '../utils/helper.dart';
 
-mixin AdditionalOpeartionMixin on PlaylistAlbumScreenControllerBase {
+mixin AdditionalOperationMixin on PlaylistAlbumScreenControllerBase {
   // This mixin is used to handle additional operations like sorting, searching, and performing actions on a list of songs.
   // It is used in various screens like Album, Playlist, and SongsCache.
   SortWidgetController? sortWidgetController;

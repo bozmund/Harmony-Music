@@ -730,12 +730,12 @@ class PlayerController extends GetxController
         tag: const Key(BoxNames.libFav).hashCode.toString(),
       );
       isCurrentSongFav.isFalse
-          ? playlistController.addNRemoveItemsinList(
+          ? playlistController.addNRemoveItemsInList(
               currMediaItem,
               action: 'add',
               index: 0,
             )
-          : playlistController.addNRemoveItemsinList(
+          : playlistController.addNRemoveItemsInList(
               currMediaItem,
               action: 'remove',
             );
@@ -748,13 +748,13 @@ class PlayerController extends GetxController
       );
       if (isCurrentSongFav.isFalse &&
           !Hive.box(BoxNames.songDownloads).containsKey(currMediaItem.id)) {
-        likedNotDownloadedController.addNRemoveItemsinList(
+        likedNotDownloadedController.addNRemoveItemsInList(
           currMediaItem,
           action: 'add',
           index: 0,
         );
       } else {
-        likedNotDownloadedController.addNRemoveItemsinList(
+        likedNotDownloadedController.addNRemoveItemsInList(
           currMediaItem,
           action: 'remove',
         );
@@ -803,7 +803,7 @@ class PlayerController extends GetxController
           (element) => element.id == mediaItem.id,
         );
         // adds current item to list
-        playlistController.addNRemoveItemsinList(
+        playlistController.addNRemoveItemsInList(
           mediaItem,
           action: 'add',
           index: 0,

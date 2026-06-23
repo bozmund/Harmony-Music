@@ -141,7 +141,7 @@ class CreateNRenamePlaylistPopup extends StatelessWidget {
                           } else {
                             librPlstCntrller
                                 .createNewPlaylist(
-                                    createPlaylistNaddSong: isCreateNadd,
+                                    createPlaylistNAddSong: isCreateNadd,
                                     songItems: songItems)
                                 .then((value) {
                               if (!context.mounted) return;
