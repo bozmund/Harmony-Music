@@ -270,9 +270,6 @@ class SettingsScreenController extends GetxController {
     if (GetPlatform.isAndroid) {
       isIgnoringBatteryOptimizations.value =
           (await Permission.ignoreBatteryOptimizations.isGranted);
-      if (isIgnoringBatteryOptimizations.isFalse) {
-        await enableIgnoringBatteryOptimizations();
-      }
     }
     autoDownloadFavoriteSongEnabled.value =
         setBox.get(PrefKeys.autoDownloadFavoriteSongEnabled) ?? false;
