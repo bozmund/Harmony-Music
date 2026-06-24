@@ -27,7 +27,8 @@ import '/ui/utils/theme_controller.dart';
 import '/services/constant.dart';
 import '../../navigator.dart';
 
-class SettingsScreenController extends GetxController {
+class SettingsScreenController extends GetxController
+    with WidgetsBindingObserver {
   late String _supportDir;
   final cacheSongs = false.obs;
   final setBox = Hive.box(BoxNames.appPrefs);
@@ -48,7 +49,7 @@ class SettingsScreenController extends GetxController {
   final updateDownloadProgress = 0.0.obs;
   final updateDownloadError = "".obs;
   final isLinkedWithPiped = false.obs;
-  final stopPlyabackOnSwipeAway = false.obs;
+  final stopPlaybackOnSwipeAway = false.obs;
   final currentAppLanguageCode = "en".obs;
   final downloadLocationPath = "".obs;
   final exportLocationPath = "".obs;
@@ -67,17 +68,31 @@ class SettingsScreenController extends GetxController {
 
   @override
   void onInit() {
+    WidgetsBinding.instance.addObserver(this);
     _setInitValue();
     _createInAppSongDownDir();
     unawaited(clearCachedUpdateApks());
     super.onInit();
   }
 
+  @override
+  void onClose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(refreshIgnoringBatteryOptimizations());
+    }
+  }
+
   get currentVision => currentVersion;
 
   UpdateChannel get selectedUpdateChannel => updateChannel.value;
 
-  get isCurrentPathsupportDownDir =>
+  get isCurrentPathSupportDownloadDir =>
       "$_supportDir/Music" == downloadLocationPath.toString();
 
   String get supportDirPath => _supportDir;
@@ -265,11 +280,11 @@ class SettingsScreenController extends GetxController {
     if (setBox.containsKey(PrefKeys.piped)) {
       isLinkedWithPiped.value = setBox.get(PrefKeys.piped)['isLoggedIn'];
     }
-    stopPlyabackOnSwipeAway.value =
-        setBox.get('stopPlyabackOnSwipeAway') ?? false;
+    stopPlaybackOnSwipeAway.value =
+        setBox.get('stopPlaybackOnSwipeAway') ?? false;
     if (GetPlatform.isAndroid) {
-      isIgnoringBatteryOptimizations.value =
-          (await Permission.ignoreBatteryOptimizations.isGranted);
+      await refreshIgnoringBatteryOptimizations();
+      await _requestIgnoringBatteryOptimizationsOnInstall();
     }
     autoDownloadFavoriteSongEnabled.value =
         setBox.get(PrefKeys.autoDownloadFavoriteSongEnabled) ?? false;
@@ -635,10 +650,34 @@ class SettingsScreenController extends GetxController {
     }
   }
 
-  Future<void> enableIgnoringBatteryOptimizations() async {
-    await Permission.ignoreBatteryOptimizations.request();
+  Future<void> openBatteryOptimizationSettings() async {
+    if (!GetPlatform.isAndroid) return;
+
+    await setBox.put(PrefKeys.batteryOptimizationPromptShown, true);
+    final isIgnoring = await Permission.ignoreBatteryOptimizations.isGranted;
+    if (isIgnoring) {
+      await openAppSettings();
+    } else {
+      await Permission.ignoreBatteryOptimizations.request();
+    }
+    await refreshIgnoringBatteryOptimizations();
+  }
+
+  Future<void> refreshIgnoringBatteryOptimizations() async {
+    if (!GetPlatform.isAndroid) return;
     isIgnoringBatteryOptimizations.value =
         await Permission.ignoreBatteryOptimizations.isGranted;
+  }
+
+  Future<void> _requestIgnoringBatteryOptimizationsOnInstall() async {
+    if (setBox.get(PrefKeys.batteryOptimizationPromptShown) == true ||
+        isIgnoringBatteryOptimizations.isTrue) {
+      return;
+    }
+
+    await setBox.put(PrefKeys.batteryOptimizationPromptShown, true);
+    await Permission.ignoreBatteryOptimizations.request();
+    await refreshIgnoringBatteryOptimizations();
   }
 
   void toggleAutoOpenPlayer(bool val) {
@@ -677,9 +716,9 @@ class SettingsScreenController extends GetxController {
     await setBox.clear();
   }
 
-  void toggleStopPlyabackOnSwipeAway(bool val) {
-    setBox.put('stopPlyabackOnSwipeAway', val);
-    stopPlyabackOnSwipeAway.value = val;
+  void toggleStopPlaybackOnSwipeAway(bool val) {
+    setBox.put('stopPlaybackOnSwipeAway', val);
+    stopPlaybackOnSwipeAway.value = val;
   }
 
   Future<void> closeAllDatabases() async {

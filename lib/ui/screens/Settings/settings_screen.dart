@@ -608,51 +608,39 @@ class SettingsScreen extends StatelessWidget {
                         trailing: Obx(
                           () => CustSwitch(
                             value: settingsController
-                                .stopPlyabackOnSwipeAway
+                                .stopPlaybackOnSwipeAway
                                 .value,
                             onChanged: settingsController
-                                .toggleStopPlyabackOnSwipeAway,
+                                .toggleStopPlaybackOnSwipeAway,
                           ),
                         ),
                       ),
-                    GetPlatform.isAndroid
-                        ? Obx(
-                            () => ListTile(
-                              contentPadding: const EdgeInsets.only(
-                                left: 5,
-                                right: 10,
-                              ),
-                              title: Text("ignoreBatOpt".tr),
-                              onTap:
-                                  settingsController
-                                      .isIgnoringBatteryOptimizations
-                                      .isFalse
-                                  ? settingsController
-                                        .enableIgnoringBatteryOptimizations
-                                  : null,
-                              subtitle: Obx(
-                                () => RichText(
-                                  text: TextSpan(
-                                    text:
-                                        "${"status".tr}: ${settingsController.isIgnoringBatteryOptimizations.isTrue ? "enabled".tr : "disabled".tr}\n",
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium!
-                                        .copyWith(fontWeight: FontWeight.bold),
-                                    children: <TextSpan>[
-                                      TextSpan(
-                                        text: "ignoreBatOptDes".tr,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
-                                      ),
-                                    ],
-                                  ),
+                    if (GetPlatform.isAndroid)
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("ignoreBatOpt".tr),
+                        onTap:
+                            settingsController.openBatteryOptimizationSettings,
+                        subtitle: Obx(
+                          () => RichText(
+                            text: TextSpan(
+                              text:
+                                  "${"status".tr}: ${settingsController.isIgnoringBatteryOptimizations.isTrue ? "enabled".tr : "disabled".tr}\n",
+                              style: Theme.of(context).textTheme.bodyMedium!
+                                  .copyWith(fontWeight: FontWeight.bold),
+                              children: <TextSpan>[
+                                TextSpan(
+                                  text: "ignoreBatOptDes".tr,
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                 ),
-                              ),
+                              ],
                             ),
-                          )
-                        : const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
                 CustomExpansionTile(
@@ -719,7 +707,7 @@ class SettingsScreen extends StatelessWidget {
                       title: Text("downloadLocation".tr),
                       subtitle: Obx(
                         () => Text(
-                          settingsController.isCurrentPathsupportDownDir
+                          settingsController.isCurrentPathSupportDownloadDir
                               ? "In App storage directory"
                               : settingsController.downloadLocationPath.value,
                           style: Theme.of(context).textTheme.bodyMedium,

@@ -31,6 +31,7 @@ class HomeScreenController extends GetxController {
   //isHomeScreenOnTop var only useful if bottom nav enabled
   final isHomeSreenOnTop = true.obs;
   final List<ScrollController> contentScrollControllers = [];
+  bool _updateDialogPending = false;
   bool _updateDialogShown = false;
   bool reverseAnimationtransiton = false;
 
@@ -354,14 +355,29 @@ class HomeScreenController extends GetxController {
   }
 
   void _showNewVersionDialog(UpdateInfo updateInfo) {
-    if (_updateDialogShown || Get.isDialogOpen == true) return;
-    _updateDialogShown = true;
+    if (_updateDialogPending || _updateDialogShown) return;
+    _updateDialogPending = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (Get.context == null) {
-        _updateDialogShown = false;
-        return;
-      }
-      Get.dialog(NewVersionDialog(updateInfo: updateInfo));
+      _tryShowNewVersionDialog(updateInfo);
+    });
+  }
+
+  void _tryShowNewVersionDialog(UpdateInfo updateInfo) {
+    if (isClosed || Get.context == null) {
+      _updateDialogPending = false;
+      return;
+    }
+    if (Get.isDialogOpen == true) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _tryShowNewVersionDialog(updateInfo);
+      });
+      return;
+    }
+
+    _updateDialogPending = false;
+    _updateDialogShown = true;
+    Get.dialog(NewVersionDialog(updateInfo: updateInfo)).whenComplete(() {
+      _updateDialogShown = false;
     });
   }
 

@@ -792,7 +792,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   @override
   Future<void> onTaskRemoved() async {
     final stopForegroundService =
-        Get.find<SettingsScreenController>().stopPlyabackOnSwipeAway.value;
+        Get.find<SettingsScreenController>().stopPlaybackOnSwipeAway.value;
     if (stopForegroundService) {
       await Get.find<HomeScreenController>().cachedHomeScreenData();
       await saveSessionData();

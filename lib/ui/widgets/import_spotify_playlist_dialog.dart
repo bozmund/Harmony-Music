@@ -41,7 +41,7 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
             extensions: ['zip', 'json'],
           ),
         ],
-        confirmButtonText: "Import Spotify playlist export",
+        confirmButtonText: "Import Spotify export",
       );
 
       if (picked == null) {

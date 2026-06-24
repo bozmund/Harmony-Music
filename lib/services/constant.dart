@@ -70,6 +70,8 @@ class PrefKeys {
   static const String currentAppLanguageCode = 'currentAppLanguageCode';
   static const String libraryFirstTab = 'libraryFirstTab';
   static const String updateChannel = 'updateChannel';
+  static const String batteryOptimizationPromptShown =
+      'batteryOptimizationPromptShown';
 }
 
 class BuildInfo {

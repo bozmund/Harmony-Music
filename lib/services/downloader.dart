@@ -52,7 +52,7 @@ class Downloader extends GetxService implements DownloaderContract {
   Future<bool> checkPermissionNDir() async {
     final settingsScreenController = Get.find<SettingsScreenController>();
 
-    if (!settingsScreenController.isCurrentPathsupportDownDir &&
+    if (!settingsScreenController.isCurrentPathSupportDownloadDir &&
         !await PermissionService.getExtStoragePermission()) {
       return false;
     }

@@ -193,9 +193,14 @@ void setAppInitPrefs() {
       PrefKeys.queueLoopModeEnabled: true,
       PrefKeys.isBottomNavBarEnabled: true,
       PrefKeys.downloadingFormat: "opus",
+      PrefKeys.batteryOptimizationPromptShown: false,
     });
-  } else if (!appPrefs.containsKey(PrefKeys.queueLoopModeEnabled)) {
+  }
+  if (!appPrefs.containsKey(PrefKeys.queueLoopModeEnabled)) {
     appPrefs.put(PrefKeys.queueLoopModeEnabled, true);
+  }
+  if (!appPrefs.containsKey(PrefKeys.batteryOptimizationPromptShown)) {
+    appPrefs.put(PrefKeys.batteryOptimizationPromptShown, true);
   }
 }
 
