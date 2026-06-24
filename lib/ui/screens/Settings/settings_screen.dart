@@ -11,7 +11,6 @@ import '../../widgets/cust_switch.dart';
 import '../../widgets/export_file_dialog.dart';
 import '../../widgets/import_spotify_playlist_dialog.dart';
 import '../../widgets/import_ytmusic_playlist_dialog.dart';
-import '../../widgets/issue_report_dialog.dart';
 import '../../widgets/backup_dialog.dart';
 import '../../widgets/restore_dialog.dart';
 import '/services/constant.dart';
@@ -954,22 +953,6 @@ class SettingsScreen extends StatelessWidget {
                           onChanged: settingsController.changeUpdateChannel,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: const Text("Report an issue"),
-                      subtitle: Text(
-                        "Send a bug report with app diagnostics.",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      isThreeLine: true,
-                      onTap: () =>
-                          showDialog(
-                            context: context,
-                            builder: (context) => const IssueReportDialog(),
-                          ).whenComplete(
-                            () => Get.delete<IssueReportDialogController>(),
-                          ),
                     ),
                     const Divider(),
                     SizedBox(
