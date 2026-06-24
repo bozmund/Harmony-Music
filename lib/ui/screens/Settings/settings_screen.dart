@@ -53,66 +53,6 @@ class SettingsScreen extends StatelessWidget {
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 200, top: 20),
               children: [
-                Obx(() {
-                  if (!settingsController.isNewVersionAvailable.value) {
-                    return const SizedBox.shrink();
-                  }
-                  final isDownloading =
-                      settingsController.isUpdateDownloading.value;
-                  final progress =
-                      (settingsController.updateDownloadProgress.value * 100)
-                          .clamp(0, 100)
-                          .round();
-                  final error = settingsController.updateDownloadError.value;
-                  return Padding(
-                    padding: const EdgeInsets.only(
-                      top: 8.0,
-                      right: 10,
-                      bottom: 8.0,
-                    ),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: ListTile(
-                        onTap: isDownloading
-                            ? null
-                            : () {
-                                settingsController.downloadAndInstallUpdate(
-                                  settingsController.updateInfo.value,
-                                );
-                              },
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        tileColor: Theme.of(context).colorScheme.secondary,
-                        contentPadding: const EdgeInsets.only(
-                          left: 8,
-                          right: 10,
-                        ),
-                        leading: CircleAvatar(
-                          child: isDownloading
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.download),
-                        ),
-                        title: Text("newVersionAvailable".tr),
-                        visualDensity: const VisualDensity(horizontal: -2),
-                        subtitle: Text(
-                          isDownloading
-                              ? "Downloading update $progress%"
-                              : error.isNotEmpty
-                              ? error
-                              : "Tap to download and install",
-                          style: Theme.of(context).textTheme.bodyMedium!
-                              .copyWith(color: Colors.white70, fontSize: 13),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
                 CustomExpansionTile(
                   title: "personalisation".tr,
                   icon: Icons.palette,
@@ -923,9 +863,9 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     ListTile(
                       contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: const Text("Import Spotify playlist export"),
+                      title: const Text("Import Spotify export"),
                       subtitle: Text(
-                        "Creates local playlists from Spotify account-data Playlist JSON or ZIP exports.",
+                        "Creates local playlists from Spotify account-data playlist and library JSON or ZIP exports.",
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       isThreeLine: true,

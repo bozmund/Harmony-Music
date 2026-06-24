@@ -14,15 +14,19 @@ class NewVersionDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final settingsController = Get.find<SettingsScreenController>();
     return CommonDialog(
-      child: Container(
-        height: 320,
-        padding: const EdgeInsets.only(top: 40, bottom: 20),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: Get.height * 0.8),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              "newVersionAvailable".tr,
-              style: Theme.of(context).textTheme.titleMedium,
+            Padding(
+              padding: const EdgeInsets.only(top: 36),
+              child: Text(
+                "newVersionAvailable".tr,
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
@@ -76,30 +80,68 @@ class NewVersionDialog extends StatelessWidget {
                       );
                     },
                   ),
-                  Text("dontShowInfoAgain".tr),
+                  Flexible(child: Text("dontShowInfoAgain".tr)),
                 ],
               ),
             ),
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).textTheme.titleLarge!.color,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: InkWell(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15.0,
-                    vertical: 10,
-                  ),
-                  child: Text(
-                    "dismiss".tr,
-                    style: TextStyle(color: Theme.of(context).canvasColor),
-                  ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20, top: 6),
+              child: Obx(
+                () => Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    _DialogActionButton(
+                      label: "download".tr,
+                      enabled: !settingsController.isUpdateDownloading.value,
+                      onTap: () {
+                        settingsController.downloadAndInstallUpdate(updateInfo);
+                      },
+                    ),
+                    _DialogActionButton(
+                      label: "dismiss".tr,
+                      onTap: () => Navigator.of(context).pop(),
+                    ),
+                  ],
                 ),
-                onTap: () => Navigator.of(context).pop(),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogActionButton extends StatelessWidget {
+  const _DialogActionButton({
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = Theme.of(context).canvasColor;
+    return Opacity(
+      opacity: enabled ? 1 : 0.65,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).textTheme.titleLarge!.color,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 10),
+            child: Text(label, style: TextStyle(color: foreground)),
+          ),
         ),
       ),
     );

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive/hive.dart';
@@ -28,13 +31,19 @@ class HomeScreenController extends GetxController {
   //isHomeScreenOnTop var only useful if bottom nav enabled
   final isHomeSreenOnTop = true.obs;
   final List<ScrollController> contentScrollControllers = [];
+  bool _updateDialogShown = false;
   bool reverseAnimationtransiton = false;
 
   @override
   onInit() {
     super.onInit();
+    unawaited(Get.find<SettingsScreenController>().clearCachedUpdateApks());
     loadContent();
-    if (updateCheckFlag) _checkNewVersion();
+    if (updateCheckFlag) {
+      _checkNewVersion();
+    } else if (kDebugMode) {
+      _showDebugUpdateDialog();
+    }
   }
 
   Future<void> loadContent() async {
@@ -338,13 +347,34 @@ class HomeScreenController extends GetxController {
       final settingsController = Get.find<SettingsScreenController>();
       settingsController.checkNewVersion().then((value) {
         if (value != null) {
-          showDialog(
-            context: Get.context!,
-            builder: (context) => NewVersionDialog(updateInfo: value),
-          );
+          _showNewVersionDialog(value);
         }
       });
     }
+  }
+
+  void _showNewVersionDialog(UpdateInfo updateInfo) {
+    if (_updateDialogShown || Get.isDialogOpen == true) return;
+    _updateDialogShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (Get.context == null) {
+        _updateDialogShown = false;
+        return;
+      }
+      Get.dialog(NewVersionDialog(updateInfo: updateInfo));
+    });
+  }
+
+  void _showDebugUpdateDialog() {
+    _showNewVersionDialog(
+      const UpdateInfo(
+        channel: UpdateChannel.rolling,
+        version: 'debug-preview',
+        downloadUrl: 'https://github.com/bozmund/Harmony-Music/releases',
+        releaseUrl: 'https://github.com/bozmund/Harmony-Music/releases',
+        sha: 'debug',
+      ),
+    );
   }
 
   void onChangeVersionVisibility(bool val) {

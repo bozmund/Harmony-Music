@@ -67,9 +67,7 @@ class SettingsScreenController extends GetxController {
 
   @override
   void onInit() {
-    _setInitValue().then((_) {
-      if (updateCheckFlag) checkNewVersion();
-    });
+    _setInitValue();
     _createInAppSongDownDir();
     unawaited(clearCachedUpdateApks());
     super.onInit();
