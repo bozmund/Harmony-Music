@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/utils/helper.dart';
@@ -26,7 +28,7 @@ class PipedSyncWidget extends StatelessWidget {
             onPressed: () async {
               try {
                 await libraryPlaylistController.controller.forward();
-                libraryPlaylistController.controller.repeat();
+                unawaited(libraryPlaylistController.controller.repeat());
                 await libraryPlaylistController.syncPipedPlaylist();
                 libraryPlaylistController.controller.stop();
                 libraryPlaylistController.controller.reset();

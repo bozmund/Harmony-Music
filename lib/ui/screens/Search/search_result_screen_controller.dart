@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart';
@@ -35,10 +37,14 @@ class SearchResultScreenController extends GetxController
   ];
 
   @override
-  Future<void> onReady() async {
+  void onReady() {
+    unawaited(_initializeOnReady());
+    super.onReady();
+  }
+
+  Future<void> _initializeOnReady() async {
     await _getInitSearchResult();
     Get.find<HomeScreenController>().whenHomeScreenOnTop();
-    super.onReady();
   }
 
   Future<void> onDestinationSelected(

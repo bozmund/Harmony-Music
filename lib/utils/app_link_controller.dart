@@ -19,9 +19,9 @@ class AppLinksController extends GetxController with ProcessLink {
   StreamSubscription<Uri>? _linkSubscription;
 
   @override
-  Future<void> onInit() async {
-    await initDeepLinks();
+  void onInit() {
     super.onInit();
+    unawaited(initDeepLinks());
   }
 
   Future<void> initDeepLinks() async {
@@ -40,8 +40,8 @@ class AppLinksController extends GetxController with ProcessLink {
   }
 
   @override
-  Future<void> dispose() async {
-    await _linkSubscription?.cancel();
+  void dispose() {
+    unawaited(_linkSubscription?.cancel());
     super.dispose();
   }
 }

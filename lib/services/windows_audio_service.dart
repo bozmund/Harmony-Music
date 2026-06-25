@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:harmonymusic/utils/helper.dart';
 import 'package:smtc_windows/smtc_windows.dart';
@@ -78,10 +80,19 @@ class WindowsAudioService extends GetxService {
   }
 
   @override
-  Future<void> onClose() async {
-    await smtc.clearMetadata();
-    await smtc.disableSmtc();
-    await smtc.dispose();
+  void onClose() {
+    // GetX expects a sync lifecycle hook; run cleanup async without dropping errors.
+    unawaited(_disposeSmtc());
     super.onClose();
+  }
+
+  Future<void> _disposeSmtc() async {
+    try {
+      await smtc.clearMetadata();
+      await smtc.disableSmtc();
+      await smtc.dispose();
+    } catch (e) {
+      printERROR("Error while disposing SMTC: $e");
+    }
   }
 }
