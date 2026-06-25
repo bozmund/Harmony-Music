@@ -34,8 +34,8 @@ class VideoController {
           };
         }
       }
-    } catch (e) {
-      //
+    } catch (_) {
+      // Ignore visitor data failures; proceed without visitorData.
     }
 
     final userAgent = payload['context']!['client']!['userAgent'] as String?;
