@@ -25,9 +25,8 @@ class PipedSyncWidget extends StatelessWidget {
             ), // <-- Icon
             onPressed: () async {
               try {
-                //printINFO(libraryPlaylistController.controller.status);
                 await libraryPlaylistController.controller.forward();
-                await libraryPlaylistController.controller.repeat();
+                libraryPlaylistController.controller.repeat();
                 await libraryPlaylistController.syncPipedPlaylist();
                 libraryPlaylistController.controller.stop();
                 libraryPlaylistController.controller.reset();
