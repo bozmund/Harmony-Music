@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -15,20 +13,20 @@ import 'modified_text_field.dart';
 class CreateNRenamePlaylistPopup extends StatelessWidget {
   const CreateNRenamePlaylistPopup(
       {super.key,
-      this.isCreateNadd = false,
+      this.isCreateNAdd = false,
       this.songItems,
       this.renamePlaylist = false,
       this.playlist});
-  final bool isCreateNadd;
+  final bool isCreateNAdd;
   final bool renamePlaylist;
   final List<MediaItem>? songItems;
   final Playlist? playlist;
 
   @override
   Widget build(BuildContext context) {
-    final librPlstCntrller = Get.find<LibraryPlaylistsController>();
-    librPlstCntrller.changeCreationMode("local");
-    librPlstCntrller.textInputController.text = "";
+    final libraryPlaylistsController = Get.find<LibraryPlaylistsController>();
+    libraryPlaylistsController.changeCreationMode("local");
+    libraryPlaylistsController.textInputController.text = "";
     final isPipedLinked = Get.find<PipedServices>().isLoggedIn;
     return CommonDialog(
       child: Container(
@@ -56,40 +54,38 @@ class CreateNRenamePlaylistPopup extends StatelessWidget {
               ),
               if (isPipedLinked && !renamePlaylist)
                 Obx(
-                  () => Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Radio(
-                              value: "piped",
-                              groupValue:
-                                  librPlstCntrller.playlistCreationMode.value,
-                              onChanged: librPlstCntrller.changeCreationMode),
-                          Text("Piped".tr),
-                        ],
+                      () =>
+                      RadioGroup<String>(
+                        groupValue: libraryPlaylistsController.playlistCreationMode.value,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          libraryPlaylistsController.changeCreationMode(value);
+                        },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Radio<String>(value: 'piped'),
+                                Text('Piped'.tr),
+                              ],
+                            ),
+                            const SizedBox(width: 15),
+                            Row(
+                              children: [
+                                const Radio<String>(value: 'local'),
+                                Text('local'.tr),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(
-                        width: 15,
-                      ),
-                      Row(
-                        children: [
-                          Radio(
-                              value: "local",
-                              groupValue:
-                                  librPlstCntrller.playlistCreationMode.value,
-                              onChanged: librPlstCntrller.changeCreationMode),
-                          Text("local".tr),
-                        ],
-                      )
-                    ],
-                  ),
                 ),
               ModifiedTextField(
                 textCapitalization: TextCapitalization.sentences,
                 autofocus: true,
                 cursorColor: Theme.of(context).textTheme.titleSmall!.color,
-                controller: librPlstCntrller.textInputController,
+                controller: libraryPlaylistsController.textInputController,
                 decoration: const InputDecoration(
                   contentPadding: EdgeInsets.only(left: 5),
                   focusColor: Colors.white,
@@ -116,8 +112,8 @@ class CreateNRenamePlaylistPopup extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 15.0, vertical: 10),
                           child: Text(
-                            isCreateNadd
-                                ? "createnAdd".tr
+                            isCreateNAdd
+                                ? "createNAdd".tr
                                 : renamePlaylist
                                     ? "rename".tr
                                     : "create".tr,
@@ -127,7 +123,7 @@ class CreateNRenamePlaylistPopup extends StatelessWidget {
                         ),
                         onTap: () async {
                           if (renamePlaylist) {
-                            librPlstCntrller
+                            await libraryPlaylistsController
                                 .renamePlaylist(playlist!)
                                 .then((value) {
                               if (value) {
@@ -139,9 +135,9 @@ class CreateNRenamePlaylistPopup extends StatelessWidget {
                               }
                             });
                           } else {
-                            librPlstCntrller
+                            await libraryPlaylistsController
                                 .createNewPlaylist(
-                                    createPlaylistNAddSong: isCreateNadd,
+                                    createPlaylistNAddSong: isCreateNAdd,
                                     songItems: songItems)
                                 .then((value) {
                               if (!context.mounted) return;
@@ -149,14 +145,13 @@ class CreateNRenamePlaylistPopup extends StatelessWidget {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                     snackbar(
                                         context,
-                                        isCreateNadd
-                                            ? "playlistCreatednsongAddedAlert"
-                                                .tr
+                                        isCreateNAdd
+                                            ? "playlistCreatedNSongAddedAlert".tr
                                             : "playlistCreatedAlert".tr,
                                         size: SanckBarSize.MEDIUM));
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                    snackbar(context, "errorOccuredAlert".tr,
+                                    snackbar(context, "errorOccurredAlert".tr,
                                         size: SanckBarSize.MEDIUM));
                               }
                               Navigator.of(context).pop();
@@ -170,7 +165,7 @@ class CreateNRenamePlaylistPopup extends StatelessWidget {
               )
             ]),
             Obx(() =>
-                (librPlstCntrller.creationInProgress.isTrue && isPipedLinked)
+                (libraryPlaylistsController.creationInProgress.isTrue && isPipedLinked)
                     ? const Positioned(
                         top: 5,
                         right: 8,

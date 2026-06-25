@@ -38,10 +38,10 @@ class ContentListWidget extends StatelessWidget {
                 ),
                 !isHomeContent
                     ? TextButton(
-                        onPressed: () {
-                          final scrresController =
+                        onPressed: () async {
+                          final searchResultScreenController =
                               Get.find<SearchResultScreenController>();
-                          scrresController.viewAllCallback(content.title);
+                          await searchResultScreenController.viewAllCallback(content.title);
                         },
                         child: Text("viewAll".tr,
                             style: Theme.of(Get.context!).textTheme.titleSmall))

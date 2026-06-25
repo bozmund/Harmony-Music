@@ -20,8 +20,8 @@ class AlbumArtNLyrics extends StatelessWidget {
         ? Stack(
             children: [
               GestureDetector(
-                onLongPress: () {
-                  showModalBottomSheet(
+                onLongPress: () async {
+                  await showModalBottomSheet(
                     constraints: const BoxConstraints(maxWidth: 500),
                     shape: const RoundedRectangleBorder(
                       borderRadius:
@@ -29,7 +29,7 @@ class AlbumArtNLyrics extends StatelessWidget {
                     ),
                     isScrollControlled: true,
                     context:
-                        playerController.homeScaffoldkey.currentState!.context,
+                        playerController.homeScaffoldKey.currentState!.context,
                     barrierColor: Colors.transparent.withAlpha(100),
                     builder: (context) => SongInfoBottomSheet(
                       playerController.currentSong.value!,
@@ -37,15 +37,15 @@ class AlbumArtNLyrics extends StatelessWidget {
                     ),
                   ).whenComplete(() => Get.delete<SongInfoController>());
                 },
-                onTap: () {
-                  playerController.showLyrics();
+                onTap: () async {
+                  await playerController.showLyrics();
                 },
                 onHorizontalDragEnd: (DragEndDetails details) {
-                  if (playerController.showLyricsflag.isTrue) return;
+                  if (playerController.showLyricsFlag.isTrue) return;
                   if (details.primaryVelocity! < 0) {
-                    playerController.next();
+                    playerController.requestNext();
                   } else if (details.primaryVelocity! > 0) {
-                    playerController.prev();
+                    playerController.requestPrev();
                   }
                 },
                 child: ImageWidget(
@@ -54,10 +54,10 @@ class AlbumArtNLyrics extends StatelessWidget {
                   isPlayerArtImage: true,
                 ),
               ),
-              Obx(() => playerController.showLyricsflag.isTrue
+              Obx(() => playerController.showLyricsFlag.isTrue
                   ? InkWell(
-                      onTap: () {
-                        playerController.showLyrics();
+                      onTap: () async {
+                        await playerController.showLyrics();
                       },
                       child: Container(
                         height: playerArtImageSize,
@@ -120,8 +120,8 @@ class AlbumArtNLyrics extends StatelessWidget {
                                 .secondary
                                 .withAlpha(150)),
                         child: IconButton(
-                          onPressed: () {
-                            showModalBottomSheet(
+                          onPressed: () async {
+                            await showModalBottomSheet(
                               constraints: const BoxConstraints(maxWidth: 500),
                               shape: const RoundedRectangleBorder(
                                 borderRadius: BorderRadius.vertical(
@@ -129,7 +129,7 @@ class AlbumArtNLyrics extends StatelessWidget {
                               ),
                               isScrollControlled: true,
                               context: playerController
-                                  .homeScaffoldkey.currentState!.context,
+                                  .homeScaffoldKey.currentState!.context,
                               barrierColor: Colors.transparent.withAlpha(100),
                               builder: (context) =>
                                   const SleepTimerBottomSheet(),

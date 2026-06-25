@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -106,7 +108,7 @@ class PlayerControlWidget extends StatelessWidget {
               progress: controller.progressBarStatus.value.current,
               total: controller.progressBarStatus.value.total,
               buffered: controller.progressBarStatus.value.buffered,
-              onSeek: controller.seek,
+              onSeek: controller.requestSeek,
             );
           },
         ),
@@ -115,7 +117,9 @@ class PlayerControlWidget extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             IconButton(
-              onPressed: playerController.toggleShuffleMode,
+              onPressed: () {
+                unawaited(playerController.toggleShuffleMode());
+              },
               icon: Obx(
                 () => Icon(
                   Icons.shuffle,
@@ -135,7 +139,9 @@ class PlayerControlWidget extends StatelessWidget {
             _nextButton(playerController, context),
             Obx(() {
               return IconButton(
-                onPressed: playerController.toggleLoopMode,
+                onPressed: () {
+                  unawaited(playerController.toggleLoopMode());
+                },
                 icon: Icon(
                   Icons.all_inclusive,
                   color: playerController.isLoopModeEnabled.value
@@ -162,7 +168,7 @@ class PlayerControlWidget extends StatelessWidget {
         color: Theme.of(context).textTheme.titleMedium!.color,
       ),
       iconSize: 30,
-      onPressed: playerController.prev,
+      onPressed: playerController.requestPrev,
     );
   }
 }
@@ -185,7 +191,7 @@ Widget _nextButton(PlayerController playerController, BuildContext context) {
             : Theme.of(context).textTheme.titleMedium!.color,
       ),
       iconSize: 30,
-      onPressed: isLastSong ? null : playerController.next,
+      onPressed: isLastSong ? null : playerController.requestNext,
     );
   });
 }

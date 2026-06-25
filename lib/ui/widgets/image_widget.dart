@@ -99,7 +99,7 @@ class ImageWidget extends StatelessWidget {
                   ),
                 );
               },
-              progressIndicatorBuilder: ((context, url, progress) =>
+              progressIndicatorBuilder: (context, url, progress) =>
                   Shimmer.fromColors(
                     baseColor: Colors.grey[500]!,
                     highlightColor: Colors.grey[300]!,
@@ -116,7 +116,7 @@ class ImageWidget extends StatelessWidget {
                         color: Colors.white54,
                       ),
                     ),
-                  )),
+                  ),
             ),
     );
   }

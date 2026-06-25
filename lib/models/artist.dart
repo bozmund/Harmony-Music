@@ -19,7 +19,7 @@ class Artist {
       radioId: json['radioId'],
       subscribers: (json['subscribers']) == null
           ? ""
-          : (json['subscribers']).runtimeType.toString() == "String"
+          : json['subscribers'].runtimeType.toString() == "String"
               ? json['subscribers']
               : json['subscribers']['text'],
       thumbnailUrl: Thumbnail(json["thumbnails"][0]["url"]).high);

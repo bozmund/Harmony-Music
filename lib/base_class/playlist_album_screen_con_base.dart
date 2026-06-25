@@ -15,6 +15,7 @@ import '../ui/widgets/sort_widget.dart';
 abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   /// Instance used to interact with music-related services.
   final MusicServiceContract musicServices = Get.find<MusicServiceContract>();
+  int _loadGeneration = 0;
 
   /// Observable boolean indicating whether the album is offline.
   final RxBool isOffline = false.obs;
@@ -45,6 +46,18 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   @protected
   Future<bool> checkIfAddedToLibrary(String id);
 
+  @protected
+  int beginAsyncLoad() => ++_loadGeneration;
+
+  @protected
+  bool isAsyncLoadActive(int generation) =>
+      !isClosed && generation == _loadGeneration;
+
+  @protected
+  void cancelAsyncLoads() {
+    _loadGeneration++;
+  }
+
   /// Fetches the details of an album.
   ///
   /// [albumId] - The unique identifier of the album.
@@ -60,16 +73,15 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   /// Fetches the songs of an album/playlist from database.
   ///
   /// [id] - The unique identifier of the album/playlist.
-  void fetchSongsFromDatabase(String id) async {
+  Future<void> fetchSongsFromDatabase(String id, {int? generation}) async {
     final box = await Hive.openBox(id);
-    songList.value = box.values
+    final songs = box.values
         .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
         .whereType<MediaItem>()
         .toList();
     if (id != "SongDownloads") await box.close();
-    songList.value = id == "LIBRP"
-        ? songList.reversed.toList()
-        : songList.toList();
+    if (generation != null && !isAsyncLoadActive(generation)) return;
+    songList.value = id == "LIBRP" ? songs.reversed.toList() : songs;
     checkDownloadStatus();
   }
 

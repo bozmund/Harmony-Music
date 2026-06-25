@@ -1,10 +1,11 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:harmonymusic/ui/player/components/backgroud_image.dart';
+import 'package:harmonymusic/ui/player/components/background_image.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../widgets/song_info_bottom_sheet.dart';
@@ -21,25 +22,23 @@ class GesturePlayer extends StatelessWidget {
       children: [
         GestureDetector(
           /// Full screen Background image is acting as album art
-          child: const BackgroudImage(),
+          child: const BackgroundImage(),
           onHorizontalDragEnd: (DragEndDetails details) {
             if (details.primaryVelocity! < 0) {
-              playerController.next();
+              playerController.requestNext();
             } else if (details.primaryVelocity! > 0) {
-              playerController.prev();
+              playerController.requestPrev();
             }
           },
-          onDoubleTap: () {
-            playerController.playPause();
-          },
-          onLongPress: () {
-            showModalBottomSheet(
+          onDoubleTap: playerController.requestPlayPause,
+          onLongPress: () async {
+            await showModalBottomSheet(
               constraints: const BoxConstraints(maxWidth: 500),
               shape: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.vertical(top: Radius.circular(10.0)),
               ),
               isScrollControlled: true,
-              context: playerController.homeScaffoldkey.currentState!.context,
+              context: playerController.homeScaffoldKey.currentState!.context,
               barrierColor: Colors.transparent.withAlpha(100),
               builder: (context) => SongInfoBottomSheet(
                 playerController.currentSong.value!,
@@ -202,8 +201,11 @@ class GesturePlayer extends StatelessWidget {
                                             vertical: -4,
                                           ),
                                           iconSize: 18,
-                                          onPressed:
-                                              playerController.toggleLoopMode,
+                                          onPressed: () {
+                                            unawaited(
+                                              playerController.toggleLoopMode(),
+                                            );
+                                          },
                                           icon: Icon(
                                             Icons.all_inclusive,
                                             color:
@@ -228,8 +230,12 @@ class GesturePlayer extends StatelessWidget {
                                           horizontal: -4,
                                           vertical: -4,
                                         ),
-                                        onPressed:
-                                            playerController.toggleShuffleMode,
+                                        onPressed: () {
+                                          unawaited(
+                                            playerController
+                                                .toggleShuffleMode(),
+                                          );
+                                        },
                                         icon: Obx(
                                           () => Icon(
                                             Icons.shuffle,
@@ -285,7 +291,7 @@ class GesturePlayer extends StatelessWidget {
                               total: controller.progressBarStatus.value.total,
                               buffered:
                                   controller.progressBarStatus.value.buffered,
-                              onSeek: controller.seek,
+                              onSeek: controller.requestSeek,
                             );
                           },
                         ),

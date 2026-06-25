@@ -14,7 +14,8 @@ import 'common_dialog_widget.dart';
 class ImportSpotifyPlaylistDialogController extends GetxController {
   final isReading = false.obs;
   final isImporting = false.obs;
-  final status = "Select a Spotify data export ZIP or Playlist JSON".obs;
+  final status =
+      "Select a Spotify data export ZIP, Playlist JSON, or library JSON".obs;
   final error = RxnString();
   final detectedPlaylists = <SpotifyImportPlaylist>[].obs;
   final selectedIndexes = <int>{}.obs;
@@ -40,18 +41,21 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
             extensions: ['zip', 'json'],
           ),
         ],
-        confirmButtonText: "Import Spotify playlist export",
+        confirmButtonText: "Import Spotify export",
       );
 
       if (picked == null) {
-        status.value = "Select a Spotify data export ZIP or Playlist JSON";
+        status.value =
+            "Select a Spotify data export ZIP, Playlist JSON, or library JSON";
         return;
       }
 
-      status.value = "Parsing playlists";
+      status.value = "Parsing Spotify data";
       final parsed = await _parseSpotifyExport(File(picked.path));
       if (parsed.playlists.isEmpty) {
-        throw const SpotifyPlaylistImportException("No playlists found");
+        throw const SpotifyPlaylistImportException(
+          "No playlists or library songs found",
+        );
       }
 
       detectedPlaylists.value = parsed.playlists;
@@ -134,14 +138,13 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
             .split(RegExp(r'[\\/]'))
             .last
             .toLowerCase();
-        if (!archiveFile.isFile ||
-            !fileName.startsWith('playlist') ||
-            !fileName.endsWith('.json')) {
+        if (!archiveFile.isFile || !fileName.endsWith('.json')) {
           continue;
         }
 
-        final parsed = _parseSpotifyPlaylistJson(
+        final parsed = _parseSpotifyJson(
           utf8.decode((archiveFile.content as List).cast<int>()),
+          strict: false,
         );
         playlists.addAll(parsed.playlists);
         unsupportedItems += parsed.unsupportedItemCount;
@@ -157,70 +160,136 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
   }
 
   _ParsedSpotifyExport _parseSpotifyPlaylistJson(String jsonString) {
+    return _parseSpotifyJson(jsonString);
+  }
+
+  _ParsedSpotifyExport _parseSpotifyJson(
+    String jsonString, {
+    bool strict = true,
+  }) {
     final decoded = jsonDecode(jsonString);
-    if (decoded is! Map || decoded['playlists'] is! List) {
+    if (decoded is! Map) {
       throw const SpotifyPlaylistImportException("Invalid Spotify export file");
     }
 
     final playlists = <SpotifyImportPlaylist>[];
     var unsupportedItems = 0;
 
-    for (final playlistJson in decoded['playlists']) {
-      if (playlistJson is! Map) continue;
+    if (decoded['playlists'] is List) {
+      for (final playlistJson in decoded['playlists']) {
+        if (playlistJson is! Map) continue;
 
-      final name = playlistJson['name'];
-      final items = playlistJson['items'];
-      if (name is! String || name.trim().isEmpty || items is! List) continue;
+        final name = playlistJson['name'];
+        final items = playlistJson['items'];
+        if (name is! String || name.trim().isEmpty || items is! List) continue;
 
-      final tracks = <SpotifyImportTrack>[];
-      for (final item in items) {
-        if (item is! Map || item['track'] is! Map) {
-          unsupportedItems++;
-          continue;
+        final tracks = <SpotifyImportTrack>[];
+        for (final item in items) {
+          final track = item is Map && item['track'] is Map
+              ? _parseSpotifyTrackMap(item['track'] as Map)
+              : null;
+          if (track == null) {
+            unsupportedItems++;
+            continue;
+          }
+
+          tracks.add(track);
         }
 
-        final track = item['track'] as Map;
-        final trackName = track['trackName'];
-        final artistName = track['artistName'];
-        if (trackName is! String ||
-            trackName.trim().isEmpty ||
-            artistName is! String ||
-            artistName.trim().isEmpty) {
-          unsupportedItems++;
-          continue;
+        if (tracks.isNotEmpty) {
+          playlists.add(
+            SpotifyImportPlaylist(
+              name: name.trim(),
+              description: playlistJson['description'] is String
+                  ? (playlistJson['description'] as String).trim()
+                  : null,
+              tracks: tracks,
+            ),
+          );
         }
-
-        tracks.add(
-          SpotifyImportTrack(
-            trackName: trackName.trim(),
-            artistName: artistName.trim(),
-            albumName: track['albumName'] is String
-                ? (track['albumName'] as String).trim()
-                : null,
-            trackUri: track['trackUri'] is String
-                ? (track['trackUri'] as String).trim()
-                : null,
-          ),
-        );
       }
+    }
 
-      if (tracks.isNotEmpty) {
-        playlists.add(
-          SpotifyImportPlaylist(
-            name: name.trim(),
-            description: playlistJson['description'] is String
-                ? (playlistJson['description'] as String).trim()
-                : null,
-            tracks: tracks,
-          ),
-        );
-      }
+    final libraryTracks = _parseSpotifyLibraryTracks(decoded);
+    unsupportedItems += libraryTracks.unsupportedItemCount;
+    if (libraryTracks.tracks.isNotEmpty) {
+      playlists.add(
+        SpotifyImportPlaylist(
+          name: "Spotify Library Songs",
+          description: "Imported Spotify saved library songs",
+          tracks: libraryTracks.tracks,
+        ),
+      );
+    }
+
+    if (strict && playlists.isEmpty) {
+      throw const SpotifyPlaylistImportException("Invalid Spotify export file");
     }
 
     return _ParsedSpotifyExport(
       playlists: playlists,
       unsupportedItemCount: unsupportedItems,
     );
+  }
+
+  _ParsedSpotifyLibraryTracks _parseSpotifyLibraryTracks(Map decoded) {
+    final rawTracks = decoded['tracks'];
+    if (rawTracks is! List) {
+      return const _ParsedSpotifyLibraryTracks(
+        tracks: [],
+        unsupportedItemCount: 0,
+      );
+    }
+
+    final tracks = <SpotifyImportTrack>[];
+    var unsupportedItems = 0;
+    for (final item in rawTracks) {
+      final track = item is Map
+          ? _parseSpotifyTrackMap(item['track'] is Map ? item['track'] : item)
+          : null;
+      if (track == null) {
+        unsupportedItems++;
+        continue;
+      }
+      tracks.add(track);
+    }
+
+    return _ParsedSpotifyLibraryTracks(
+      tracks: tracks,
+      unsupportedItemCount: unsupportedItems,
+    );
+  }
+
+  SpotifyImportTrack? _parseSpotifyTrackMap(Map track) {
+    final trackName = _spotifyString(
+      track['trackName'] ?? track['track'] ?? track['name'] ?? track['title'],
+    );
+    final artistName = _spotifyString(
+      track['artistName'] ?? track['artist'] ?? track['artists'],
+    );
+    if (trackName == null || artistName == null) return null;
+
+    return SpotifyImportTrack(
+      trackName: trackName,
+      artistName: artistName,
+      albumName: _spotifyString(track['albumName'] ?? track['album']),
+      trackUri: _spotifyString(track['trackUri'] ?? track['uri']),
+    );
+  }
+
+  String? _spotifyString(dynamic value) {
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    if (value is List) {
+      final parts = value
+          .map(_spotifyString)
+          .whereType<String>()
+          .where((part) => part.isNotEmpty)
+          .toList();
+      if (parts.isNotEmpty) return parts.join(", ");
+    }
+    return null;
   }
 }
 
@@ -231,6 +300,16 @@ class _ParsedSpotifyExport {
   });
 
   final List<SpotifyImportPlaylist> playlists;
+  final int unsupportedItemCount;
+}
+
+class _ParsedSpotifyLibraryTracks {
+  const _ParsedSpotifyLibraryTracks({
+    required this.tracks,
+    required this.unsupportedItemCount,
+  });
+
+  final List<SpotifyImportTrack> tracks;
   final int unsupportedItemCount;
 }
 
@@ -252,7 +331,7 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Import Spotify playlist export",
+                "Import Spotify export",
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 14),

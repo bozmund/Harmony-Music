@@ -70,7 +70,13 @@ class PrefKeys {
   static const String currentAppLanguageCode = 'currentAppLanguageCode';
   static const String libraryFirstTab = 'libraryFirstTab';
   static const String updateChannel = 'updateChannel';
+  static const String batteryOptimizationPromptShown =
+      'batteryOptimizationPromptShown';
+  static const String playbackMode = 'playbackMode';
+  static const String playbackPreloadRange = 'playbackPreloadRange';
 }
+
+enum PlaybackMode { classic, preloaded }
 
 class BuildInfo {
   static const String channel = String.fromEnvironment(
@@ -92,4 +98,5 @@ class LogTags {
   static const String audioHandler = 'AudioHandler';
   static const String piped = 'Piped';
   static const String backup = 'Backup';
+  static const String preload = 'Preload';
 }

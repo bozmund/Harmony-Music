@@ -62,7 +62,7 @@ class SearchResultScreenBN extends StatelessWidget {
               Expanded(
                 child: Obx(
                   () {
-                    if (searchResScrController.isResultContentFetced.isTrue &&
+                    if (searchResScrController.isResultContentFetched.isTrue &&
                         searchResScrController.railItems.isEmpty) {
                       return Center(
                         child: Column(
@@ -78,7 +78,7 @@ class SearchResultScreenBN extends StatelessWidget {
                         ),
                       );
                     } else if (searchResScrController
-                        .isResultContentFetced.isTrue) {
+                        .isResultContentFetched.isTrue) {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[

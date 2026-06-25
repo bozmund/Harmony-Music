@@ -70,15 +70,15 @@ class SearchScreen extends StatelessWidget {
                       controller: searchScreenController.textInputController,
                       textInputAction: TextInputAction.search,
                       onChanged: searchScreenController.onChanged,
-                      onSubmitted: (val) {
+                      onSubmitted: (val) async {
                         if (val.contains("https://")) {
-                          searchScreenController.filterLinks(Uri.parse(val));
+                          await searchScreenController.filterLinks(Uri.parse(val));
                           searchScreenController.reset();
                           return;
                         }
-                        Get.toNamed(ScreenNavigationSetup.searchResultScreen,
+                        await Get.toNamed(ScreenNavigationSetup.searchResultScreen,
                             id: ScreenNavigationSetup.id, arguments: val);
-                        searchScreenController.addToHistryQueryList(val);
+                        await searchScreenController.addToHistoryQueryList(val);
                       },
                       autofocus: settingsScreenController
                           .isBottomNavBarEnabled.isFalse,
@@ -101,7 +101,7 @@ class SearchScreen extends StatelessWidget {
                             searchScreenController.textInputController.text ==
                                 "";
                         final list = isEmpty
-                            ? searchScreenController.historyQuerylist.toList()
+                            ? searchScreenController.historyQueryList.toList()
                             : searchScreenController.suggestionList.toList();
                         return ListView(
                             padding: const EdgeInsets.only(top: 5, bottom: 400),
@@ -110,8 +110,8 @@ class SearchScreen extends StatelessWidget {
                             children: searchScreenController.urlPasted.isTrue
                                 ? [
                                     InkWell(
-                                      onTap: () {
-                                        searchScreenController.filterLinks(
+                                      onTap: () async {
+                                        await searchScreenController.filterLinks(
                                             Uri.parse(searchScreenController
                                                 .textInputController.text));
                                         searchScreenController.reset();

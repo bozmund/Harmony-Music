@@ -33,7 +33,7 @@ class SearchResultScreen extends StatelessWidget {
                               searchResScrController.onDestinationSelected,
                           minWidth: 60,
                           destinations: (searchResScrController
-                                      .isResultContentFetced.value &&
+                                      .isResultContentFetched.value &&
                                   searchResScrController.railItems.isNotEmpty)
                               ? [
                                   railDestination("results".tr),
@@ -119,7 +119,7 @@ class Body extends StatelessWidget {
   Widget build(BuildContext context) {
     if (searchResScrController.navigationRailCurrentIndex.value == 0) {
       return Obx(() {
-        if (searchResScrController.isResultContentFetced.isTrue &&
+        if (searchResScrController.isResultContentFetched.isTrue &&
             searchResScrController.railItems.isEmpty) {
           return Center(
             child: Column(
@@ -133,7 +133,7 @@ class Body extends StatelessWidget {
               ],
             ),
           );
-        } else if (searchResScrController.isResultContentFetced.isTrue) {
+        } else if (searchResScrController.isResultContentFetched.isTrue) {
           return const ResultWidget();
         } else {
           return const Center(
@@ -142,7 +142,7 @@ class Body extends StatelessWidget {
         }
       });
     } else {
-      if (searchResScrController.isResultContentFetced.isTrue) {
+      if (searchResScrController.isResultContentFetched.isTrue) {
         final topPadding = context.isLandscape ? 50.0 : 80.0;
         final name = searchResScrController.railItems[
             searchResScrController.navigationRailCurrentIndex.value - 1];

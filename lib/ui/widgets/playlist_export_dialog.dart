@@ -42,9 +42,9 @@ class PlaylistExportDialog extends StatelessWidget {
               icon: Icons.save,
               title: "exportPlaylistJson".tr,
               subtitle: "exportPlaylistJsonSubtitle".tr,
-              onTap: () {
+              onTap: () async {
                 Navigator.of(context).pop();
-                controller.exportPlaylistToJson(parentContext);
+                await controller.exportPlaylistToJson(parentContext);
               },
             ),
             const SizedBox(height: 12),
@@ -53,9 +53,9 @@ class PlaylistExportDialog extends StatelessWidget {
               icon: Icons.table_chart,
               title: "exportPlaylistCsv".tr,
               subtitle: "exportPlaylistCsvSubtitle".tr,
-              onTap: () {
+              onTap: () async {
                 Navigator.of(context).pop();
-                controller.exportPlaylistToCsv(parentContext);
+                await controller.exportPlaylistToCsv(parentContext);
               },
             ),
             const SizedBox(height: 12),
@@ -64,13 +64,13 @@ class PlaylistExportDialog extends StatelessWidget {
               icon: Icons.open_in_new,
               title: "exportToYouTubeMusic".tr,
               subtitle: "exportToYouTubeMusicSubtitle".tr,
-              onMainTap: () {
+              onMainTap: () async {
                 Navigator.of(context).pop();
-                _openInYouTubeMusic();
+                await _openInYouTubeMusic();
               },
-              onCopyTap: () {
+              onCopyTap: () async {
                 Navigator.of(context).pop();
-                _copyYouTubeMusicLink();
+                await _copyYouTubeMusicLink();
               },
             ),
             const SizedBox(height: 20),
@@ -96,7 +96,7 @@ class PlaylistExportDialog extends StatelessWidget {
     final url = 'https://www.youtube.com/watch_videos?video_ids=$videoIds';
     final ytmUrl = await _generateYTMUrl(url);
 
-    AppPlatformService.openUrl(ytmUrl ?? url);
+    await AppPlatformService.openUrl(ytmUrl ?? url);
   }
 
   Future<String?> _generateYTMUrl(String ytSimpleUrl) async {
@@ -128,7 +128,7 @@ class PlaylistExportDialog extends StatelessWidget {
     final url = 'https://www.youtube.com/watch_videos?video_ids=$videoIds';
     final ytmUrl = await _generateYTMUrl(url);
 
-    Clipboard.setData(ClipboardData(text: ytmUrl ?? url)).then((_) {
+    await Clipboard.setData(ClipboardData(text: ytmUrl ?? url)).then((_) {
       if (parentContext.mounted) {
         ScaffoldMessenger.of(parentContext).showSnackBar(
           snackbar(parentContext, "linkCopied".tr, size: SanckBarSize.MEDIUM),

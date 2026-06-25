@@ -1,5 +1,3 @@
-// ignore_for_file: constant_identifier_names
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/ui/screens/Library/library_controller.dart';
@@ -10,10 +8,10 @@ import 'modified_text_field.dart';
 enum OperationMode { arrange, delete, addToPlaylist, none }
 
 enum SortType {
-  Name,
-  Date,
-  Duration,
-  RecentlyPlayed,
+  name,
+  date,
+  duration,
+  recentlyPlayed,
 }
 
 Set<SortType> buildSortTypeSet(
@@ -22,29 +20,29 @@ Set<SortType> buildSortTypeSet(
     bool recentlyPlayedRequired = false]) {
   Set<SortType> requiredSortTypes = {};
   if (dateRequired) {
-    requiredSortTypes.add(SortType.Date);
+    requiredSortTypes.add(SortType.date);
   }
   if (durationRequired) {
-    requiredSortTypes.add(SortType.Duration);
+    requiredSortTypes.add(SortType.duration);
   }
   if (recentlyPlayedRequired) {
-    requiredSortTypes.add(SortType.RecentlyPlayed);
+    requiredSortTypes.add(SortType.recentlyPlayed);
   }
   return requiredSortTypes;
 }
 
 class SortWidget extends StatelessWidget {
-  /// Additional operations - Delete Multiple songs, Rearrage offline playlist, Add Multiple songs to playlist
+  /// Additional operations - Delete Multiple songs, Rearrange offline playlist, Add Multiple songs to playlist
   const SortWidget({
     super.key,
     required this.tag,
     this.itemCountTitle = '',
     this.titleLeftPadding = 18,
     this.isAdditionalOperationRequired = true,
-    this.requiredSortTypes = const <SortType>{SortType.Name},
+    this.requiredSortTypes = const <SortType>{SortType.name},
     this.isSearchFeatureRequired = false,
-    this.isPlaylistRearrageFeatureRequired = false,
-    this.isSongDeletetioFeatureRequired = false,
+    this.isPlaylistRearrangeFeatureRequired = false,
+    this.isSongDeletionFeatureRequired = false,
     required this.screenController,
     this.onSearchStart,
     this.onSearch,
@@ -58,7 +56,7 @@ class SortWidget extends StatelessWidget {
     required this.onSort,
   });
 
-  /// unique identifier for each sortwidget
+  /// unique identifier for each sort-widget
   final String tag;
   final String itemCountTitle;
   final IconData? itemIcon;
@@ -66,8 +64,8 @@ class SortWidget extends StatelessWidget {
   final double titleLeftPadding;
   final Set<SortType> requiredSortTypes;
   final bool isSearchFeatureRequired;
-  final bool isSongDeletetioFeatureRequired;
-  final bool isPlaylistRearrageFeatureRequired;
+  final bool isSongDeletionFeatureRequired;
+  final bool isPlaylistRearrangeFeatureRequired;
   final dynamic screenController;
   final Function(SortWidgetController, OperationMode)? startAdditionalOperation;
   final Function(bool)? selectAll;
@@ -79,8 +77,8 @@ class SortWidget extends StatelessWidget {
   final Function(SortType, bool) onSort;
   final bool isImportFeatureRequired;
 
-  void _showImportDialog(BuildContext context) {
-    showDialog(
+  Future<void> _showImportDialog(BuildContext context) async {
+    await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
@@ -121,9 +119,10 @@ class SortWidget extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.file_open),
                 label: Text("selectFile".tr),
-                onPressed: () {
-                  Get.find<LibraryPlaylistsController>()
+                onPressed: () async {
+                  await Get.find<LibraryPlaylistsController>()
                       .importPlaylistFromJson(context);
+                  if(!context.mounted) return;
                   Navigator.pop(context);
                   Navigator.pop(context);
                 },
@@ -177,7 +176,7 @@ class SortWidget extends StatelessWidget {
                     ),
                     Obx(
                       () => _customIconButton(
-                        isSelected: controller.sortType.value == SortType.Name,
+                        isSelected: controller.sortType.value == SortType.name,
                         icon: Icons.sort_by_alpha,
                         tooltip: "sortByName".tr,
                         onPressed: () {
@@ -185,11 +184,11 @@ class SortWidget extends StatelessWidget {
                         },
                       ),
                     ),
-                    requiredSortTypes.contains(SortType.Date)
+                    requiredSortTypes.contains(SortType.date)
                         ? Obx(
                             () => _customIconButton(
                               isSelected:
-                                  controller.sortType.value == SortType.Date,
+                                  controller.sortType.value == SortType.date,
                               icon: Icons.calendar_month,
                               tooltip: "sortByDate".tr,
                               onPressed: () {
@@ -198,10 +197,10 @@ class SortWidget extends StatelessWidget {
                             ),
                           )
                         : const SizedBox.shrink(),
-                    requiredSortTypes.contains(SortType.Duration)
+                    requiredSortTypes.contains(SortType.duration)
                         ? Obx(() => _customIconButton(
                               isSelected: controller.sortType.value ==
-                                  SortType.Duration,
+                                  SortType.duration,
                               tooltip: "sortByDuration".tr,
                               icon: Icons.timer,
                               onPressed: () {
@@ -243,8 +242,8 @@ class SortWidget extends StatelessWidget {
                           size: 20,
                         ),
                         // Callback that sets the selected popup menu item.
-                        onSelected: (mode) {
-                          showDialog(
+                        onSelected: (mode) async {
+                          await showDialog(
                               context: context,
                               builder: (context) => AdditionalOperationDialog(
                                     operationMode: mode,
@@ -256,12 +255,12 @@ class SortWidget extends StatelessWidget {
                           startAdditionalOperation!(controller, mode);
                         },
                         itemBuilder: (BuildContext context) => <PopupMenuEntry>[
-                          if (isPlaylistRearrageFeatureRequired)
+                          if (isPlaylistRearrangeFeatureRequired)
                             PopupMenuItem(
                               value: OperationMode.arrange,
                               child: Text("reArrangePlaylist".tr),
                             ),
-                          if (isSongDeletetioFeatureRequired)
+                          if (isSongDeletionFeatureRequired)
                             PopupMenuItem(
                               value: OperationMode.delete,
                               child: Text("removeMultiple".tr),
@@ -314,7 +313,7 @@ class SortWidget extends StatelessWidget {
                                 splashRadius: 10,
                                 iconSize: 20,
                                 icon: const Icon(Icons.save),
-                                onPressed: () {
+                                onPressed: () async {
                                   final query = controller
                                       .textEditingController.text
                                       .trim();
@@ -325,7 +324,7 @@ class SortWidget extends StatelessWidget {
                                   if (!isSearchControllerRegistered) {
                                     Get.put(LibrarySearchesController());
                                   }
-                                  Get.find<LibrarySearchesController>()
+                                  await Get.find<LibrarySearchesController>()
                                       .saveSearch(query);
                                   Get.snackbar("searchSaved".tr, query);
                                 },
@@ -374,19 +373,19 @@ class SortWidget extends StatelessWidget {
 }
 
 class SortWidgetController extends GetxController {
-  final Rx<SortType> sortType = SortType.Name.obs;
+  final Rx<SortType> sortType = SortType.name.obs;
   final isAscending = true.obs;
   final isSearchingEnabled = false.obs;
-  final isRearraningEnabled = false.obs;
+  final isRearrangingEnabled = false.obs;
   final isDeletionEnabled = false.obs;
-  final isAddtoPlaylistEnabled = false.obs;
+  final isAddToPlaylistEnabled = false.obs;
   final isAllSelected = false.obs;
   TextEditingController textEditingController = TextEditingController();
 
   void setActiveMode(OperationMode mode) {
-    isAddtoPlaylistEnabled.value = OperationMode.addToPlaylist == mode;
+    isAddToPlaylistEnabled.value = OperationMode.addToPlaylist == mode;
     isDeletionEnabled.value = OperationMode.delete == mode;
-    isRearraningEnabled.value = OperationMode.arrange == mode;
+    isRearrangingEnabled.value = OperationMode.arrange == mode;
   }
 
   void toggleSelectAll(bool val) {
@@ -394,17 +393,17 @@ class SortWidgetController extends GetxController {
   }
 
   void onSortByName(Function onSort) {
-    sortType.value = SortType.Name;
+    sortType.value = SortType.name;
     onSort(sortType.value, isAscending.value);
   }
 
   void onSortByDuration(Function onSort) {
-    sortType.value = SortType.Duration;
+    sortType.value = SortType.duration;
     onSort(sortType.value, isAscending.value);
   }
 
   void onSortByDate(Function onSort) {
-    sortType.value = SortType.Date;
+    sortType.value = SortType.date;
     onSort(sortType.value, isAscending.value);
   }
 

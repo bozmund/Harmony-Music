@@ -5,8 +5,8 @@ import 'package:get/get.dart';
 
 import '../../widgets/song_info_bottom_sheet.dart';
 import '../player_controller.dart';
-import 'albumart_lyrics.dart';
-import 'backgroud_image.dart';
+import 'album_art_lyrics.dart';
+import 'background_image.dart';
 import 'lyrics_switch.dart';
 import 'player_control.dart';
 
@@ -36,7 +36,7 @@ class StandardPlayer extends StatelessWidget {
       children: [
         /// Stack first child
         /// Album art image in background covering the whole screen
-        BackgroudImage(
+        BackgroundImage(
           key: Key("${playerController.currentSong.value?.id}_background"),
           cacheHeight: 200,
         ),
@@ -127,7 +127,7 @@ class StandardPlayer extends StatelessWidget {
                   children: [
                     /// Work as top padding depending on the lyrics visibility and screen size
                     Obx(
-                      () => playerController.showLyricsflag.value
+                      () => playerController.showLyricsFlag.value
                           ? SizedBox(
                               height: size.height < 750 ? 60 : 90,
                             )
@@ -213,8 +213,8 @@ class StandardPlayer extends StatelessWidget {
                     Icons.more_vert,
                     size: 25,
                   ),
-                  onPressed: () {
-                    showModalBottomSheet(
+                  onPressed: () async {
+                    await showModalBottomSheet(
                       constraints: const BoxConstraints(maxWidth: 500),
                       shape: const RoundedRectangleBorder(
                         borderRadius:
@@ -222,7 +222,7 @@ class StandardPlayer extends StatelessWidget {
                       ),
                       isScrollControlled: true,
                       context: playerController
-                          .homeScaffoldkey.currentState!.context,
+                          .homeScaffoldKey.currentState!.context,
                       barrierColor: Colors.transparent.withAlpha(100),
                       builder: (context) => SongInfoBottomSheet(
                         playerController.currentSong.value!,

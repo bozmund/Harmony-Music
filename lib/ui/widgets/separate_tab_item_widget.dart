@@ -56,8 +56,8 @@ class SeparateTabItemWidget extends StatelessWidget {
                   isCompleteList
                       ? const SizedBox.shrink()
                       : TextButton(
-                          onPressed: () {
-                            searchResController!.viewAllCallback(title);
+                          onPressed: () async {
+                            await searchResController?.viewAllCallback(title);
                           },
                           child: Text("viewAll".tr,
                               style:
@@ -74,7 +74,7 @@ class SeparateTabItemWidget extends StatelessWidget {
                     isSearchFeatureRequired: artistController != null,
                     titleLeftPadding: 9,
                     itemCountTitle:
-                        "${isResultWidget ? (searchResController?.separatedResultContent[title] ?? []).length : (artistController?.sepataredContent[title] != null ? artistController?.sepataredContent[title]['results'] : []).length} ${"items".tr}",
+                        "${isResultWidget ? (searchResController?.separatedResultContent[title] ?? []).length : (artistController?.separatedContent[title] != null ? artistController?.separatedContent[title]['results'] : []).length} ${"items".tr}",
                     requiredSortTypes: buildSortTypeSet(
                         title == 'Albums' || title == "Singles",
                         title == "Songs" || title == "Videos"),
@@ -98,7 +98,7 @@ class SeparateTabItemWidget extends StatelessWidget {
           isCompleteList
               ? isResultWidget
                   ? GetX<SearchResultScreenController>(builder: (controller) {
-                      if (controller.isSeparatedResultContentFetced.isTrue) {
+                      if (controller.isSeparatedResultContentFetched.isTrue) {
                         return ListWidget(
                           controller.separatedResultContent[title],
                           title,
@@ -110,7 +110,7 @@ class SeparateTabItemWidget extends StatelessWidget {
                             child: Center(child: LoadingIndicator()));
                       }
                     })
-                  : (artistController!.isArtistContentFetced.isTrue
+                  : (artistController!.isArtistContentFetched.isTrue
                       ? Obx(() =>
                           (artistController.additionalOperationMode.value ==
                                   OperationMode.none

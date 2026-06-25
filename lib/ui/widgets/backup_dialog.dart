@@ -95,7 +95,7 @@ class BackupDialog extends StatelessWidget {
                                 Obx(
                                   () =>
                                       (backupDialogController
-                                          .isDownloadedfilesSeclected
+                                          .downloadedFilesSelected
                                           .isTrue)
                                       ? Padding(
                                           padding: const EdgeInsets.only(
@@ -130,7 +130,7 @@ class BackupDialog extends StatelessWidget {
                         children: [
                           Checkbox(
                             value: backupDialogController
-                                .isDownloadedfilesSeclected
+                                .downloadedFilesSelected
                                 .value,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(5),
@@ -141,12 +141,12 @@ class BackupDialog extends StatelessWidget {
                                         .backupRunning
                                         .isTrue ||
                                     backupDialogController
-                                        .isbackupCompleted
+                                        .backupCompleted
                                         .isTrue
                                 ? null
                                 : (bool? value) {
                                     backupDialogController
-                                            .isDownloadedfilesSeclected
+                                            .downloadedFilesSelected
                                             .value =
                                         value!;
                                   },
@@ -165,11 +165,11 @@ class BackupDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: InkWell(
-                        onTap: () {
-                          if (backupDialogController.isbackupCompleted.isTrue) {
+                        onTap: () async {
+                          if (backupDialogController.backupCompleted.isTrue) {
                             Navigator.of(context).pop();
                           } else {
-                            backupDialogController.backup();
+                            await backupDialogController.backup();
                           }
                         },
                         child: Obx(
@@ -186,7 +186,7 @@ class BackupDialog extends StatelessWidget {
                               child: Obx(
                                 () => Text(
                                   backupDialogController
-                                          .isbackupCompleted
+                                          .backupCompleted
                                           .isTrue
                                       ? "close".tr
                                       : "backup".tr,
@@ -213,9 +213,9 @@ class BackupDialog extends StatelessWidget {
 
 class BackupDialogController extends GetxController {
   final scanning = false.obs;
-  final isbackupCompleted = false.obs;
+  final backupCompleted = false.obs;
   final backupRunning = false.obs;
-  final isDownloadedfilesSeclected = false.obs;
+  final downloadedFilesSelected = false.obs;
   final backupProgress = 0.obs;
   final filesToBackup = 0.obs;
   final currentBackupFileName = "".obs;
@@ -233,10 +233,10 @@ class BackupDialogController extends GetxController {
     if (backupRunning.isTrue) {
       return "${"backupInProgress".tr}\n${backupProgress.value}/${filesToBackup.value}";
     }
-    if (isbackupCompleted.isTrue) {
+    if (backupCompleted.isTrue) {
       return "backupMsg".tr;
     }
-    return "letsStrart".tr;
+    return "letsStart".tr;
   }
 
   Future<void> scanFilesToBackup() async {
@@ -270,11 +270,11 @@ class BackupDialogController extends GetxController {
       addIfValid(filePath);
     }
 
-    if (isDownloadedfilesSeclected.value) {
-      final downlodedSongFilePaths = Hive.box(
+    if (downloadedFilesSelected.value) {
+      final downloadedSongFilePaths = Hive.box(
         BoxNames.songDownloads,
       ).values.map<String?>((data) => data['url']?.toString()).toList();
-      for (final filePath in downlodedSongFilePaths) {
+      for (final filePath in downloadedSongFilePaths) {
         addIfValid(filePath);
       }
       try {
@@ -309,7 +309,7 @@ class BackupDialogController extends GetxController {
     }
 
     backupError.value = "";
-    isbackupCompleted.value = false;
+    backupCompleted.value = false;
     backupProgress.value = 0;
     filesToBackup.value = 0;
     currentBackupFileName.value = "";
@@ -333,7 +333,7 @@ class BackupDialogController extends GetxController {
         currentBackupFileName.value = progress.fileName;
       });
 
-      isbackupCompleted.value = true;
+      backupCompleted.value = true;
       final outputFileSize = await File(outputPath).length();
       printINFO(
         "Backup saved to $outputPath ($outputFileSize bytes)",

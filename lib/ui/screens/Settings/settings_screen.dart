@@ -1,3 +1,4 @@
+import 'dart:async';
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
@@ -7,11 +8,10 @@ import 'package:harmonymusic/utils/helper.dart';
 import 'package:harmonymusic/utils/lang_mapping.dart';
 
 import '../../widgets/common_dialog_widget.dart';
-import '../../widgets/cust_switch.dart';
+import '../../widgets/custom_switch.dart';
 import '../../widgets/export_file_dialog.dart';
 import '../../widgets/import_spotify_playlist_dialog.dart';
 import '../../widgets/import_ytmusic_playlist_dialog.dart';
-import '../../widgets/issue_report_dialog.dart';
 import '../../widgets/backup_dialog.dart';
 import '../../widgets/restore_dialog.dart';
 import '/services/constant.dart';
@@ -53,66 +53,6 @@ class SettingsScreen extends StatelessWidget {
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 200, top: 20),
               children: [
-                Obx(() {
-                  if (!settingsController.isNewVersionAvailable.value) {
-                    return const SizedBox.shrink();
-                  }
-                  final isDownloading =
-                      settingsController.isUpdateDownloading.value;
-                  final progress =
-                      (settingsController.updateDownloadProgress.value * 100)
-                          .clamp(0, 100)
-                          .round();
-                  final error = settingsController.updateDownloadError.value;
-                  return Padding(
-                    padding: const EdgeInsets.only(
-                      top: 8.0,
-                      right: 10,
-                      bottom: 8.0,
-                    ),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: ListTile(
-                        onTap: isDownloading
-                            ? null
-                            : () {
-                                settingsController.downloadAndInstallUpdate(
-                                  settingsController.updateInfo.value,
-                                );
-                              },
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        tileColor: Theme.of(context).colorScheme.secondary,
-                        contentPadding: const EdgeInsets.only(
-                          left: 8,
-                          right: 10,
-                        ),
-                        leading: CircleAvatar(
-                          child: isDownloading
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.download),
-                        ),
-                        title: Text("newVersionAvailable".tr),
-                        visualDensity: const VisualDensity(horizontal: -2),
-                        subtitle: Text(
-                          isDownloading
-                              ? "Downloading update $progress%"
-                              : error.isNotEmpty
-                              ? error
-                              : "Tap to download and install",
-                          style: Theme.of(context).textTheme.bodyMedium!
-                              .copyWith(color: Colors.white70, fontSize: 13),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
                 CustomExpansionTile(
                   title: "personalisation".tr,
                   icon: Icons.palette,
@@ -234,9 +174,9 @@ class SettingsScreen extends StatelessWidget {
                                   ),
                                 )
                                 .toList(),
-                            onChanged: (val) {
+                            onChanged: (val) async {
                               if (val == null) return;
-                              settingsController.setFirstLibraryTab(val);
+                              await settingsController.setFirstLibraryTab(val);
                             },
                           ),
                         ),
@@ -253,7 +193,7 @@ class SettingsScreen extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         trailing: Obx(
-                          () => CustSwitch(
+                          () => CustomSwitch(
                             value:
                                 settingsController.isBottomNavBarEnabled.isTrue,
                             onChanged: settingsController.enableBottomNavBar,
@@ -268,7 +208,7 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       trailing: Obx(
-                        () => CustSwitch(
+                        () => CustomSwitch(
                           value: settingsController
                               .isTransitionAnimationDisabled
                               .isTrue,
@@ -285,7 +225,7 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       trailing: Obx(
-                        () => CustSwitch(
+                        () => CustomSwitch(
                           value:
                               settingsController.slidableActionEnabled.isTrue,
                           onChanged: settingsController.toggleSlidableAction,
@@ -333,7 +273,7 @@ class SettingsScreen extends StatelessWidget {
                           dropdownColor: Theme.of(context).cardColor,
                           underline: const SizedBox.shrink(),
                           value: settingsController.noOfHomeScreenContent.value,
-                          items: ([3, 5, 7, 9, 11])
+                          items: [3, 5, 7, 9, 11]
                               .map(
                                 (e) => DropdownMenuItem(
                                   value: e,
@@ -353,7 +293,7 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       trailing: Obx(
-                        () => CustSwitch(
+                        () => CustomSwitch(
                           value: settingsController.cacheHomeScreenData.value,
                           onChanged:
                               settingsController.toggleCacheHomeScreenData,
@@ -411,14 +351,16 @@ class SettingsScreen extends StatelessWidget {
                         ),
                         onPressed: () {
                           if (settingsController.isLinkedWithPiped.isFalse) {
-                            showDialog(
-                              context: context,
-                              builder: (context) => const LinkPiped(),
-                            ).whenComplete(
-                              () => Get.delete<PipedLinkedController>(),
+                            unawaited(
+                              showDialog(
+                                context: context,
+                                builder: (context) => const LinkPiped(),
+                              ).whenComplete(
+                                () => Get.delete<PipedLinkedController>(),
+                              ),
                             );
                           } else {
-                            settingsController.unlinkPiped();
+                            unawaited(settingsController.unlinkPiped());
                           }
                         },
                       ),
@@ -431,9 +373,9 @@ class SettingsScreen extends StatelessWidget {
                                 right: 10,
                                 top: 0,
                               ),
-                              title: Text("resetblacklistedplaylist".tr),
+                              title: Text("resetBlacklistedPlaylist".tr),
                               subtitle: Text(
-                                "resetblacklistedplaylistDes".tr,
+                                "resetBlacklistedPlaylistDes".tr,
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                               trailing: TextButton(
@@ -452,7 +394,7 @@ class SettingsScreen extends StatelessWidget {
                                   ).showSnackBar(
                                     snackbar(
                                       Get.context!,
-                                      "blacklistPlstResetAlert".tr,
+                                      "blacklistPlaylistResetAlert".tr,
                                       size: SanckBarSize.MEDIUM,
                                     ),
                                   );
@@ -470,15 +412,17 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       isThreeLine: true,
                       onTap: () {
-                        settingsController.clearImagesCache().then(
-                          (value) =>
-                              ScaffoldMessenger.of(Get.context!).showSnackBar(
-                                snackbar(
-                                  Get.context!,
-                                  "clearImgCacheAlert".tr,
-                                  size: SanckBarSize.BIG,
+                        unawaited(
+                          settingsController.clearImagesCache().then(
+                            (value) =>
+                                ScaffoldMessenger.of(Get.context!).showSnackBar(
+                                  snackbar(
+                                    Get.context!,
+                                    "clearImgCacheAlert".tr,
+                                    size: SanckBarSize.BIG,
+                                  ),
                                 ),
-                              ),
+                          ),
                         );
                       },
                     ),
@@ -520,13 +464,77 @@ class SettingsScreen extends StatelessWidget {
                           left: 5,
                           right: 10,
                         ),
+                        title: const Text("Playback mode"),
+                        subtitle: Text(
+                          "Classic uses the stable one-song player. Preloaded is experimental.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: Obx(
+                          () => DropdownButton<PlaybackMode>(
+                            dropdownColor: Theme.of(context).cardColor,
+                            underline: const SizedBox.shrink(),
+                            value: settingsController.playbackMode.value,
+                            items: const [
+                              DropdownMenuItem<PlaybackMode>(
+                                value: PlaybackMode.classic,
+                                child: Text("Classic"),
+                              ),
+                              DropdownMenuItem<PlaybackMode>(
+                                value: PlaybackMode.preloaded,
+                                child: Text("Preloaded"),
+                              ),
+                            ],
+                            onChanged: settingsController.setPlaybackMode,
+                          ),
+                        ),
+                      ),
+                    if (GetPlatform.isAndroid)
+                      Obx(
+                        () =>
+                            settingsController.playbackMode.value ==
+                                PlaybackMode.preloaded
+                            ? ListTile(
+                                contentPadding: const EdgeInsets.only(
+                                  left: 5,
+                                  right: 10,
+                                ),
+                                title: const Text("Playback preload range"),
+                                subtitle: Text(
+                                  "Higher values prepare nearby songs while playback is active.",
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                trailing: DropdownButton<int>(
+                                  dropdownColor: Theme.of(context).cardColor,
+                                  underline: const SizedBox.shrink(),
+                                  value: settingsController
+                                      .playbackPreloadRange
+                                      .value,
+                                  items: List.generate(5, (index) {
+                                    final range = index + 1;
+                                    return DropdownMenuItem<int>(
+                                      value: range,
+                                      child: Text("$range"),
+                                    );
+                                  }),
+                                  onChanged: settingsController
+                                      .setPlaybackPreloadRange,
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    if (GetPlatform.isAndroid)
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
                         title: Text("loudnessNormalization".tr),
                         subtitle: Text(
                           "loudnessNormalizationDes".tr,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         trailing: Obx(
-                          () => CustSwitch(
+                          () => CustomSwitch(
                             value: settingsController
                                 .loudnessNormalizationEnabled
                                 .value,
@@ -547,7 +555,7 @@ class SettingsScreen extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         trailing: Obx(
-                          () => CustSwitch(
+                          () => CustomSwitch(
                             value: settingsController.cacheSongs.value,
                             onChanged:
                                 settingsController.toggleCachingSongsValue,
@@ -566,7 +574,7 @@ class SettingsScreen extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         trailing: Obx(
-                          () => CustSwitch(
+                          () => CustomSwitch(
                             value: settingsController.skipSilenceEnabled.value,
                             onChanged: settingsController.toggleSkipSilence,
                           ),
@@ -584,7 +592,7 @@ class SettingsScreen extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         trailing: Obx(
-                          () => CustSwitch(
+                          () => CustomSwitch(
                             value:
                                 settingsController.backgroundPlayEnabled.value,
                             onChanged: settingsController.toggleBackgroundPlay,
@@ -599,7 +607,7 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       trailing: Obx(
-                        () => CustSwitch(
+                        () => CustomSwitch(
                           value: settingsController.keepScreenAwake.value,
                           onChanged: settingsController.toggleKeepScreenAwake,
                         ),
@@ -613,7 +621,7 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       trailing: Obx(
-                        () => CustSwitch(
+                        () => CustomSwitch(
                           value:
                               settingsController.restorePlaybackSession.value,
                           onChanged:
@@ -629,7 +637,7 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       trailing: Obx(
-                        () => CustSwitch(
+                        () => CustomSwitch(
                           value: settingsController.autoOpenPlayer.value,
                           onChanged: settingsController.toggleAutoOpenPlayer,
                         ),
@@ -667,53 +675,41 @@ class SettingsScreen extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         trailing: Obx(
-                          () => CustSwitch(
+                          () => CustomSwitch(
                             value: settingsController
-                                .stopPlyabackOnSwipeAway
+                                .stopPlaybackOnSwipeAway
                                 .value,
                             onChanged: settingsController
-                                .toggleStopPlyabackOnSwipeAway,
+                                .toggleStopPlaybackOnSwipeAway,
                           ),
                         ),
                       ),
-                    GetPlatform.isAndroid
-                        ? Obx(
-                            () => ListTile(
-                              contentPadding: const EdgeInsets.only(
-                                left: 5,
-                                right: 10,
-                              ),
-                              title: Text("ignoreBatOpt".tr),
-                              onTap:
-                                  settingsController
-                                      .isIgnoringBatteryOptimizations
-                                      .isFalse
-                                  ? settingsController
-                                        .enableIgnoringBatteryOptimizations
-                                  : null,
-                              subtitle: Obx(
-                                () => RichText(
-                                  text: TextSpan(
-                                    text:
-                                        "${"status".tr}: ${settingsController.isIgnoringBatteryOptimizations.isTrue ? "enabled".tr : "disabled".tr}\n",
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium!
-                                        .copyWith(fontWeight: FontWeight.bold),
-                                    children: <TextSpan>[
-                                      TextSpan(
-                                        text: "ignoreBatOptDes".tr,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
-                                      ),
-                                    ],
-                                  ),
+                    if (GetPlatform.isAndroid)
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("ignoreBatOpt".tr),
+                        onTap:
+                            settingsController.openBatteryOptimizationSettings,
+                        subtitle: Obx(
+                          () => RichText(
+                            text: TextSpan(
+                              text:
+                                  "${"status".tr}: ${settingsController.isIgnoringBatteryOptimizations.isTrue ? "enabled".tr : "disabled".tr}\n",
+                              style: Theme.of(context).textTheme.bodyMedium!
+                                  .copyWith(fontWeight: FontWeight.bold),
+                              children: <TextSpan>[
+                                TextSpan(
+                                  text: "ignoreBatOptDes".tr,
+                                  style: Theme.of(context).textTheme.bodyMedium,
                                 ),
-                              ),
+                              ],
                             ),
-                          )
-                        : const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
                 CustomExpansionTile(
@@ -728,7 +724,7 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       trailing: Obx(
-                        () => CustSwitch(
+                        () => CustomSwitch(
                           value: settingsController
                               .autoDownloadFavoriteSongEnabled
                               .value,
@@ -768,8 +764,8 @@ class SettingsScreen extends StatelessWidget {
                             context,
                           ).textTheme.titleMedium!.copyWith(fontSize: 15),
                         ),
-                        onPressed: () {
-                          settingsController.resetDownloadLocation();
+                        onPressed: () async {
+                          await settingsController.resetDownloadLocation();
                         },
                       ),
                       contentPadding: const EdgeInsets.only(
@@ -780,14 +776,14 @@ class SettingsScreen extends StatelessWidget {
                       title: Text("downloadLocation".tr),
                       subtitle: Obx(
                         () => Text(
-                          settingsController.isCurrentPathsupportDownDir
+                          settingsController.isCurrentPathSupportDownloadDir
                               ? "In App storage directory"
                               : settingsController.downloadLocationPath.value,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ),
                       onTap: () async {
-                        settingsController.setDownloadLocation();
+                        unawaited(settingsController.setDownloadLocation());
                       },
                     ),
                     if (GetPlatform.isAndroid)
@@ -796,9 +792,9 @@ class SettingsScreen extends StatelessWidget {
                           left: 5,
                           right: 10,
                         ),
-                        title: Text("exportDowloadedFiles".tr),
+                        title: Text("exportDownloadedFiles".tr),
                         subtitle: Text(
-                          "exportDowloadedFilesDes".tr,
+                          "exportDownloadedFilesDes".tr,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         isThreeLine: true,
@@ -825,7 +821,7 @@ class SettingsScreen extends StatelessWidget {
                           ),
                         ),
                         onTap: () async {
-                          settingsController.setExportedLocation();
+                          unawaited(settingsController.setExportedLocation());
                         },
                       ),
                   ],
@@ -923,9 +919,9 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     ListTile(
                       contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: const Text("Import Spotify playlist export"),
+                      title: const Text("Import Spotify export"),
                       subtitle: Text(
-                        "Creates local playlists from Spotify account-data Playlist JSON or ZIP exports.",
+                        "Creates local playlists from Spotify account-data playlist and library JSON or ZIP exports.",
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       isThreeLine: true,
@@ -955,18 +951,20 @@ class SettingsScreen extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       onTap: () {
-                        settingsController.resetAppSettingsToDefault().then((
-                          _,
-                        ) {
-                          ScaffoldMessenger.of(Get.context!).showSnackBar(
-                            snackbar(
-                              Get.context!,
-                              "resetToDefaultMsg".tr,
-                              size: SanckBarSize.BIG,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        });
+                        unawaited(
+                          settingsController.resetAppSettingsToDefault().then((
+                            _,
+                          ) {
+                            ScaffoldMessenger.of(Get.context!).showSnackBar(
+                              snackbar(
+                                Get.context!,
+                                "resetToDefaultMsg".tr,
+                                size: SanckBarSize.BIG,
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }),
+                        );
                       },
                     ),
                   ],
@@ -984,8 +982,10 @@ class SettingsScreen extends StatelessWidget {
                       ),
                       isThreeLine: true,
                       onTap: () {
-                        AppPlatformService.openUrl(
-                          'https://github.com/bozmund/Harmony-Music',
+                        unawaited(
+                          AppPlatformService.openUrl(
+                            'https://github.com/bozmund/Harmony-Music',
+                          ),
                         );
                       },
                     ),
@@ -1014,22 +1014,6 @@ class SettingsScreen extends StatelessWidget {
                           onChanged: settingsController.changeUpdateChannel,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: const Text("Report an issue"),
-                      subtitle: Text(
-                        "Send a bug report with app diagnostics.",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      isThreeLine: true,
-                      onTap: () =>
-                          showDialog(
-                            context: context,
-                            builder: (context) => const IssueReportDialog(),
-                          ).whenComplete(
-                            () => Get.delete<IssueReportDialogController>(),
-                          ),
                     ),
                     const Divider(),
                     SizedBox(
@@ -1202,11 +1186,11 @@ Widget radioWidget({
   return Obx(
     () => ListTile(
       visualDensity: const VisualDensity(vertical: -4),
-      onTap: () {
+      onTap: () async {
         if (value.runtimeType == ThemeType) {
-          controller.onThemeChange(value);
+          await controller.onThemeChange(value);
         } else {
-          controller.onContentChange(value);
+          await controller.onContentChange(value);
           Navigator.of(Get.context!).pop();
         }
       },

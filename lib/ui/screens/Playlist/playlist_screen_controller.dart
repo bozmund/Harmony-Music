@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:harmonymusic/services/app_contracts.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -66,40 +68,47 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     final args = Get.arguments as List;
     final Playlist? playlist = args[0];
     final playlistId = args[1];
-    fetchPlaylistDetails(playlist, playlistId);
-    Future.delayed(
-      const Duration(milliseconds: 200),
-      () => Get.find<HomeScreenController>().whenHomeScreenOnTop(),
+    unawaited(fetchPlaylistDetails(playlist, playlistId));
+    unawaited(
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (isClosed) return;
+        Get.find<HomeScreenController>().whenHomeScreenOnTop();
+      }),
     );
   }
 
   ///Fetches playlist details from the service
   @override
-  void fetchPlaylistDetails(Playlist? playlist_, String playlistId) async {
+  Future<void> fetchPlaylistDetails(Playlist? playlist_, String playlistId) async {
+    final generation = beginAsyncLoad();
     final isIdOnly = playlist_ == null;
     final isPipedPlaylist = playlist_?.isPipedPlaylist ?? false;
     isDefaultPlaylist.value =
-        (playlistId == BoxNames.songDownloads ||
+        playlistId == BoxNames.songDownloads ||
         playlistId == BoxNames.songsCache ||
         playlistId == BoxNames.libRP ||
         playlistId == BoxNames.libFav ||
         playlistId == BoxNames.libFavNotDownloaded ||
         playlistId == BoxNames.libImportDuplicates ||
-        playlistId == BoxNames.libImportReview);
+        playlistId == BoxNames.libImportReview;
 
     if (!isIdOnly && !playlist_.isCloudPlaylist) {
       playlist.value = playlist_;
-      _animationController.forward();
+      await _animationController.forward();
+      if (!isAsyncLoadActive(generation)) return;
       if (playlistId == BoxNames.libFavNotDownloaded) {
-        await fetchLikedNotDownloadedSongs();
+        await fetchLikedNotDownloadedSongs(generation: generation);
       } else {
-        fetchSongsFromDatabase(playlistId);
+        await fetchSongsFromDatabase(playlistId, generation: generation);
       }
+      if (!isAsyncLoadActive(generation)) return;
       isContentFetched.value = true;
 
-      Future.delayed(
-        const Duration(seconds: 1),
-        () => _updatePlaylistThumbSongBased(),
+      unawaited(
+        Future.delayed(const Duration(seconds: 1), () {
+          if (!isAsyncLoadActive(generation)) return;
+          unawaited(_updatePlaylistThumbSongBased());
+        }),
       );
 
       return;
@@ -107,25 +116,43 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     if (!isIdOnly) {
       playlist.value = playlist_;
-      _animationController.forward();
+      await _animationController.forward();
+      if (!isAsyncLoadActive(generation)) return;
     }
 
     try {
       // Check if the playlist is offline
       if (await checkIfAddedToLibrary(playlistId)) {
+        if (!isAsyncLoadActive(generation)) return;
         final songsBox = await Hive.openBox(playlistId);
+        if (!isAsyncLoadActive(generation)) {
+          await songsBox.close();
+          return;
+        }
         if (songsBox.values.isEmpty) {
-          _fetchSongOnline(playlistId, isIdOnly, isPipedPlaylist).then((value) {
-            updateSongsIntoDb();
+          await _fetchSongOnline(
+            playlistId,
+            isIdOnly,
+            isPipedPlaylist,
+            generation: generation,
+          ).then((value) async {
+            if (!isAsyncLoadActive(generation)) return;
+            await updateSongsIntoDb();
           });
         } else {
           // If the playlist is offline, fetch the songs from the local database
           // Playlist details are already fetched in _checkIfAddedToLibrary method
-          fetchSongsFromDatabase(playlistId);
+          await fetchSongsFromDatabase(playlistId, generation: generation);
         }
       } else {
-        _fetchSongOnline(playlistId, isIdOnly, isPipedPlaylist);
+        await _fetchSongOnline(
+          playlistId,
+          isIdOnly,
+          isPipedPlaylist,
+          generation: generation,
+        );
       }
+      if (!isAsyncLoadActive(generation)) return;
       isContentFetched.value = true;
     } catch (e) {
       // Handle any errors that occur during the fetch
@@ -133,9 +160,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     }
   }
 
-  Future<void> fetchLikedNotDownloadedSongs() async {
+  Future<void> fetchLikedNotDownloadedSongs({int? generation}) async {
     final favBox = await Hive.openBox(BoxNames.libFav);
     final downloadsBox = await Hive.openBox(BoxNames.songDownloads);
+    if (generation != null && !isAsyncLoadActive(generation)) return;
     songList.value = favBox.values
         .where((item) => !downloadsBox.containsKey(item['videoId']))
         .map((item) => MediaItemBuilder.fromJson(item))
@@ -146,12 +174,16 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   Future<void> _fetchSongOnline(
     String id,
     bool isIdOnly,
-    bool isPipedPlaylist,
+    bool isPipedPlaylist, {
+    int? generation,
+  }
   ) async {
     isContentFetched.value = false;
 
     if (isPipedPlaylist) {
-      songList.value = (await Get.find<PipedServices>().getPlaylistSongs(id));
+      final songs = await Get.find<PipedServices>().getPlaylistSongs(id);
+      if (generation != null && !isAsyncLoadActive(generation)) return;
+      songList.value = songs;
       isContentFetched.value = true;
       checkDownloadStatus();
       return;
@@ -160,20 +192,22 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     final content = await _musicServices.getPlaylistOrAlbumSongs(
       playlistId: id,
     );
+    if (generation != null && !isAsyncLoadActive(generation)) return;
 
     if (isIdOnly) {
       content['playlistId'] = id;
       playlist.value = Playlist.fromJson(content);
-      _animationController.forward();
+      await _animationController.forward();
+      if (generation != null && !isAsyncLoadActive(generation)) return;
     }
     songList.value = List<MediaItem>.from(content['tracks']);
     checkDownloadStatus();
   }
 
   @override
-  void syncPlaylistSongs() {
-    _fetchSongOnline(playlist.value.playlistId, false, false).then((value) {
-      updateSongsIntoDb();
+  Future<void> syncPlaylistSongs() async {
+    await _fetchSongOnline(playlist.value.playlistId, false, false).then((value) async {
+      await updateSongsIntoDb();
       isContentFetched.value = true;
     });
   }
@@ -181,6 +215,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   @override
   Future<bool> checkIfAddedToLibrary(String id) async {
     final box = await Hive.openBox(BoxNames.libraryPlaylists);
+    if (isClosed) {
+      await box.close();
+      return false;
+    }
     isAddedToLibrary.value = box.containsKey(id);
     if (isAddedToLibrary.value) playlist.value = Playlist.fromJson(box.get(id));
     await box.close();
@@ -195,7 +233,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         final res = await Get.find<PipedServices>().deletePlaylist(
           content.playlistId,
         );
-        Get.find<LibraryPlaylistsController>().syncPipedPlaylist();
+        await Get.find<LibraryPlaylistsController>().syncPipedPlaylist();
         return (res.code == 1);
       } else {
         final box = await Hive.openBox(BoxNames.libraryPlaylists);
@@ -211,7 +249,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         isAddedToLibrary.value = add;
       }
       //Update frontend
-      Get.find<LibraryPlaylistsController>().refreshLib();
+      await Get.find<LibraryPlaylistsController>().refreshLib();
       if (!content.isCloudPlaylist && !add) {
         final playlistBox = await Hive.openBox(content.playlistId);
         await playlistBox.deleteFromDisk();
@@ -235,7 +273,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     }
 
     // Update the playlist thumbnail based on the first song's thumbnail
-    _updatePlaylistThumbSongBased();
+    await _updatePlaylistThumbSongBased();
   }
 
   @override
@@ -247,7 +285,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         await favBox.delete(element.id);
         songList.removeWhere((song) => song.id == element.id);
       }
-      _updatePlaylistThumbSongBased();
+      await _updatePlaylistThumbSongBased();
       return;
     }
     if (id == BoxNames.libImportDuplicates || id == BoxNames.libImportReview) {
@@ -257,7 +295,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         songList.removeWhere((song) => song.id == element.id);
       }
       await conflictsBox.close();
-      _updatePlaylistThumbSongBased();
+      await _updatePlaylistThumbSongBased();
       return;
     }
     final offline = id == BoxNames.songsCache || id == BoxNames.songDownloads;
@@ -281,14 +319,14 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     if (!offline) await box_.close();
 
     // Update the playlist thumbnail based on the first song's thumbnail
-    _updatePlaylistThumbSongBased();
+    await _updatePlaylistThumbSongBased();
   }
 
-  void addNRemoveItemsInList(
+  Future<void> addNRemoveItemsInList(
     MediaItem? item, {
     required String action,
     int? index,
-  }) {
+  }) async {
     if (action == 'add') {
       if (tempListContainer.isNotEmpty) {
         index != null
@@ -307,14 +345,14 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     }
 
     // update the playlist thumbnail based on the first song's thumbnail
-    _updatePlaylistThumbSongBased();
+    await _updatePlaylistThumbSongBased();
   }
 
   @override
   void fetchAlbumDetails(Album? album_, String albumId) {} // Not used in this class
 
   /// This function updates the local playlist thumbnail based on the first song's thumbnail
-  void _updatePlaylistThumbSongBased() {
+  Future<void> _updatePlaylistThumbSongBased() async {
     final currentPlaylist = playlist.value;
 
     if (isDefaultPlaylist.isTrue || currentPlaylist.isCloudPlaylist) {
@@ -341,13 +379,14 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     // Update the playlist thumbnail URL
     playlist.value = updatedPlaylist;
-    Get.find<LibraryPlaylistsController>().updatePlaylistIntoDb(
+    await Get.find<LibraryPlaylistsController>().updatePlaylistIntoDb(
       updatedPlaylist,
     );
   }
 
   @override
   void onClose() {
+    cancelAsyncLoads();
     tempListContainer.clear();
     _animationController.dispose();
     Get.find<HomeScreenController>().whenHomeScreenOnTop();
@@ -370,7 +409,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
       // Show progress dialog
       if (context.mounted) {
-        _showProgressDialog(context, "exportingPlaylist".tr);
+        await _showProgressDialog(context, "exportingPlaylist".tr);
       }
 
       // Get appropriate directory based on platform
@@ -473,7 +512,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
       // Show progress dialog
       if (context.mounted) {
-        _showProgressDialog(context, "exportingPlaylist".tr);
+        await _showProgressDialog(context, "exportingPlaylist".tr);
       }
 
       // Get appropriate directory based on platform
@@ -692,8 +731,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   }
 
   // Helper method to show progress dialog
-  void _showProgressDialog(BuildContext context, String title) {
-    Get.dialog(
+  Future<void> _showProgressDialog(BuildContext context, String title) async {
+    await Get.dialog(
       AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),

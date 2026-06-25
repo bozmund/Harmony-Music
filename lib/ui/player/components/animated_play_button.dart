@@ -19,50 +19,77 @@ class AnimatedPlayButton extends StatefulWidget {
 
 class _AnimatedPlayButtonState extends State<AnimatedPlayButton>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  
+  late final AnimationController _controller;
+  late final Worker _buttonStateWorker;
+
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+
+    final playerController = Get.find<PlayerController>();
+    final initialState = playerController.buttonState.value;
+    _controller.value = initialState == PlayButtonState.playing ? 1.0 : 0.0;
+
+    _buttonStateWorker = ever<PlayButtonState>(
+      playerController.buttonState,
+      _syncAnimationWithButtonState,
+    );
+  }
+
+  Future<void> _syncAnimationWithButtonState(
+    PlayButtonState buttonState,
+  ) async {
+    if (!mounted) return;
+
+    try {
+      if (buttonState == PlayButtonState.playing) {
+        await _controller.forward().orCancel;
+      } else if (buttonState != PlayButtonState.loading) {
+        await _controller.reverse().orCancel;
+      }
+    } on TickerCanceled {
+      // Animation was cancelled because another animation started
+      // or because the widget was disposed.
+    }
   }
 
   @override
   void dispose() {
+    _buttonStateWorker.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GetX<PlayerController>(builder: (controller) {
-      final buttonState = controller.buttonState.value;
-      final isPlaying = buttonState == PlayButtonState.playing;
-      final isLoading = buttonState == PlayButtonState.loading;
+    return GetX<PlayerController>(
+      builder: (controller) {
+        final buttonState = controller.buttonState.value;
+        final isPlaying = buttonState == PlayButtonState.playing;
+        final isLoading = buttonState == PlayButtonState.loading;
 
-      if (isPlaying) {
-        _controller.forward();
-      } else if (!isLoading) {
-        _controller.reverse();
-      }
-
-      return IconButton(
-        iconSize: widget.iconSize,
-        onPressed: () {
-          isPlaying ? controller.pause() : controller.play();
-        },
-        icon: isLoading
-            ? const LoadingIndicator(
-                dimension: 20,
-              )
-            : AnimatedIcon(
-                icon: AnimatedIcons.play_pause,
-                progress: _controller,
-              ),
-      );
-    });
+        return IconButton(
+          iconSize: widget.iconSize,
+          onPressed: () {
+            if (isPlaying) {
+              controller.requestPause();
+            } else {
+              controller.requestPlay();
+            }
+          },
+          icon: isLoading
+              ? const LoadingIndicator(dimension: 20)
+              : AnimatedIcon(
+                  icon: AnimatedIcons.play_pause,
+                  progress: _controller,
+                ),
+        );
+      },
+    );
   }
 }

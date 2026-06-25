@@ -52,9 +52,9 @@ class ArtistScreen extends StatelessWidget {
                     );
                     return;
                   }
-                  playerController.startRadio(
+                  await playerController.startRadio(
                     null,
-                    playlistid: artistScreenController.artist_.radioId,
+                    playlistId: artistScreenController.artist_.radioId,
                   );
                 },
                 child: const Icon(Icons.sensors),
@@ -164,12 +164,12 @@ class Body extends StatelessWidget {
 
     if (tabIndex == 0) {
       return Obx(
-        () => artistScreenController.isArtistContentFetced.isTrue
+        () => artistScreenController.isArtistContentFetched.isTrue
             ? AboutArtist(artistScreenController: artistScreenController)
             : const Center(child: LoadingIndicator()),
       );
     } else {
-      final separatedContent = artistScreenController.sepataredContent;
+      final separatedContent = artistScreenController.separatedContent;
       final currentTabName = [
         "About",
         "Songs",
@@ -178,7 +178,7 @@ class Body extends StatelessWidget {
         "Singles",
       ][tabIndex];
       return Obx(() {
-        if (artistScreenController.isSeparatedArtistContentFetced.isFalse &&
+        if (artistScreenController.isSeparatedArtistContentFetched.isFalse &&
             artistScreenController.navigationRailCurrentIndex.value != 0) {
           return const Center(child: LoadingIndicator());
         }
@@ -223,7 +223,7 @@ class AboutArtist extends StatelessWidget {
         padding: const EdgeInsets.all(8.0),
         child: SingleChildScrollView(
           padding: padding,
-          child: artistScreenController.isArtistContentFetced.value
+          child: artistScreenController.isArtistContentFetched.value
               ? Column(
                   children: [
                     SizedBox(
@@ -242,12 +242,12 @@ class AboutArtist extends StatelessWidget {
                             child: Column(
                               children: [
                                 InkWell(
-                                  onTap: () {
+                                  onTap: () async {
                                     final bool add = artistScreenController
                                         .isAddedToLibrary
                                         .isFalse;
-                                    artistScreenController
-                                        .addNremoveFromLibrary(add: add)
+                                    await artistScreenController
+                                        .addNRemoveFromLibrary(add: add)
                                         .then((value) {
                                           if (context.mounted) {
                                             ScaffoldMessenger.of(
@@ -271,7 +271,7 @@ class AboutArtist extends StatelessWidget {
                                   child: Obx(
                                     () =>
                                         artistScreenController
-                                            .isArtistContentFetced
+                                            .isArtistContentFetched
                                             .isFalse
                                         ? const SizedBox.shrink()
                                         : Icon(

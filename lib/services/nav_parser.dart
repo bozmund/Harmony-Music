@@ -230,7 +230,7 @@ dynamic parseSingle(dynamic result) {
     'browseId': nav(result, ['title', 'runs', 0, ...navigation_browse_id]),
     'thumbnails': nav(result, thumbnail_renderer),
     'description':
-        (nav(result, ["subtitle", "runs"])).map((run) => run['text']).join('')
+        nav(result, ["subtitle", "runs"]).map((run) => run['text']).join('')
   });
 }
 
@@ -302,7 +302,7 @@ Album parseAlbum(Map<dynamic, dynamic> result, {bool reqAlbumObj = true}) {
     'thumbnails': nav(result, thumbnail_renderer),
     'audioPlaylistId': nav(result, audio_watch_playlist_id),
     'description':
-        (nav(result, ["subtitle", "runs"])).map((run) => run['text']).join('')
+        nav(result, ["subtitle", "runs"]).map((run) => run['text']).join('')
     //'isExplicit': nav(result, subtitle_badge_label, noneIfAbsent: true) != null,
   };
   albumMap.addAll(artistInfo);
@@ -393,7 +393,7 @@ List<dynamic>? parseSongArtists(Map<String, dynamic> data, int index) {
 }
 
 Map<String, dynamic> getFlexColumnItem(Map<String, dynamic> item, int index) {
-  if ((item['flexColumns']).length <= index ||
+  if (item['flexColumns'].length <= index ||
       !item['flexColumns'][index]['musicResponsiveListItemFlexColumnRenderer']
           .containsKey('text') ||
       !item['flexColumns'][index]['musicResponsiveListItemFlexColumnRenderer']
@@ -850,29 +850,29 @@ dynamic parseSearchResult(Map<String, dynamic>? data,
       }
     }
   }
-  if ((['song', 'video']).contains(resultType)) {
+  if (['song', 'video'].contains(resultType)) {
     searchResult['videoId'] = nav(data,
         [...play_button, 'playNavigationEndpoint', 'watchEndpoint', 'videoId']);
     searchResult['videoType'] = videoType;
   }
 
-  if ((['song', 'video', 'album']).contains(resultType)) {
+  if (['song', 'video', 'album'].contains(resultType)) {
     searchResult['length'] = null;
     searchResult['year'] = null;
     final flexItem = getFlexColumnItem(data, 1);
-    final runs = (flexItem['text']['runs']);
+    final runs = flexItem['text']['runs'];
     final songInfo = parseSongRuns(runs);
     searchResult.addAll(songInfo);
   }
 
-  if ((['artist', 'album', 'playlist']).contains(resultType)) {
+  if (['artist', 'album', 'playlist'].contains(resultType)) {
     searchResult['browseId'] = nav(data, navigation_browse_id);
     if (searchResult['browseId'] == null) {
       return {};
     }
   }
 
-  if ((['song', 'album']).contains(resultType)) {
+  if (['song', 'album'].contains(resultType)) {
     searchResult['isExplicit'] = nav(data, badge_label);
   }
 
@@ -925,7 +925,7 @@ Map<String, dynamic> parseAlbumHeader(Map<String, dynamic> response) {
         0,
         "text"
       ]) ??
-      (nav(header, ["subtitle", "runs"]))
+      nav(header, ["subtitle", "runs"])
           .map((item) => item.values.first)
           .toList()
           .join(" ");
@@ -938,7 +938,7 @@ Map<String, dynamic> parseAlbumHeader(Map<String, dynamic> response) {
   album.addAll(albumInfo);
 
   if (header['secondSubtitle']['runs'].length > 1) {
-    album['trackCount'] = (header['secondSubtitle']['runs'][0]['text']);
+    album['trackCount'] = header['secondSubtitle']['runs'][0]['text'];
     album['duration'] = header['secondSubtitle']['runs'][2]['text'];
   } else {
     album['duration'] = header['secondSubtitle']['runs'][0]['text'];

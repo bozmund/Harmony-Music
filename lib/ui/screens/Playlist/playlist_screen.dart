@@ -154,8 +154,8 @@ class PlaylistScreen extends StatelessWidget {
                           SizedBox(
                             width: 50,
                             child: IconButton(
-                              onPressed: () {
-                                showModalBottomSheet(
+                              onPressed: () async {
+                                await showModalBottomSheet(
                                   constraints: const BoxConstraints(
                                     maxWidth: 500,
                                   ),
@@ -165,7 +165,7 @@ class PlaylistScreen extends StatelessWidget {
                                     ),
                                   ),
                                   context: Get.find<PlayerController>()
-                                      .homeScaffoldkey
+                                      .homeScaffoldKey
                                       .currentState!
                                       .context,
                                   barrierColor: Colors.transparent.withAlpha(
@@ -178,9 +178,9 @@ class PlaylistScreen extends StatelessWidget {
                                         ListTile(
                                           leading: const Icon(Icons.edit),
                                           title: Text("renamePlaylist".tr),
-                                          onTap: () {
+                                          onTap: () async {
                                             Navigator.of(context).pop();
-                                            showDialog(
+                                            await showDialog(
                                               context: context,
                                               builder: (context) =>
                                                   CreateNRenamePlaylistPopup(
@@ -195,9 +195,9 @@ class PlaylistScreen extends StatelessWidget {
                                         ListTile(
                                           leading: const Icon(Icons.delete),
                                           title: Text("removePlaylist".tr),
-                                          onTap: () {
+                                          onTap: () async {
                                             Navigator.of(context).pop();
-                                            playlistController
+                                            await playlistController
                                                 .addNRemoveFromLibrary(
                                                   playlistController
                                                       .playlist
@@ -290,12 +290,12 @@ class PlaylistScreen extends StatelessWidget {
                                                         : "removeFromLibrary"
                                                               .tr,
                                                     splashRadius: 10,
-                                                    onPressed: () {
+                                                    onPressed: () async {
                                                       final add =
                                                           playlistController
                                                               .isAddedToLibrary
                                                               .isFalse;
-                                                      playlistController
+                                                      await playlistController
                                                           .addNRemoveFromLibrary(
                                                             playlistController
                                                                 .playlist
@@ -339,21 +339,23 @@ class PlaylistScreen extends StatelessWidget {
                                           // Play button
                                           IconButton(
                                             tooltip: "play".tr,
-                                            onPressed: () {
-                                              playerController.playPlayListSong(
-                                                List<MediaItem>.from(
-                                                  playlistController.songList,
-                                                ),
-                                                0,
-                                                playfrom: PlayingFrom(
-                                                  name: playlistController
-                                                      .playlist
-                                                      .value
-                                                      .title,
-                                                  type:
-                                                      PlayingFromType.PLAYLIST,
-                                                ),
-                                              );
+                                            onPressed: () async {
+                                              await playerController
+                                                  .playPlayListSong(
+                                                    List<MediaItem>.from(
+                                                      playlistController
+                                                          .songList,
+                                                    ),
+                                                    0,
+                                                    playFrom: PlayingFrom(
+                                                      name: playlistController
+                                                          .playlist
+                                                          .value
+                                                          .title,
+                                                      type: PlayingFromType
+                                                          .PLAYLIST,
+                                                    ),
+                                                  );
                                             },
                                             icon: Icon(
                                               Icons.play_circle,
@@ -365,8 +367,8 @@ class PlaylistScreen extends StatelessWidget {
                                           // Enqueue button
                                           IconButton(
                                             tooltip: "enqueueSongs".tr,
-                                            onPressed: () {
-                                              Get.find<PlayerController>()
+                                            onPressed: () async {
+                                              await Get.find<PlayerController>()
                                                   .enqueueSongList(
                                                     playlistController.songList
                                                         .toList(),
@@ -397,24 +399,25 @@ class PlaylistScreen extends StatelessWidget {
                                           // Shuffle button
                                           IconButton(
                                             tooltip: "shuffle".tr,
-                                            onPressed: () {
+                                            onPressed: () async {
                                               final songsToPlay =
                                                   List<MediaItem>.from(
                                                     playlistController.songList,
                                                   );
                                               songsToPlay.shuffle();
-                                              playerController.playPlayListSong(
-                                                songsToPlay,
-                                                0,
-                                                playfrom: PlayingFrom(
-                                                  name: playlistController
-                                                      .playlist
-                                                      .value
-                                                      .title,
-                                                  type:
-                                                      PlayingFromType.PLAYLIST,
-                                                ),
-                                              );
+                                              await playerController
+                                                  .playPlayListSong(
+                                                    songsToPlay,
+                                                    0,
+                                                    playFrom: PlayingFrom(
+                                                      name: playlistController
+                                                          .playlist
+                                                          .value
+                                                          .title,
+                                                      type: PlayingFromType
+                                                          .PLAYLIST,
+                                                    ),
+                                                  );
                                             },
                                             icon: Icon(
                                               Icons.shuffle,
@@ -432,17 +435,19 @@ class PlaylistScreen extends StatelessWidget {
                                                   .playlistId;
                                               return IconButton(
                                                 tooltip: "downloadPlaylist".tr,
-                                                onPressed: () {
+                                                onPressed: () async {
                                                   if (playlistController
                                                       .isDownloaded
                                                       .isTrue) {
                                                     return;
                                                   }
-                                                  controller.downloadPlaylist(
-                                                    id,
-                                                    playlistController.songList
-                                                        .toList(),
-                                                  );
+                                                  await controller
+                                                      .downloadPlaylist(
+                                                        id,
+                                                        playlistController
+                                                            .songList
+                                                            .toList(),
+                                                      );
                                                 },
                                                 icon:
                                                     playlistController
@@ -515,8 +520,8 @@ class PlaylistScreen extends StatelessWidget {
                                               .isTrue)
                                             IconButton(
                                               tooltip: "syncPlaylistSongs".tr,
-                                              onPressed: () {
-                                                playlistController
+                                              onPressed: () async {
+                                                await playlistController
                                                     .syncPlaylistSongs();
                                               },
                                               icon: const Icon(
@@ -535,11 +540,11 @@ class PlaylistScreen extends StatelessWidget {
                                                 size: 20,
                                               ),
                                               splashRadius: 10,
-                                              onPressed: () {
+                                              onPressed: () async {
                                                 Get.nestedKey(
                                                   ScreenNavigationSetup.id,
                                                 )!.currentState!.pop();
-                                                Get.find<
+                                                await Get.find<
                                                       LibraryPlaylistsController
                                                     >()
                                                     .blacklistPipedPlaylist(
@@ -569,13 +574,13 @@ class PlaylistScreen extends StatelessWidget {
                                                     vertical: -3,
                                                   ),
                                               splashRadius: 10,
-                                              onPressed: () {
+                                              onPressed: () async {
                                                 final content =
                                                     playlistController
                                                         .playlist
                                                         .value;
                                                 if (content.isPipedPlaylist) {
-                                                  AppPlatformService.shareText(
+                                                  await AppPlatformService.shareText(
                                                     "https://piped.video/playlist?list=${content.playlistId}",
                                                   );
                                                 } else {
@@ -586,13 +591,14 @@ class PlaylistScreen extends StatelessWidget {
                                                   String url =
                                                       "https://youtube.com/playlist?list=";
 
-                                                  url = isPlaylistIdPrefixAvailable
+                                                  url =
+                                                      isPlaylistIdPrefixAvailable
                                                       ? url +
                                                             content.playlistId
                                                                 .substring(2)
                                                       : url +
                                                             content.playlistId;
-                                                  AppPlatformService.shareText(
+                                                  await AppPlatformService.shareText(
                                                     url,
                                                   );
                                                 }
@@ -604,8 +610,8 @@ class PlaylistScreen extends StatelessWidget {
                                             ),
                                           // Export button - opens export dialog
                                           IconButton(
-                                            onPressed: () {
-                                              showDialog(
+                                            onPressed: () async {
+                                              await showDialog(
                                                 context: context,
                                                 builder: (dialogContext) =>
                                                     PlaylistExportDialog(
@@ -715,7 +721,7 @@ class PlaylistScreen extends StatelessWidget {
                                             .playlistId,
                                         screenController: playlistController,
                                         isSearchFeatureRequired: true,
-                                        isPlaylistRearrageFeatureRequired:
+                                        isPlaylistRearrangeFeatureRequired:
                                             !playlistController
                                                 .playlist
                                                 .value
@@ -735,7 +741,7 @@ class PlaylistScreen extends StatelessWidget {
                                                     .value
                                                     .playlistId !=
                                                 BoxNames.songsCache,
-                                        isSongDeletetioFeatureRequired:
+                                        isSongDeletionFeatureRequired:
                                             !playlistController
                                                 .playlist
                                                 .value
@@ -796,13 +802,13 @@ class PlaylistScreen extends StatelessWidget {
                                   right: 5,
                                 ),
                                 child: SongListTile(
-                                  onTap: () {
-                                    playerController.playPlayListSong(
+                                  onTap: () async {
+                                    await playerController.playPlayListSong(
                                       List<MediaItem>.from(
                                         playlistController.songList,
                                       ),
                                       index - 3,
-                                      playfrom: PlayingFrom(
+                                      playFrom: PlayingFrom(
                                         name: playlistController
                                             .playlist
                                             .value

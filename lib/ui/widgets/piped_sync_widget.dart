@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/utils/helper.dart';
@@ -11,11 +13,11 @@ class PipedSyncWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final librplstCntrller = Get.find<LibraryPlaylistsController>();
+    final libraryPlaylistController = Get.find<LibraryPlaylistsController>();
     return Padding(
       padding: padding,
       child: RotationTransition(
-        turns: Tween(begin: 0.0, end: 1.0).animate(librplstCntrller.controller),
+        turns: Tween(begin: 0.0, end: 1.0).animate(libraryPlaylistController.controller),
         child: IconButton(
             splashRadius: 20,
             iconSize: 20,
@@ -25,18 +27,17 @@ class PipedSyncWidget extends StatelessWidget {
             ), // <-- Icon
             onPressed: () async {
               try {
-                //printINFO(librplstCntrller.controller.status);
-                librplstCntrller.controller.forward();
-                librplstCntrller.controller.repeat();
-                await librplstCntrller.syncPipedPlaylist();
-                librplstCntrller.controller.stop();
-                librplstCntrller.controller.reset();
+                await libraryPlaylistController.controller.forward();
+                unawaited(libraryPlaylistController.controller.repeat());
+                await libraryPlaylistController.syncPipedPlaylist();
+                libraryPlaylistController.controller.stop();
+                libraryPlaylistController.controller.reset();
                 ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-                    Get.context!, "pipedplstSyncAlert".tr,
+                    Get.context!, "pipedPlaylistSyncAlert".tr,
                     size: SanckBarSize.MEDIUM));
               } catch (e) {
                 ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-                    Get.context!, "errorOccuredAlert".tr,
+                    Get.context!, "errorOccurredAlert".tr,
                     size: SanckBarSize.BIG));
                 printERROR(e);
               }
