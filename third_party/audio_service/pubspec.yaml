@@ -7,6 +7,8 @@ topics:
   - audio
   - background
 
+publish_to: none
+
 environment:
   sdk: ^3.6.0
   flutter: ">=3.27.0"
