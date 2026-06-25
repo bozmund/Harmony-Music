@@ -25,7 +25,7 @@ class ExportFileDialog extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.only(bottom: 10.0, top: 10),
                 child: Text(
-                  "exportDowloadedFiles".tr,
+                  "exportDownloadedFiles".tr,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -76,12 +76,12 @@ class ExportFileDialog extends StatelessWidget {
                         color: Theme.of(context).textTheme.titleLarge!.color,
                         borderRadius: BorderRadius.circular(10)),
                     child: InkWell(
-                      onTap: () {
+                      onTap: () async {
                         if (exportFileDialogController.exportProgress.toInt() ==
                             exportFileDialogController.filesToExport.length) {
                           Navigator.of(context).pop();
                         } else {
-                          exportFileDialogController.export();
+                          await exportFileDialogController.export();
                         }
                       },
                       child: Padding(
@@ -119,8 +119,8 @@ class ExportFileDialogController extends GetxController {
   List<String> filesToExport = [];
 
   @override
-  void onInit() {
-    scanFilesToExport();
+  Future<void> onInit() async {
+    await scanFilesToExport();
     super.onInit();
   }
 

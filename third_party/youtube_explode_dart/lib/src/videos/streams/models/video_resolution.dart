@@ -46,19 +46,19 @@ class VideoResolution implements Comparable<VideoResolution> {
     return false;
   }
 
-  operator >(VideoResolution other) {
+  bool operator >(VideoResolution other) {
     return compareTo(other) > 0;
   }
 
-  operator <(VideoResolution other) {
+  bool operator <(VideoResolution other) {
     return compareTo(other) < 0;
   }
 
-  operator >=(VideoResolution other) {
+  bool operator >=(VideoResolution other) {
     return compareTo(other) >= 0;
   }
 
-  operator <=(VideoResolution other) {
+  bool operator <=(VideoResolution other) {
     return compareTo(other) <= 0;
   }
 

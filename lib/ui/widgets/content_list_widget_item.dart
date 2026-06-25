@@ -19,14 +19,14 @@ class ContentListItem extends StatelessWidget {
     return InkWell(
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
-      onTap: () {
+      onTap: () async {
         if (isAlbum) {
-          Get.toNamed(ScreenNavigationSetup.albumScreen,
+          await Get.toNamed(ScreenNavigationSetup.albumScreen,
               id: ScreenNavigationSetup.id,
               arguments: (content, content.browseId));
           return;
         }
-        Get.toNamed(ScreenNavigationSetup.playlistScreen,
+        await Get.toNamed(ScreenNavigationSetup.playlistScreen,
             id: ScreenNavigationSetup.id,
             arguments: [content, content.playlistId]);
       },

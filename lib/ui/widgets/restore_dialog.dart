@@ -67,7 +67,7 @@ class RestoreDialog extends StatelessWidget {
                                 Text("restoring".tr),
                               ],
                             )
-                          : Text("letsStrart".tr),
+                          : Text("letsStart".tr),
                     ),
                   ),
                 ),
@@ -80,13 +80,13 @@ class RestoreDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: InkWell(
-                        onTap: () {
+                        onTap: () async {
                           if (restoreDialogController.restoreCompleted) {
                             GetPlatform.isAndroid
-                                ? AppPlatformService.restartApp()
+                                ? await AppPlatformService.restartApp()
                                 : exit(0);
                           } else {
-                            restoreDialogController.restore();
+                            await restoreDialogController.restore();
                           }
                         },
                         child: Obx(
@@ -131,7 +131,7 @@ class RestoreDialog extends StatelessWidget {
 class RestoreDialogController extends GetxController {
   final restoreRunning = false.obs;
   final restoreProgress = (-1).obs;
-  final filesToRestore = (0).obs;
+  final filesToRestore = 0.obs;
   final processingFiles = false.obs;
   final restoreError = "".obs;
 

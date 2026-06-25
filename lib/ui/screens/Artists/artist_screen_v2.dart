@@ -14,7 +14,7 @@ class ArtistScreenBN extends StatelessWidget {
   final String tag;
   @override
   Widget build(BuildContext context) {
-    final separatedContent = artistScreenController.sepataredContent;
+    final separatedContent = artistScreenController.separatedContent;
     return Scaffold(
       appBar: AppBar(
           toolbarHeight: 85,
@@ -42,7 +42,7 @@ class ArtistScreenBN extends StatelessWidget {
                     .toList(),
           ),
           title: Obx(
-            () => artistScreenController.isArtistContentFetced.isTrue
+            () => artistScreenController.isArtistContentFetched.isTrue
                 ? Padding(
                     padding: const EdgeInsets.only(top: 25.0),
                     child: Text(artistScreenController.artist_.name,
@@ -53,7 +53,7 @@ class ArtistScreenBN extends StatelessWidget {
       body: Obx(
         () => TabBarView(
           controller: artistScreenController.tabController,
-          children: artistScreenController.isArtistContentFetced.isFalse
+          children: artistScreenController.isArtistContentFetched.isFalse
               ? List.generate(
                   5,
                   (index) => const Center(
@@ -68,7 +68,7 @@ class ArtistScreenBN extends StatelessWidget {
                   ...["Songs", "Videos", "Albums", "Singles"].map(
                     (item) {
                       if (artistScreenController
-                              .isSeparatedArtistContentFetced.isFalse &&
+                              .isSeparatedArtistContentFetched.isFalse &&
                           artistScreenController
                                   .navigationRailCurrentIndex.value !=
                               0) {

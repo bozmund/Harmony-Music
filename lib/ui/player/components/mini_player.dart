@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -26,7 +28,7 @@ class MiniPlayer extends StatelessWidget {
         Get.find<SettingsScreenController>().isBottomNavBarEnabled.isTrue;
     return Obx(() {
       return Visibility(
-        visible: playerController.isPlayerpanelTopVisible.value,
+        visible: playerController.playerPanelTopVisible.value,
         child: AnimatedOpacity(
           opacity: playerController.playerPaneOpacity.value,
           duration: Duration.zero,
@@ -89,7 +91,7 @@ class MiniPlayer extends StatelessWidget {
                                 total: controller.progressBarStatus.value.total,
                                 buffered:
                                     controller.progressBarStatus.value.buffered,
-                                onSeek: controller.seek,
+                                onSeek: controller.requestSeek,
                               ),
                             );
                           },
@@ -119,13 +121,14 @@ class MiniPlayer extends StatelessWidget {
                           child: GestureDetector(
                             onHorizontalDragEnd: (DragEndDetails details) {
                               if (details.primaryVelocity! < 0) {
-                                playerController.next();
+                                playerController.requestNext();
                               } else if (details.primaryVelocity! > 0) {
-                                playerController.prev();
+                                playerController.requestPrev();
                               }
                             },
-                            onTap: () {
-                              playerController.playerPanelController.open();
+                            onTap: () async {
+                              await playerController.playerPanelController
+                                  .open();
                             },
                             child: ColoredBox(
                               color: Colors.transparent,
@@ -202,8 +205,11 @@ class MiniPlayer extends StatelessWidget {
                                     ),
                                     IconButton(
                                       iconSize: 20,
-                                      onPressed:
-                                          playerController.toggleShuffleMode,
+                                      onPressed: () {
+                                        unawaited(
+                                          playerController.toggleShuffleMode(),
+                                        );
+                                      },
                                       icon: Obx(
                                         () => Icon(
                                           Icons.shuffle,
@@ -241,7 +247,7 @@ class MiniPlayer extends StatelessWidget {
                                                     .value
                                                     ?.id))
                                         ? null
-                                        : playerController.prev,
+                                        : playerController.requestPrev,
                                     child: Icon(
                                       Icons.skip_previous,
                                       color: Theme.of(
@@ -297,7 +303,7 @@ class MiniPlayer extends StatelessWidget {
                                   return InkWell(
                                     onTap: isLastSong
                                         ? null
-                                        : playerController.next,
+                                        : playerController.requestNext,
                                     child: Icon(
                                       Icons.skip_next,
                                       color: isLastSong
@@ -319,8 +325,11 @@ class MiniPlayer extends StatelessWidget {
                                   children: [
                                     IconButton(
                                       iconSize: 20,
-                                      onPressed:
-                                          playerController.toggleLoopMode,
+                                      onPressed: () {
+                                        unawaited(
+                                          playerController.toggleLoopMode(),
+                                        );
+                                      },
                                       icon: Icon(
                                         Icons.all_inclusive,
                                         color:
@@ -339,9 +348,9 @@ class MiniPlayer extends StatelessWidget {
                                     ),
                                     IconButton(
                                       iconSize: 20,
-                                      onPressed: () {
-                                        playerController.showLyrics();
-                                        showDialog(
+                                      onPressed: () async {
+                                        await playerController.showLyrics();
+                                        await showDialog(
                                           builder: (context) =>
                                               const LyricsDialog(),
                                           context: context,
@@ -350,7 +359,7 @@ class MiniPlayer extends StatelessWidget {
                                                   .isDesktopLyricsDialogOpen =
                                               false;
                                           playerController
-                                                  .showLyricsflag
+                                                  .showLyricsFlag
                                                   .value =
                                               false;
                                         });
@@ -427,10 +436,11 @@ class MiniPlayer extends StatelessWidget {
                                                         .volume
                                                         .value /
                                                     100,
-                                                onChanged: (value) {
-                                                  playerController.setVolume(
-                                                    (value * 100).toInt(),
-                                                  );
+                                                onChanged: (value) async {
+                                                  await playerController
+                                                      .setVolume(
+                                                        (value * 100).toInt(),
+                                                      );
                                                 },
                                               ),
                                             ),
@@ -447,7 +457,7 @@ class MiniPlayer extends StatelessWidget {
                                         IconButton(
                                           onPressed: () {
                                             playerController
-                                                .homeScaffoldkey
+                                                .homeScaffoldKey
                                                 .currentState!
                                                 .openEndDrawer();
                                           },
@@ -459,8 +469,8 @@ class MiniPlayer extends StatelessWidget {
                                               left: 10.0,
                                             ),
                                             child: IconButton(
-                                              onPressed: () {
-                                                showModalBottomSheet(
+                                              onPressed: () async {
+                                                await showModalBottomSheet(
                                                   constraints:
                                                       const BoxConstraints(
                                                         maxWidth: 500,
@@ -475,7 +485,7 @@ class MiniPlayer extends StatelessWidget {
                                                   ),
                                                   isScrollControlled: true,
                                                   context: playerController
-                                                      .homeScaffoldkey
+                                                      .homeScaffoldKey
                                                       .currentState!
                                                       .context,
                                                   barrierColor: Colors
@@ -500,12 +510,12 @@ class MiniPlayer extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 10),
                                         IconButton(
-                                          onPressed: () {
+                                          onPressed: () async {
                                             final currentSong = playerController
                                                 .currentSong
                                                 .value;
                                             if (currentSong != null) {
-                                              showDialog(
+                                              await showDialog(
                                                 context: context,
                                                 builder: (context) =>
                                                     AddToPlaylist([
@@ -523,13 +533,13 @@ class MiniPlayer extends StatelessWidget {
                                         ),
                                         if (size.width > 965)
                                           IconButton(
-                                            onPressed: () {
+                                            onPressed: () async {
                                               final currentSong =
                                                   playerController
                                                       .currentSong
                                                       .value;
                                               if (currentSong != null) {
-                                                showDialog(
+                                                await showDialog(
                                                   context: context,
                                                   builder: (context) =>
                                                       SongInfoDialog(

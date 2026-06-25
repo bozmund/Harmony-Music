@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/ui/player/player_controller.dart';
@@ -34,13 +36,13 @@ class UpNextQueue extends StatelessWidget {
               ScaffoldMessenger.of(Get.context!).showSnackBar(
                 snackbar(
                   Get.context!,
-                  "queuerearrangingDeniedMsg".tr,
+                  "queueRearrangingDeniedMessage".tr,
                   size: SanckBarSize.BIG,
                 ),
               );
               return;
             }
-            playerController.onReorder(oldIndex, newIndex);
+            unawaited(playerController.onReorder(oldIndex, newIndex));
           },
           onReorderStart: onReorderStart,
           onReorderEnd: onReorderEnd,
@@ -52,7 +54,7 @@ class UpNextQueue extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           itemBuilder: (context, index) {
             final homeScaffoldContext =
-                playerController.homeScaffoldkey.currentContext!;
+                playerController.homeScaffoldKey.currentContext!;
             //print("${playerController.currentSongIndex.value == index} $index");
             return Material(
               key: Key('$index'),
@@ -63,16 +65,16 @@ class UpNextQueue extends StatelessWidget {
                   confirmDismiss: (direction) async =>
                       playerController.currentSongIndex.value != index,
                   onDismissed: (direction) {
-                    playerController.removeFromQueue(
-                      playerController.currentQueue[index],
+                    unawaited(
+                      playerController.removeFromQueue(
+                        playerController.currentQueue[index],
+                      ),
                     );
                   },
                   child: ListTile(
-                    onTap: () {
-                      playerController.seekByIndex(index);
-                    },
-                    onLongPress: () {
-                      showModalBottomSheet(
+                    onTap: () => playerController.requestSeekByIndex(index),
+                    onLongPress: () async {
+                      await showModalBottomSheet(
                         constraints: const BoxConstraints(maxWidth: 500),
                         shape: const RoundedRectangleBorder(
                           borderRadius: BorderRadius.vertical(
@@ -81,7 +83,7 @@ class UpNextQueue extends StatelessWidget {
                         ),
                         isScrollControlled: true,
                         context: playerController
-                            .homeScaffoldkey
+                            .homeScaffoldKey
                             .currentState!
                             .context,
                         //constraints: BoxConstraints(maxHeight:Get.height),
@@ -113,13 +115,15 @@ class UpNextQueue extends StatelessWidget {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   snackbar(
                                     context,
-                                    "songRemovedfromQueueCurrSong".tr,
+                                    "songRemovedFromQueueCurrSong".tr,
                                     size: SanckBarSize.BIG,
                                   ),
                                 );
                               } else {
-                                playerController.removeFromQueue(
-                                  playerController.currentQueue[index],
+                                unawaited(
+                                  playerController.removeFromQueue(
+                                    playerController.currentQueue[index],
+                                  ),
                                 );
                               }
                             },

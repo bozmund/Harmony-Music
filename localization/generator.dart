@@ -36,6 +36,6 @@ Map<String, Map<String, String>> get keys => {
   await File(filename).writeAsString(content, mode: FileMode.writeOnly);
 }
 
-void main() {
-  generate();
+Future<void> main() async {
+  await generate();
 }

@@ -32,6 +32,6 @@ Future<Map<String, dynamic>> getStreamInfo(String songId, dynamic token) async {
     songId = songId.substring(4);
   }
   BackgroundIsolateBinaryMessenger.ensureInitialized(token);
-  final playerResponse = (await StreamProvider.fetch(songId));
+  final playerResponse = await StreamProvider.fetch(songId);
   return playerResponse.hmStreamingData;
 }

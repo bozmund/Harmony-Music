@@ -12,7 +12,7 @@ class LyricsSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     final PlayerController playerController = Get.find<PlayerController>();
     return Obx(
-      () => playerController.showLyricsflag.value
+      () => playerController.showLyricsFlag.value
           ? Padding(
               padding: const EdgeInsets.only(bottom: 10.0),
               child: ToggleSwitch(

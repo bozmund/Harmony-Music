@@ -9,7 +9,7 @@ class SearchScreenController extends GetxController with ProcessLink {
   final textInputController = TextEditingController();
   final musicServices = Get.find<MusicServiceContract>();
   final suggestionList = [].obs;
-  final historyQuerylist = [].obs;
+  final historyQueryList = [].obs;
   late Box<dynamic> queryBox;
   final urlPasted = false.obs;
 
@@ -30,7 +30,7 @@ class SearchScreenController extends GetxController with ProcessLink {
       });
     }
     queryBox = await Hive.openBox("searchQuery");
-    historyQuerylist.value = queryBox.values.toList().reversed.toList();
+    historyQueryList.value = queryBox.values.toList().reversed.toList();
   }
 
   Future<void> onChanged(String text) async {
@@ -50,18 +50,18 @@ class SearchScreenController extends GetxController with ProcessLink {
     await onChanged(txt);
   }
 
-  Future<void> addToHistryQueryList(String txt) async {
-    if (historyQuerylist.length > 9) {
+  Future<void> addToHistoryQueryList(String txt) async {
+    if (historyQueryList.length > 9) {
       final queryForRemoval = queryBox.getAt(0);
       await queryBox.deleteAt(0);
-      historyQuerylist.removeWhere((element) => element == queryForRemoval);
+      historyQueryList.removeWhere((element) => element == queryForRemoval);
     }
-    if (!historyQuerylist.contains(txt)) {
+    if (!historyQueryList.contains(txt)) {
       await queryBox.add(txt);
-      historyQuerylist.insert(0, txt);
+      historyQueryList.insert(0, txt);
     }
 
-    //reset current query and suggestionlist
+    //reset current query and suggestionList
     reset();
   }
 
@@ -74,14 +74,14 @@ class SearchScreenController extends GetxController with ProcessLink {
   Future<void> removeQueryFromHistory(String txt) async {
     final index = queryBox.values.toList().indexOf(txt);
     await queryBox.deleteAt(index);
-    historyQuerylist.remove(txt);
+    historyQueryList.remove(txt);
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     focusNode.dispose();
     textInputController.dispose();
-    queryBox.close();
+    await queryBox.close();
     super.dispose();
   }
 }

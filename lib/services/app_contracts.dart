@@ -9,7 +9,7 @@ abstract class MusicServiceContract {
   Future<dynamic> getHome({int limit = 4});
 
   Future<List<Map<String, dynamic>>> getCharts(
-    String catogory, {
+    String category, {
     String? countryCode,
   });
 
@@ -46,7 +46,7 @@ abstract class MusicServiceContract {
 
   Future<Map<String, dynamic>> getArtist(String channelId);
 
-  Future<Map<String, dynamic>> getArtistRealtedContent(
+  Future<Map<String, dynamic>> getArtistRelatedContent(
     Map<String, dynamic> browseEndpoint,
     String category, {
     String additionalParams = "",

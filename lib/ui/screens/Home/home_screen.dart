@@ -14,7 +14,7 @@ import '/ui/widgets/create_playlist_dialog.dart';
 import '../../navigator.dart';
 import '../../widgets/content_list_widget.dart';
 import '../../widgets/issue_report_dialog.dart';
-import '../../widgets/quickpickswidget.dart';
+import '../../widgets/quickpicks_widget.dart';
 import '../../widgets/shimmer_widgets/home_shimmer.dart';
 import 'home_screen_controller.dart';
 import '../Settings/settings_screen.dart';
@@ -58,13 +58,13 @@ class HomeScreen extends StatelessWidget {
                         elevation: 0,
                         onPressed: () async {
                           if (homeScreenController.tabIndex.value == 2) {
-                            showDialog(
+                            await showDialog(
                               context: context,
                               builder: (context) =>
                                   const CreateNRenamePlaylistPopup(),
                             );
                           } else {
-                            Get.toNamed(
+                            await Get.toNamed(
                               ScreenNavigationSetup.searchScreen,
                               id: ScreenNavigationSetup.id,
                             );
@@ -98,7 +98,7 @@ class HomeScreen extends StatelessWidget {
                   enabled: settingsScreenController
                       .isTransitionAnimationDisabled
                       .isFalse,
-                  resverse: homeScreenController.reverseAnimationtransiton,
+                  resverse: homeScreenController.reverseAnimationTransition,
                   horizontalTransition:
                       settingsScreenController.isBottomNavBarEnabled.isTrue,
                   child: Center(
@@ -142,9 +142,9 @@ class Body extends StatelessWidget {
               onTap: () {
                 // for Desktop search bar
                 if (GetPlatform.isDesktop) {
-                  final sscontroller = Get.find<SearchScreenController>();
-                  if (sscontroller.focusNode.hasFocus) {
-                    sscontroller.focusNode.unfocus();
+                  final searchScreenController = Get.find<SearchScreenController>();
+                  if (searchScreenController.focusNode.hasFocus) {
+                    searchScreenController.focusNode.unfocus();
                   }
                 }
               },
@@ -185,8 +185,8 @@ class Body extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: InkWell(
-                                        onTap: () {
-                                          homeScreenController
+                                        onTap: () async {
+                                          await homeScreenController
                                               .loadContentFromNetwork();
                                         },
                                         child: Text(
@@ -207,7 +207,7 @@ class Body extends StatelessWidget {
                         ),
                       )
                     : Obx(() {
-                        // dispose all detachached scroll controllers
+                        // dispose all detached scroll controllers
                         homeScreenController.disposeDetachedScrollControllers();
                         final items =
                             homeScreenController.isContentFetched.value
@@ -328,8 +328,8 @@ class Body extends StatelessWidget {
         .toList();
   }
 
-  void _openIssueReportDialog(BuildContext context) {
-    showDialog(
+  Future<void> _openIssueReportDialog(BuildContext context) async {
+    await showDialog(
       context: context,
       builder: (context) => const IssueReportDialog(),
     ).whenComplete(() => Get.delete<IssueReportDialogController>());

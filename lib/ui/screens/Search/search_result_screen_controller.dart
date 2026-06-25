@@ -10,19 +10,19 @@ import '/ui/widgets/sort_widget.dart';
 class SearchResultScreenController extends GetxController
     with GetTickerProviderStateMixin {
   final navigationRailCurrentIndex = 0.obs;
-  final isResultContentFetced = false.obs;
-  final isSeparatedResultContentFetced = false.obs;
+  final isResultContentFetched = false.obs;
+  final isSeparatedResultContentFetched = false.obs;
   final resultContent = <String, dynamic>{}.obs;
   final separatedResultContent = <String, dynamic>{}.obs;
   final musicServices = Get.find<MusicServiceContract>();
   final queryString = ''.obs;
   final railItems = <String>[].obs;
-  final railitemHeight = Get.size.height.obs;
+  final railItemHeight = Get.size.height.obs;
   final additionalParamNext = {};
   bool continuationInProgress = false;
   TabController? tabController;
   bool isTabTransitionReversed = false;
-  //ScrollContollers List
+  //ScrollControllers List
   final Map<String, ScrollController> scrollControllers = {};
   final Set<String> _scrollListenersAttached = {};
   static const List<String> _searchRailItems = [
@@ -35,8 +35,8 @@ class SearchResultScreenController extends GetxController
   ];
 
   @override
-  void onReady() {
-    _getInitSearchResult();
+  Future<void> onReady() async {
+    await _getInitSearchResult();
     Get.find<HomeScreenController>().whenHomeScreenOnTop();
     super.onReady();
   }
@@ -51,7 +51,7 @@ class SearchResultScreenController extends GetxController
 
     isTabTransitionReversed = value > navigationRailCurrentIndex.value;
 
-    isSeparatedResultContentFetced.value = false;
+    isSeparatedResultContentFetched.value = false;
     navigationRailCurrentIndex.value = value;
 
     if (tabController != null && !ignoreTabCommand) {
@@ -72,26 +72,26 @@ class SearchResultScreenController extends GetxController
       );
       separatedResultContent[tabName] = x[tabName] ?? [];
       additionalParamNext[tabName] = x['params'];
-      isSeparatedResultContentFetced.value = true;
+      isSeparatedResultContentFetched.value = true;
       final scrollController = scrollControllers[tabName];
       if (scrollController != null &&
           !_scrollListenersAttached.contains(tabName) &&
           _hasValidContinuationParams(additionalParamNext[tabName])) {
         _scrollListenersAttached.add(tabName);
-        scrollController.addListener(() {
+        scrollController.addListener(() async {
           double maxScroll = scrollController.position.maxScrollExtent;
           double currentScroll = scrollController.position.pixels;
           if (currentScroll >= maxScroll / 2 &&
               _hasValidContinuationParams(additionalParamNext[tabName])) {
             if (!continuationInProgress) {
               continuationInProgress = true;
-              getContinuationContents();
+              await getContinuationContents();
             }
           }
         });
       }
     }
-    isSeparatedResultContentFetced.value = true;
+    isSeparatedResultContentFetched.value = true;
   }
 
   Future<void> getContinuationContents() async {
@@ -117,12 +117,12 @@ class SearchResultScreenController extends GetxController
     }
   }
 
-  void viewAllCallback(String text) {
-    onDestinationSelected(railItems.indexOf(text) + 1);
+  Future<void> viewAllCallback(String text) async {
+    await onDestinationSelected(railItems.indexOf(text) + 1);
   }
 
   Future<void> _getInitSearchResult() async {
-    isResultContentFetced.value = false;
+    isResultContentFetched.value = false;
     final args = Get.arguments;
     if (args != null) {
       queryString.value = args;
@@ -136,11 +136,11 @@ class SearchResultScreenController extends GetxController
           .where((element) => element.contains("playlists"))
           .length;
       final calH = 30 + (railItems.length + 1 - len) * 123 + len * 150.0;
-      railitemHeight.value = calH >= railitemHeight.value
+      railItemHeight.value = calH >= railItemHeight.value
           ? calH
-          : railitemHeight.value;
+          : railItemHeight.value;
 
-      //ScrollControlers for list Continuation callback implementarion
+      //ScrollControllers for list Continuation callback implementation
       for (String item in railItems) {
         scrollControllers[item] = ScrollController();
       }
@@ -148,7 +148,7 @@ class SearchResultScreenController extends GetxController
       //Case if bottom nav used
       if (GetPlatform.isDesktop ||
           Get.find<SettingsScreenController>().isBottomNavBarEnabled.isTrue) {
-        // assiging init val
+        // assigning init val
         for (var element in railItems) {
           separatedResultContent[element] = [];
         }
@@ -159,16 +159,16 @@ class SearchResultScreenController extends GetxController
           vsync: this,
         );
 
-        tabController?.animation?.addListener(() {
+        tabController?.animation?.addListener(() async {
           int indexChange = tabController!.offset.round();
           int index = tabController!.index + indexChange;
 
           if (index != navigationRailCurrentIndex.value) {
-            onDestinationSelected(index, ignoreTabCommand: true);
+            await onDestinationSelected(index, ignoreTabCommand: true);
           }
         });
       }
-      isResultContentFetced.value = true;
+      isResultContentFetched.value = true;
     }
   }
 

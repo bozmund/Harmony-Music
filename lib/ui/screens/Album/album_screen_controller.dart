@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -40,38 +42,51 @@ class AlbumScreenController extends PlaylistAlbumScreenControllerBase
         Tween<double>(begin: 0, end: 1.0).animate(animationController);
 
     final args = Get.arguments as (Album?, String);
-    fetchAlbumDetails(args.$1, args.$2);
-    Future.delayed(const Duration(milliseconds: 200),
-        () => Get.find<HomeScreenController>().whenHomeScreenOnTop());
+    unawaited(fetchAlbumDetails(args.$1, args.$2));
+    unawaited(
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (isClosed) return;
+        Get.find<HomeScreenController>().whenHomeScreenOnTop();
+      }),
+    );
   }
 
   @override
-  void fetchAlbumDetails(Album? album_, String albumId) async {
+  Future<void> fetchAlbumDetails(Album? album_, String albumId) async {
+    final generation = beginAsyncLoad();
     try {
       if (album_ != null) {
         album.value = album_;
-        animationController.forward();
+        await animationController.forward();
+        if (!isAsyncLoadActive(generation)) return;
       }
       // Check if the album is offline
       if (!await checkIfAddedToLibrary(albumId)) {
+        if (!isAsyncLoadActive(generation)) return;
         // Fetch album details online
         final content =
             await musicServices.getPlaylistOrAlbumSongs(albumId: albumId);
+        if (!isAsyncLoadActive(generation)) return;
         content['browseId'] = albumId;
         album.value = Album.fromJson(content);
-        animationController.forward();
+        await animationController.forward();
+        if (!isAsyncLoadActive(generation)) return;
         songList.value = List<MediaItem>.from(content['tracks']);
       } else {
+        if (!isAsyncLoadActive(generation)) return;
         // If the album is offline, fetch the songs from the local database
         // Album details are already fetched in _checkIfAddedToLibrary method
         final box = await Hive.openBox(albumId);
-        songList.value = box.values
+        final songs = box.values
             .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
             .whereType<MediaItem>()
             .toList();
-        box.close();
+        await box.close();
+        if (!isAsyncLoadActive(generation)) return;
+        songList.value = songs;
       }
       checkDownloadStatus();
+      if (!isAsyncLoadActive(generation)) return;
       isContentFetched.value = true;
     } catch (e) {
       // Handle any errors that occur during the fetch
@@ -82,9 +97,13 @@ class AlbumScreenController extends PlaylistAlbumScreenControllerBase
   @override
   Future<bool> checkIfAddedToLibrary(String id) async {
     final box = await Hive.openBox("LibraryAlbums");
+    if (isClosed) {
+      await box.close();
+      return false;
+    }
     isAddedToLibrary.value = box.containsKey(id);
     if (isAddedToLibrary.value) album.value = Album.fromJson(box.get(id));
-    box.close();
+    await box.close();
     return isAddedToLibrary.value;
   }
 
@@ -94,17 +113,17 @@ class AlbumScreenController extends PlaylistAlbumScreenControllerBase
       final box = await Hive.openBox("LibraryAlbums");
       final id = content.browseId;
       if (add) {
-        box.put(id, content.toJson());
-        updateSongsIntoDb();
+        await box.put(id, content.toJson());
+        await updateSongsIntoDb();
       } else {
-        box.delete(id);
+        await box.delete(id);
         final songsBox = await Hive.openBox(id);
-        songsBox.deleteFromDisk();
+        await songsBox.deleteFromDisk();
       }
       isAddedToLibrary.value = add;
 
       //Update frontend
-      Get.find<LibraryAlbumsController>().refreshLib();
+      await Get.find<LibraryAlbumsController>().refreshLib();
 
       return true;
     } catch (e) {
@@ -125,6 +144,7 @@ class AlbumScreenController extends PlaylistAlbumScreenControllerBase
 
   @override
   void onClose() {
+    cancelAsyncLoads();
     tempListContainer.clear();
     _animationController.dispose();
     Get.find<HomeScreenController>().whenHomeScreenOnTop();

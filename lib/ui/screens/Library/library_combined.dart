@@ -109,7 +109,7 @@ class CombinedLibrary extends StatelessWidget {
   ) {
     final bottomNavHeight =
         settingsController.isBottomNavBarEnabled.isTrue &&
-            homeScreenController.isHomeSreenOnTop.isTrue &&
+            homeScreenController.isHomeScreenOnTop.isTrue &&
             playerController.isPanelGTHOpened.isFalse
         ? ScrollToHideWidget.visibleHeight(context) + 55
         : 0.0;
@@ -117,7 +117,7 @@ class CombinedLibrary extends StatelessWidget {
     final panelHeight = playerController.playerPanelMinHeight.value;
     final miniPlayerHeight =
         playerController.currentSong.value != null &&
-            playerController.isPlayerpanelTopVisible.isTrue
+            playerController.playerPanelTopVisible.isTrue
         ? settingsController.isBottomNavBarEnabled.isTrue
               ? 75.0
               : panelHeight > 0
@@ -161,8 +161,8 @@ class _LibraryHeader extends StatelessWidget {
                 child: FittedBox(
                   child: FloatingActionButton.extended(
                     elevation: 0,
-                    onPressed: () {
-                      showDialog(
+                    onPressed: () async {
+                      await showDialog(
                         context: context,
                         builder: (context) =>
                             const CreateNRenamePlaylistPopup(),

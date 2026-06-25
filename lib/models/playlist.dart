@@ -42,7 +42,7 @@ class Playlist {
   factory Playlist.fromJson(Map<dynamic, dynamic> json) => Playlist(
       title: json["title"],
       playlistId: json["playlistId"] ?? json["browseId"],
-      thumbnailUrl: (json["thumbnails"][0]["url"]).isEmpty
+      thumbnailUrl: json["thumbnails"][0]["url"].isEmpty
           ? Thumbnail(thumbPlaceholderUrl).extraHigh
           : Thumbnail(json["thumbnails"][0]["url"]).extraHigh,
       description: json["description"] ?? "Playlist",

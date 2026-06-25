@@ -212,5 +212,5 @@ String? _getParam2(String filter) {
 
 dynamic getDotSeparatorIndex(List<dynamic> runs) {
   return runs.indexWhere(
-      ((element) => ({'text': " • "}).toString() == element.toString()));
+      (element) => {'text': " • "}.toString() == element.toString());
 }

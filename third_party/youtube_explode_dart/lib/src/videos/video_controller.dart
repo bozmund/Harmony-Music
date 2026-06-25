@@ -34,7 +34,9 @@ class VideoController {
           };
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      //
+    }
 
     final userAgent = payload['context']!['client']!['userAgent'] as String?;
     final ytCfg = watchPage?.ytCfg;

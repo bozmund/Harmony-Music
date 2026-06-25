@@ -1,5 +1,5 @@
 // ignore_for_file: constant_identifier_names
-library lexer;
+library;
 
 import 'package:unicode/unicode.dart' as unicode;
 

@@ -34,8 +34,8 @@ class NewVersionDialog extends StatelessWidget {
                 dimension: 100,
                 child: FittedBox(
                   child: FloatingActionButton(
-                    onPressed: () {
-                      settingsController.downloadAndInstallUpdate(updateInfo);
+                    onPressed: () async {
+                      await settingsController.downloadAndInstallUpdate(updateInfo);
                     },
                     child: Obx(
                       () => settingsController.isUpdateDownloading.value
@@ -95,8 +95,8 @@ class NewVersionDialog extends StatelessWidget {
                     _DialogActionButton(
                       label: "download".tr,
                       enabled: !settingsController.isUpdateDownloading.value,
-                      onTap: () {
-                        settingsController.downloadAndInstallUpdate(updateInfo);
+                      onTap: () async {
+                        await settingsController.downloadAndInstallUpdate(updateInfo);
                       },
                     ),
                     _DialogActionButton(

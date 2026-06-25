@@ -29,9 +29,9 @@ class SongDownloadButton extends StatelessWidget {
       final song =
           calledFromPlayer ? playerController.currentSong.value : song_;
       if (song == null && calledFromPlayer) return const SizedBox.shrink();
-      final isDownloadingDone = (downloader.songQueue.contains(song) &&
+      final isDownloadingDone = downloader.songQueue.contains(song) &&
           downloader.currentSong == song &&
-          downloader.songDownloadingProgress.value == 100);
+          downloader.songDownloadingProgress.value == 100;
       if (isDownloadingDoneCallback != null) {
         isDownloadingDoneCallback!(isDownloadingDone);
       }
@@ -141,8 +141,8 @@ class SongDownloadButton extends StatelessWidget {
                         Icons.download,
                         color: Theme.of(context).textTheme.titleMedium!.color,
                       ),
-                      onPressed: () {
-                        (Hive.openBox("SongsCache").then((box) {
+                      onPressed: () async {
+                        await Hive.openBox("SongsCache").then((box) async {
                           if (box.containsKey(song.id)) {
                             if (!context.mounted) return;
                             Navigator.of(context).pop();
@@ -150,9 +150,9 @@ class SongDownloadButton extends StatelessWidget {
                                 context, "songAlreadyOfflineAlert".tr,
                                 size: SanckBarSize.BIG));
                           } else {
-                            downloader.download(song);
+                            await downloader.download(song);
                           }
-                        }));
+                        });
                       },
                     );
     });

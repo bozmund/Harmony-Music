@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:harmonymusic/ui/utils/theme_controller.dart';
 
-class CustSwitch extends StatelessWidget {
-  const CustSwitch({super.key, this.onChanged, required this.value});
+class CustomSwitch extends StatelessWidget {
+  const CustomSwitch({super.key, this.onChanged, required this.value});
   final void Function(bool)? onChanged;
   final bool value;
 

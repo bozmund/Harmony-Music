@@ -31,7 +31,7 @@ class PipedServices extends GetxService {
           .post(url, data: {"username": userName, "password": password});
       final data = response.data;
       final appPrefsBox = Hive.box('AppPrefs');
-      appPrefsBox.put("piped", {
+      await appPrefsBox.put("piped", {
         "isLoggedIn": true,
         "token": data['token'],
         "instApiUrl": insApiUrl
@@ -53,9 +53,9 @@ class PipedServices extends GetxService {
     }
   }
 
-  void logout() {
+  Future<void> logout() async {
     final appPrefsBox = Hive.box('AppPrefs');
-    appPrefsBox
+    await appPrefsBox
         .put("piped", {"isLoggedIn": false, "token": "", "instApiUrl": ""});
     _headers["Authorization"] = "";
     _isLoggedIn = false;
@@ -122,34 +122,34 @@ class PipedServices extends GetxService {
     return await _sendRequest("/user/playlists", reqType: "get");
   }
 
-  Future<Res> renamePlaylist(String plalistId, String newName) async {
+  Future<Res> renamePlaylist(String playlistId, String newName) async {
     return await _sendRequest("/user/playlists/rename",
-        data: {"playlistId": plalistId, "newName": newName});
+        data: {"playlistId": playlistId, "newName": newName});
   }
 
-  Future<Res> deletePlaylist(String plalistId) async {
+  Future<Res> deletePlaylist(String playlistId) async {
     return await _sendRequest("/user/playlists/delete",
-        data: {"playlistId": plalistId});
+        data: {"playlistId": playlistId});
   }
 
-  Future<Res> addToPlaylist(String plalistId, List<String> videosId) async {
+  Future<Res> addToPlaylist(String playlistId, List<String> videosId) async {
     return await _sendRequest("/user/playlists/add",
-        data: {"playlistId": plalistId, "videoIds": videosId});
+        data: {"playlistId": playlistId, "videoIds": videosId});
   }
 
-  Future<Res> removeFromPlaylist(String plalistId, int index) async {
+  Future<Res> removeFromPlaylist(String playlistId, int index) async {
     return await _sendRequest("/user/playlists/remove",
-        data: {"playlistId": plalistId, "index": index});
+        data: {"playlistId": playlistId, "index": index});
   }
 
-  Future<List<MediaItem>> getPlaylistSongs(String playlistid) async {
-    final res = await _sendRequest("/playlists/$playlistid",
+  Future<List<MediaItem>> getPlaylistSongs(String playlistId) async {
+    final res = await _sendRequest("/playlists/$playlistId",
         reqType: "get", isSongListReq: true);
     if (res.code == 1) {
-      return (res.response['relatedStreams'])
+      return res.response['relatedStreams']
           .map((item) {
             return MediaItem(
-                id: (item['url']).split("?v=")[1],
+                id: item['url'].split("?v=")[1],
                 title: item['title'],
                 artist: item['uploaderName'],
                 duration: Duration(seconds: item['duration']),

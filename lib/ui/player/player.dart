@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:get/get.dart';
@@ -43,29 +44,31 @@ class Player extends StatelessWidget {
           /// this is the header of the collapsed panel
           /// contains the button ^ to open the queue panel
           collapsed: InkWell(
-            onTap: () {
+            onTap: () async {
               /// queue open in end drawer in desktop
               if (GetPlatform.isDesktop) {
-                playerController.homeScaffoldkey.currentState!.openEndDrawer();
+                playerController.homeScaffoldKey.currentState!.openEndDrawer();
               } else {
-                playerController.queuePanelController.open();
+                await playerController.queuePanelController.open();
               }
             },
             child: Container(
-                color: Theme.of(context).primaryColor,
-                child: Column(
-                  children: [
-                    SizedBox(
-                      height: 65,
-                      child: Center(
-                          child: Icon(
+              color: Theme.of(context).primaryColor,
+              child: Column(
+                children: [
+                  SizedBox(
+                    height: 65,
+                    child: Center(
+                      child: Icon(
                         color: Theme.of(context).textTheme.titleMedium!.color,
                         Icons.keyboard_arrow_up,
                         size: 40,
-                      )),
+                      ),
                     ),
-                  ],
-                )),
+                  ),
+                ],
+              ),
+            ),
           ),
 
           /// Panel for queue
@@ -91,14 +94,19 @@ class Player extends StatelessWidget {
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Container(
                         padding: const EdgeInsets.only(
-                            top: 15, bottom: 10, left: 10, right: 10),
+                          top: 15,
+                          bottom: 10,
+                          left: 10,
+                          right: 10,
+                        ),
                         decoration: BoxDecoration(
-                            boxShadow: const [
-                              BoxShadow(blurRadius: 5, color: Colors.black54)
-                            ],
-                            color: Theme.of(context)
-                                .primaryColor
-                                .withValues(alpha: 0.5)),
+                          boxShadow: const [
+                            BoxShadow(blurRadius: 5, color: Colors.black54),
+                          ],
+                          color: Theme.of(
+                            context,
+                          ).primaryColor.withValues(alpha: 0.5),
+                        ),
                         height: 60 + Get.mediaQuery.padding.bottom,
                         child: Align(
                           alignment: Alignment.topCenter,
@@ -109,30 +117,33 @@ class Player extends StatelessWidget {
                               Obx(
                                 () => Text(
                                   "${playerController.currentQueue.length} ${"songs".tr}",
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall!
+                                  style: Theme.of(context).textTheme.titleSmall!
                                       .copyWith(
-                                          color: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium!
-                                              .color),
+                                        color: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium!.color,
+                                      ),
                                 ),
                               ),
 
                               /// queue loop button
                               InkWell(
                                 onTap: () {
-                                  playerController.toggleQueueLoopMode();
+                                  unawaited(
+                                    playerController.toggleQueueLoopMode(),
+                                  );
                                 },
                                 child: Obx(
                                   () => Container(
                                     height: 30,
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 15),
+                                      horizontal: 15,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: playerController
-                                              .isQueueLoopModeEnabled.isFalse
+                                      color:
+                                          playerController
+                                              .isQueueLoopModeEnabled
+                                              .isFalse
                                           ? Colors.white24
                                           : Colors.white.withValues(alpha: 0.8),
                                       borderRadius: BorderRadius.circular(20),
@@ -144,47 +155,59 @@ class Player extends StatelessWidget {
 
                               /// queue shuffle button
                               InkWell(
-                                onTap: () {
+                                onTap: () async {
                                   if (playerController
-                                      .isShuffleModeEnabled.isTrue) {
+                                      .isShuffleModeEnabled
+                                      .isTrue) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                        snackbar(context,
-                                            "queueShufflingDeniedMsg".tr,
-                                            size: SanckBarSize.BIG));
+                                      snackbar(
+                                        context,
+                                        "queueShufflingDeniedMsg".tr,
+                                        size: SanckBarSize.BIG,
+                                      ),
+                                    );
                                     return;
                                   }
-                                  playerController.shuffleQueue();
+                                  unawaited(playerController.shuffleQueue());
                                 },
                                 child: Container(
                                   height: 30,
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 15),
+                                    horizontal: 15,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withValues(alpha: 0.8),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: const Center(
-                                      child: Icon(Icons.shuffle,
-                                          color: Colors.black)),
+                                    child: Icon(
+                                      Icons.shuffle,
+                                      color: Colors.black,
+                                    ),
+                                  ),
                                 ),
                               ),
 
                               /// clear queue button
                               InkWell(
-                                onTap: () {
-                                  playerController.clearQueue();
+                                onTap: () async {
+                                  unawaited(playerController.clearQueue());
                                 },
                                 child: Container(
                                   height: 30,
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 15),
+                                    horizontal: 15,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withValues(alpha: 0.8),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: const Center(
-                                      child: Icon(Icons.playlist_remove,
-                                          color: Colors.black)),
+                                    child: Icon(
+                                      Icons.playlist_remove,
+                                      color: Colors.black,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],

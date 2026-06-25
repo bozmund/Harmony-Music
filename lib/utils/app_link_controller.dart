@@ -19,8 +19,8 @@ class AppLinksController extends GetxController with ProcessLink {
   StreamSubscription<Uri>? _linkSubscription;
 
   @override
-  void onInit() {
-    initDeepLinks();
+  Future<void> onInit() async {
+    await initDeepLinks();
     super.onInit();
   }
 
@@ -40,8 +40,8 @@ class AppLinksController extends GetxController with ProcessLink {
   }
 
   @override
-  void dispose() {
-    _linkSubscription?.cancel();
+  Future<void> dispose() async {
+    await _linkSubscription?.cancel();
     super.dispose();
   }
 }
@@ -50,7 +50,7 @@ mixin ProcessLink {
   Future<void> filterLinks(Uri uri) async {
     final playerController = Get.find<PlayerController>();
     if (playerController.playerPanelController.isPanelOpen) {
-      playerController.playerPanelController.close();
+      await playerController.playerPanelController.close();
     }
 
     if (Get.isRegistered<SongInfoController>()) {
@@ -93,13 +93,13 @@ mixin ProcessLink {
 
   Future<void> openPlaylistOrAlbum(String browseId) async {
     if (browseId.contains("OLAK5uy")) {
-      Get.toNamed(
+      await Get.toNamed(
         ScreenNavigationSetup.albumScreen,
         id: ScreenNavigationSetup.id,
         arguments: (null, browseId),
       );
     } else {
-      Get.toNamed(
+      await Get.toNamed(
         ScreenNavigationSetup.playlistScreen,
         id: ScreenNavigationSetup.id,
         arguments: [null, browseId],
@@ -116,7 +116,7 @@ mixin ProcessLink {
   }
 
   Future<void> playSong(String songId) async {
-    showDialog(
+    await showDialog(
       context: Get.context!,
       builder: (context) =>
           const Center(child: LoadingIndicator(strokeWidth: 5)),
@@ -125,10 +125,10 @@ mixin ProcessLink {
     final result = await Get.find<MusicServiceContract>().getSongWithId(songId);
     Navigator.of(Get.context!).pop();
     if (result[0]) {
-      Get.find<PlayerController>().playPlayListSong(
+      await Get.find<PlayerController>().playPlayListSong(
         List.from(result[1]),
         0,
-        playfrom: PlayingFrom(type: PlayingFromType.SELECTION),
+        playFrom: PlayingFrom(type: PlayingFromType.SELECTION),
       );
     } else {
       ScaffoldMessenger.of(Get.context!).showSnackBar(

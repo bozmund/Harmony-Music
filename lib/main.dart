@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,10 +31,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initHive();
   setAppInitPrefs();
-  startApplicationServices();
+  await startApplicationServices();
   Get.put<AudioHandler>(await initAudioService(), permanent: true);
   WidgetsBinding.instance.addObserver(LifecycleHandler());
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   runApp(const MyApp());
 }
 
@@ -44,7 +45,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!GetPlatform.isDesktop) Get.put(AppLinksController());
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     return GetMaterialApp(
       title: 'Harmony Music',
       home: const Home(),
@@ -161,7 +162,7 @@ Future<void> startApplicationServices() async {
   }
 }
 
-initHive() async {
+Future<void> initHive() async {
   String applicationDataDirectoryPath;
   if (GetPlatform.isDesktop) {
     applicationDataDirectoryPath =
@@ -180,35 +181,45 @@ initHive() async {
 void setAppInitPrefs() {
   final appPrefs = Hive.box(BoxNames.appPrefs);
   if (appPrefs.isEmpty) {
-    appPrefs.putAll({
-      PrefKeys.themeModeType: 0,
-      PrefKeys.cacheSongs: false,
-      PrefKeys.skipSilenceEnabled: false,
-      PrefKeys.streamingQuality: 1,
-      PrefKeys.themePrimaryColor: 4278199603,
-      PrefKeys.discoverContentType: "BOLI",
-      PrefKeys.newVersionVisibility: updateCheckFlag,
-      PrefKeys.updateChannel: 'rolling',
-      PrefKeys.cacheHomeScreenData: true,
-      PrefKeys.queueLoopModeEnabled: true,
-      PrefKeys.isBottomNavBarEnabled: true,
-      PrefKeys.downloadingFormat: "opus",
-      PrefKeys.batteryOptimizationPromptShown: false,
-    });
+    unawaited(
+      appPrefs.putAll({
+        PrefKeys.themeModeType: 0,
+        PrefKeys.cacheSongs: false,
+        PrefKeys.skipSilenceEnabled: false,
+        PrefKeys.streamingQuality: 1,
+        PrefKeys.themePrimaryColor: 4278199603,
+        PrefKeys.discoverContentType: "BOLI",
+        PrefKeys.newVersionVisibility: updateCheckFlag,
+        PrefKeys.updateChannel: 'rolling',
+        PrefKeys.cacheHomeScreenData: true,
+        PrefKeys.queueLoopModeEnabled: true,
+        PrefKeys.isBottomNavBarEnabled: true,
+        PrefKeys.downloadingFormat: "opus",
+        PrefKeys.batteryOptimizationPromptShown: false,
+        PrefKeys.playbackMode: PlaybackMode.classic.index,
+        PrefKeys.playbackPreloadRange: 0,
+      }),
+    );
   }
   if (!appPrefs.containsKey(PrefKeys.queueLoopModeEnabled)) {
-    appPrefs.put(PrefKeys.queueLoopModeEnabled, true);
+    unawaited(appPrefs.put(PrefKeys.queueLoopModeEnabled, true));
   }
   if (!appPrefs.containsKey(PrefKeys.batteryOptimizationPromptShown)) {
-    appPrefs.put(PrefKeys.batteryOptimizationPromptShown, true);
+    unawaited(appPrefs.put(PrefKeys.batteryOptimizationPromptShown, true));
+  }
+  if (!appPrefs.containsKey(PrefKeys.playbackMode)) {
+    unawaited(appPrefs.put(PrefKeys.playbackMode, PlaybackMode.classic.index));
+  }
+  if (!appPrefs.containsKey(PrefKeys.playbackPreloadRange)) {
+    unawaited(appPrefs.put(PrefKeys.playbackPreloadRange, 0));
   }
 }
 
 class LifecycleHandler extends WidgetsBindingObserver {
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
+  Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } else if (state == AppLifecycleState.detached) {
       await Get.find<AudioHandler>().customAction("saveSession");
     }

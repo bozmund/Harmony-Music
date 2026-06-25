@@ -24,15 +24,15 @@ class DesktopSearchBar extends StatelessWidget {
             controller: searchScreenController.textInputController,
             onTapOutside: (event) {},
             onChanged: searchScreenController.onChanged,
-            onSubmitted: (val) {
+            onSubmitted: (val) async {
               if (val.contains("https://")) {
-                searchScreenController.filterLinks(Uri.parse(val));
+                await searchScreenController.filterLinks(Uri.parse(val));
                 searchScreenController.reset();
                 return;
               }
-              Get.toNamed(ScreenNavigationSetup.searchResultScreen,
+              await Get.toNamed(ScreenNavigationSetup.searchResultScreen,
                   id: ScreenNavigationSetup.id, arguments: val);
-              searchScreenController.addToHistryQueryList(val);
+              await searchScreenController.addToHistoryQueryList(val);
               searchScreenController.focusNode.unfocus();
             },
             focusNode: searchScreenController.focusNode,
@@ -72,12 +72,12 @@ class DesktopSearchBar extends StatelessWidget {
                     searchScreenController.textInputController.text.isEmpty &&
                         searchScreenController.suggestionList.isEmpty;
                 final listToShow = isHistoryString
-                    ? searchScreenController.historyQuerylist
+                    ? searchScreenController.historyQueryList
                     : searchScreenController.suggestionList;
                 return searchScreenController.urlPasted.isTrue
                     ? InkWell(
-                        onTap: () {
-                          searchScreenController.filterLinks(Uri.parse(
+                        onTap: () async {
+                          await searchScreenController.filterLinks(Uri.parse(
                               searchScreenController.textInputController.text));
                           searchScreenController.reset();
                         },

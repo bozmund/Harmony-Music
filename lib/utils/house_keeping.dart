@@ -8,8 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import '../services/utils.dart';
 import 'helper.dart';
 
-void startHouseKeeping() {
-  removeExpiredSongsUrlFromDb();
+Future<void> startHouseKeeping() async {
+  await removeExpiredSongsUrlFromDb();
 }
 
 Future<void> removeExpiredSongsUrlFromDb() async {
@@ -29,7 +29,7 @@ Future<void> removeExpiredSongsUrlFromDb() async {
   } catch (e) {
     printERROR("Error in removeExpiredSongsUrlFromDb: $e");
   } finally {
-    removeDeletedOfflineSongsFromDb();
+    await removeDeletedOfflineSongsFromDb();
   }
 }
 

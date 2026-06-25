@@ -46,7 +46,7 @@ class SongsLibraryWidget extends StatelessWidget {
               titleLeftPadding: 9,
               requiredSortTypes: buildSortTypeSet(true, true),
               isSearchFeatureRequired: true,
-              isSongDeletetioFeatureRequired: true,
+              isSongDeletionFeatureRequired: true,
               onSort: (type, ascending) {
                 libSongsController.onSort(type, ascending);
               },
@@ -197,7 +197,7 @@ class PlaylistNAlbumLibraryWidget extends StatelessWidget {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: columns,
-                              childAspectRatio: (itemWidth / itemHeight),
+                              childAspectRatio: itemWidth / itemHeight,
                             ),
                             controller:
                                 ScrollController(keepScrollOffset: false),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -103,9 +105,9 @@ class SongInfoBottomSheet extends StatelessWidget {
               visualDensity: const VisualDensity(vertical: -1),
               leading: const Icon(Icons.sensors),
               title: Text("startRadio".tr),
-              onTap: () {
+              onTap: () async {
                 Navigator.of(context).pop();
-                playerController.startRadio(song);
+                await playerController.startRadio(song);
               },
             ),
             (calledFromPlayer || calledFromQueue)
@@ -115,14 +117,20 @@ class SongInfoBottomSheet extends StatelessWidget {
                     leading: const Icon(Icons.playlist_play),
                     title: Text("playNext".tr),
                     onTap: () {
+                      final messenger = ScaffoldMessenger.of(context);
                       Navigator.of(context).pop();
-                      playerController.playNext(song);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        snackbar(
-                          context,
-                          "${"playnextMsg".tr} ${song.title}",
-                          size: SanckBarSize.BIG,
-                        ),
+                      unawaited(
+                        playerController.playNext(song).whenComplete(() {
+                          final snackbarContext = Get.context;
+                          if (snackbarContext == null) return;
+                          messenger.showSnackBar(
+                            snackbar(
+                              snackbarContext,
+                              "${"playNextMsg".tr} ${song.title}",
+                              size: SanckBarSize.BIG,
+                            ),
+                          );
+                        }),
                       );
                     },
                   ),
@@ -130,9 +138,9 @@ class SongInfoBottomSheet extends StatelessWidget {
               visualDensity: const VisualDensity(vertical: -1),
               leading: const Icon(Icons.playlist_add),
               title: Text("addToPlaylist".tr),
-              onTap: () {
+              onTap: () async {
                 Navigator.of(context).pop();
-                showDialog(
+                await showDialog(
                   context: context,
                   builder: (context) => AddToPlaylist([song]),
                 ).whenComplete(() => Get.delete<AddToPlaylistController>());
@@ -145,16 +153,20 @@ class SongInfoBottomSheet extends StatelessWidget {
                     leading: const Icon(Icons.merge),
                     title: Text("enqueueSong".tr),
                     onTap: () {
-                      playerController.enqueueSong(song).whenComplete(() {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          snackbar(
-                            context,
-                            "songEnqueueAlert".tr,
-                            size: SanckBarSize.MEDIUM,
-                          ),
-                        );
-                      });
+                      final messenger = ScaffoldMessenger.of(context);
+                      unawaited(
+                        playerController.enqueueSong(song).whenComplete(() {
+                          final snackbarContext = Get.context;
+                          if (snackbarContext == null) return;
+                          messenger.showSnackBar(
+                            snackbar(
+                              snackbarContext,
+                              "songEnqueueAlert".tr,
+                              size: SanckBarSize.MEDIUM,
+                            ),
+                          );
+                        }),
+                      );
                       Navigator.of(context).pop();
                     },
                   ),
@@ -163,15 +175,15 @@ class SongInfoBottomSheet extends StatelessWidget {
                     visualDensity: const VisualDensity(vertical: -1),
                     leading: const Icon(Icons.album),
                     title: Text("goToAlbum".tr),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.of(context).pop();
                       if (calledFromPlayer) {
-                        playerController.playerPanelController.close();
+                        await playerController.playerPanelController.close();
                       }
                       if (calledFromQueue) {
-                        playerController.playerPanelController.close();
+                        await playerController.playerPanelController.close();
                       }
-                      Get.toNamed(
+                      await Get.toNamed(
                         ScreenNavigationSetup.albumScreen,
                         id: ScreenNavigationSetup.id,
                         arguments: (null, song.extras!['album']['id']),
@@ -190,9 +202,9 @@ class SongInfoBottomSheet extends StatelessWidget {
                     title: playlist!.title == "Library Songs"
                         ? Text("removeFromLib".tr)
                         : Text("removeFromPlaylist".tr),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.of(context).pop();
-                      songInfoController
+                      await songInfoController
                           .removeSongFromPlaylist(song, playlist!)
                           .whenComplete(
                             () =>
@@ -207,7 +219,7 @@ class SongInfoBottomSheet extends StatelessWidget {
                     },
                   )
                 : const SizedBox.shrink(),
-            (calledFromQueue)
+            calledFromQueue
                 ? ListTile(
                     visualDensity: const VisualDensity(vertical: -1),
                     leading: const Icon(Icons.delete),
@@ -218,17 +230,25 @@ class SongInfoBottomSheet extends StatelessWidget {
                         ScaffoldMessenger.of(context).showSnackBar(
                           snackbar(
                             context,
-                            "songRemovedfromQueueCurrSong".tr,
+                            "songRemovedFromQueueCurrSong".tr,
                             size: SanckBarSize.BIG,
                           ),
                         );
                       } else {
-                        playerController.removeFromQueue(song);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          snackbar(
-                            context,
-                            "songRemovedfromQueue".tr,
-                            size: SanckBarSize.MEDIUM,
+                        final messenger = ScaffoldMessenger.of(context);
+                        unawaited(
+                          playerController.removeFromQueue(song).whenComplete(
+                            () {
+                              final snackbarContext = Get.context;
+                              if (snackbarContext == null) return;
+                              messenger.showSnackBar(
+                                snackbar(
+                                  snackbarContext,
+                                  "songRemovedFromQueue".tr,
+                                  size: SanckBarSize.MEDIUM,
+                                ),
+                              );
+                            },
                           ),
                         );
                       }
@@ -245,17 +265,17 @@ class SongInfoBottomSheet extends StatelessWidget {
                       visualDensity: const VisualDensity(vertical: -1),
                       leading: const Icon(Icons.delete),
                       title: Text("deleteDownloadData".tr),
-                      onTap: () {
+                      onTap: () async {
                         Navigator.of(context).pop();
                         final box = Hive.box(BoxNames.songDownloads);
-                        Get.find<LibrarySongsController>()
+                        await Get.find<LibrarySongsController>()
                             .removeSong(
                               song,
                               true,
                               url: box.get(song.id)['url'],
                             )
                             .then((value) async {
-                              box.delete(song.id).then((value) {
+                              await box.delete(song.id).then((value) {
                                 if (playlist != null) {
                                   Get.find<PlaylistScreenController>(
                                     tag: Key(
@@ -288,8 +308,8 @@ class SongInfoBottomSheet extends StatelessWidget {
                   children: [
                     IconButton(
                       splashRadius: 10,
-                      onPressed: () {
-                        AppPlatformService.openUrl(
+                      onPressed: () async {
+                        await AppPlatformService.openUrl(
                           "https://youtube.com/watch?v=${song.id}",
                         );
                       },
@@ -297,8 +317,8 @@ class SongInfoBottomSheet extends StatelessWidget {
                     ),
                     IconButton(
                       splashRadius: 10,
-                      onPressed: () {
-                        AppPlatformService.openUrl(
+                      onPressed: () async {
+                        await AppPlatformService.openUrl(
                           "https://music.youtube.com/watch?v=${song.id}",
                         );
                       },
@@ -314,9 +334,9 @@ class SongInfoBottomSheet extends StatelessWidget {
                 visualDensity: const VisualDensity(vertical: -1),
                 leading: const Icon(Icons.timer),
                 title: Text("sleepTimer".tr),
-                onTap: () {
+                onTap: () async {
                   Navigator.of(context).pop();
-                  showModalBottomSheet(
+                  await showModalBottomSheet(
                     constraints: const BoxConstraints(maxWidth: 500),
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.vertical(
@@ -325,7 +345,7 @@ class SongInfoBottomSheet extends StatelessWidget {
                     ),
                     isScrollControlled: true,
                     context:
-                        playerController.homeScaffoldkey.currentState!.context,
+                        playerController.homeScaffoldKey.currentState!.context,
                     barrierColor: Colors.transparent.withAlpha(100),
                     builder: (context) => const SleepTimerBottomSheet(),
                   );
@@ -361,12 +381,12 @@ class SongInfoBottomSheet extends StatelessWidget {
                   onTap: () async {
                     Navigator.of(context).pop();
                     if (calledFromPlayer) {
-                      Get.find<PlayerController>().playerPanelController
+                      await Get.find<PlayerController>().playerPanelController
                           .close();
                     }
                     if (calledFromQueue) {
                       final playerController = Get.find<PlayerController>();
-                      playerController.playerPanelController.close();
+                      await playerController.playerPanelController.close();
                     }
                     await Get.toNamed(
                       ScreenNavigationSetup.artistScreen,
@@ -392,10 +412,8 @@ class SongInfoController extends GetxController
   final bool calledFromPlayer;
   List artistList = [].obs;
   final isDownloaded = false.obs;
-  SongInfoController(this.song, this.calledFromPlayer) {
-    _setInitStatus(song);
-  }
-  _setInitStatus(MediaItem song) async {
+  SongInfoController(this.song, this.calledFromPlayer);
+  Future<void> _setInitStatus(MediaItem song) async {
     isDownloaded.value = Hive.box(BoxNames.songDownloads).containsKey(song.id);
     isCurrentSongFav.value = (await Hive.openBox(
       BoxNames.libFav,
@@ -406,6 +424,12 @@ class SongInfoController extends GetxController
         if (each.containsKey("id") && each['id'] != null) artistList.add(each);
       }
     }
+  }
+
+  @override
+  Future<void> onInit() async {
+    super.onInit();
+    await _setInitStatus(song);
   }
 
   void setDownloadStatus(bool isDownloaded_) {
@@ -421,28 +445,28 @@ class SongInfoController extends GetxController
     if (calledFromPlayer) {
       final playerController = Get.find<PlayerController>();
       if (playerController.currentSong.value == song) {
-        playerController.toggleFavourite();
+        await playerController.toggleFavourite();
         isCurrentSongFav.value = !isCurrentSongFav.value;
         return;
       }
     }
     final box = await Hive.openBox(BoxNames.libFav);
     isCurrentSongFav.isFalse
-        ? box.put(song.id, MediaItemBuilder.toJson(song))
-        : box.delete(song.id);
+        ? await box.put(song.id, MediaItemBuilder.toJson(song))
+        : await box.delete(song.id);
     try {
       final likedNotDownloadedController = Get.find<PlaylistScreenController>(
         tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
       );
       if (isCurrentSongFav.isFalse &&
           !Hive.box(BoxNames.songDownloads).containsKey(song.id)) {
-        likedNotDownloadedController.addNRemoveItemsInList(
+        await likedNotDownloadedController.addNRemoveItemsInList(
           song,
           action: 'add',
           index: 0,
         );
       } else {
-        likedNotDownloadedController.addNRemoveItemsInList(
+        await likedNotDownloadedController.addNRemoveItemsInList(
           song,
           action: 'remove',
         );
@@ -455,7 +479,7 @@ class SongInfoController extends GetxController
             .autoDownloadFavoriteSongEnabled
             .isTrue &&
         isCurrentSongFav.isTrue) {
-      Get.find<Downloader>().download(song);
+      await Get.find<Downloader>().download(song);
     }
   }
 }
@@ -466,7 +490,7 @@ mixin RemoveSongFromPlaylistMixin {
       final box = await Hive.openBox(BoxNames.libFav);
       await box.delete(item.id);
       try {
-        Get.find<PlaylistScreenController>(
+        await Get.find<PlaylistScreenController>(
           tag: Key(playlist.playlistId).hashCode.toString(),
         ).addNRemoveItemsInList(item, action: 'remove');
       } catch (e) {
@@ -480,7 +504,7 @@ mixin RemoveSongFromPlaylistMixin {
       await box.delete(item.id);
       await box.close();
       try {
-        Get.find<PlaylistScreenController>(
+        await Get.find<PlaylistScreenController>(
           tag: Key(playlist.playlistId).hashCode.toString(),
         ).addNRemoveItemsInList(item, action: 'remove');
       } catch (e) {
@@ -493,15 +517,15 @@ mixin RemoveSongFromPlaylistMixin {
     //Library songs case
     if (playlist.playlistId == BoxNames.songsCache) {
       if (!box.containsKey(item.id)) {
-        Hive.box(BoxNames.songDownloads).delete(item.id);
-        Get.find<LibrarySongsController>().removeSong(item, true);
+        await Hive.box(BoxNames.songDownloads).delete(item.id);
+        await Get.find<LibrarySongsController>().removeSong(item, true);
       } else {
-        Get.find<LibrarySongsController>().removeSong(item, false);
-        box.delete(item.id);
+        await Get.find<LibrarySongsController>().removeSong(item, false);
+        await box.delete(item.id);
       }
     } else if (playlist.playlistId == BoxNames.songDownloads) {
-      box.delete(item.id);
-      Get.find<LibrarySongsController>().removeSong(item, true);
+      await box.delete(item.id);
+      await Get.find<LibrarySongsController>().removeSong(item, true);
     } else if (!playlist.isPipedPlaylist) {
       //Other playlist song case
       final index = box.values.toList().indexWhere(
@@ -510,7 +534,7 @@ mixin RemoveSongFromPlaylistMixin {
       await box.deleteAt(index);
     }
 
-    // this try catch block is to handle the case when song is removed from libsongs sections
+    // this try catch block is to handle the case when song is removed from lib-songs sections
     try {
       final playlistController = Get.find<PlaylistScreenController>(
         tag: Key(playlist.playlistId).hashCode.toString(),
@@ -526,14 +550,17 @@ mixin RemoveSongFromPlaylistMixin {
             songIndex,
           );
           if (res.code == 1) {
-            playlistController.addNRemoveItemsInList(item, action: 'remove');
+            await playlistController.addNRemoveItemsInList(
+              item,
+              action: 'remove',
+            );
           }
         }
         return;
       }
 
       try {
-        playlistController.addNRemoveItemsInList(item, action: 'remove');
+        await playlistController.addNRemoveItemsInList(item, action: 'remove');
       } catch (e) {
         printERROR(e, tag: LogTags.library);
       }
@@ -545,6 +572,6 @@ mixin RemoveSongFromPlaylistMixin {
         playlist.playlistId == BoxNames.songsCache) {
       return;
     }
-    box.close();
+    await box.close();
   }
 }

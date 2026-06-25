@@ -73,25 +73,25 @@ mixin AdditionalOperationMixin on PlaylistAlbumScreenControllerBase {
   }
 
   @override
-  void performAdditionalOperation() {
+  Future<void> performAdditionalOperation() async {
     final currMode = additionalOperationMode.value;
     if (currMode == OperationMode.arrange) {
       songList.value = additionalOperationTempList.toList();
-      updateSongsIntoDb().then((value) {
+      await updateSongsIntoDb().then((value) {
         sortWidgetController?.setActiveMode(OperationMode.none);
         cancelAdditionalOperation();
       });
     } else if (currMode == OperationMode.delete) {
-      deleteMultipleSongs(selectedSongs()).then((value) {
+      await deleteMultipleSongs(selectedSongs()).then((value) {
         sortWidgetController?.setActiveMode(OperationMode.none);
         cancelAdditionalOperation();
       });
     } else if (currMode == OperationMode.addToPlaylist) {
-      showDialog(
+      await showDialog(
         context: Get.context!,
         builder: (context) => AddToPlaylist(selectedSongs()),
-      ).whenComplete(() {
-        Get.delete<AddToPlaylistController>();
+      ).whenComplete(() async {
+        await Get.delete<AddToPlaylistController>();
         sortWidgetController?.setActiveMode(OperationMode.none);
         cancelAdditionalOperation();
       });

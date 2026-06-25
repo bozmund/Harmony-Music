@@ -17,7 +17,13 @@ class ThemeController extends GetxController {
   final platform = const MethodChannel('win_titlebar_color');
   String? currentSongId;
   late Brightness systemBrightness;
-
+  @override
+  Future<void> onInit() async {
+    super.onInit();
+    await changeThemeModeType(
+    ThemeType.values[Hive.box('appPrefs').get("themeModeType") ?? 0],
+    );
+  }
   ThemeController() {
     systemBrightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
@@ -26,27 +32,22 @@ class ThemeController extends GetxController {
       Hive.box('appPrefs').get("themePrimaryColor") ?? 4278199603,
     );
 
-    changeThemeModeType(
-      ThemeType.values[Hive.box('appPrefs').get("themeModeType") ?? 0],
-    );
-
     _listenSystemBrightness();
 
     super.onInit();
   }
-
   void _listenSystemBrightness() {
     final platformDispatcher = WidgetsBinding.instance.platformDispatcher;
-    platformDispatcher.onPlatformBrightnessChanged = () {
+    platformDispatcher.onPlatformBrightnessChanged = () async {
       systemBrightness = platformDispatcher.platformBrightness;
-      changeThemeModeType(
+      await changeThemeModeType(
         ThemeType.values[Hive.box('appPrefs').get("themeModeType")],
         sysCall: true,
       );
     };
   }
 
-  void changeThemeModeType(dynamic value, {bool sysCall = false}) {
+  Future<void> changeThemeModeType(dynamic value, {bool sysCall = false}) async {
     if (value == ThemeType.system) {
       themeData.value = _createThemeData(
         null,
@@ -61,10 +62,10 @@ class ThemeController extends GetxController {
         value,
       );
     }
-    setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
+    await setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
   }
 
-  void setTheme(ImageProvider imageProvider, String songId) async {
+  Future<void> setTheme(ImageProvider imageProvider, String songId) async {
     if (songId == currentSongId) return;
     final paletteColor = await _dominantColorFromImageProvider(
       ResizeImage(imageProvider, height: 200, width: 200),
@@ -86,10 +87,10 @@ class ThemeController extends GetxController {
       titleColorSwatch: _createMaterialColor(textColor.value),
     );
     currentSongId = songId;
-    Hive.box(
+    await Hive.box(
       'appPrefs',
     ).put("themePrimaryColor", primaryColor.value!.toARGB32());
-    setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
+    await setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
   }
 
   Future<Color> _dominantColorFromImageProvider(ImageProvider provider) async {
@@ -210,7 +211,7 @@ class ThemeController extends GetxController {
         ),
         tabBarTheme: const TabBarThemeData(indicatorColor: Colors.white),
         progressIndicatorTheme: ProgressIndicatorThemeData(
-          linearTrackColor: (primarySwatch[300])!.computeLuminance() > 0.3
+          linearTrackColor: primarySwatch[300]!.computeLuminance() > 0.3
               ? Colors.black54
               : Colors.white70,
           color: textColor,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,8 +9,8 @@ import '../../screens/Settings/settings_screen_controller.dart';
 import '../../utils/theme_controller.dart';
 import '../player_controller.dart';
 
-class BackgroudImage extends StatelessWidget {
-  const BackgroudImage({super.key, this.cacheHeight});
+class BackgroundImage extends StatelessWidget {
+  const BackgroundImage({super.key, this.cacheHeight});
 
   final int? cacheHeight;
 
@@ -38,9 +39,9 @@ class BackgroudImage extends StatelessWidget {
                                   .themeModeType
                                   .value ==
                               ThemeType.dynamic) {
-                            Get.find<ThemeController>().setTheme(
+                            unawaited(Get.find<ThemeController>().setTheme(
                                 FileImage(imgFile),
-                                playerController.currentSong.value!.id);
+                                playerController.currentSong.value!.id));
                           }
 
                           return Image.file(
@@ -58,7 +59,7 @@ class BackgroudImage extends StatelessWidget {
                 : CachedNetworkImage(
                     memCacheHeight: cacheHeight,
                     imageBuilder: (context, imageProvider) {
-                      Get.find<SettingsScreenController>()
+                      unawaited(Get.find<SettingsScreenController>()
                                   .themeModeType
                                   .value ==
                               ThemeType.dynamic
@@ -67,7 +68,7 @@ class BackgroudImage extends StatelessWidget {
                               () => Get.find<ThemeController>().setTheme(
                                   imageProvider,
                                   playerController.currentSong.value!.id))
-                          : null;
+                          : null);
                       return Image(
                         image: imageProvider,
                         fit: BoxFit.cover,

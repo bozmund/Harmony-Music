@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:audio_service/audio_service.dart';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,6 +38,8 @@ class SettingsScreenController extends GetxController
   final loudnessNormalizationEnabled = false.obs;
   final noOfHomeScreenContent = 3.obs;
   final streamingQuality = AudioQuality.High.obs;
+  final playbackMode = PlaybackMode.classic.obs;
+  final playbackPreloadRange = 0.obs;
   final playerUi = 0.obs;
   final slidableActionEnabled = true.obs;
   final isIgnoringBatteryOptimizations = false.obs;
@@ -67,11 +70,11 @@ class SettingsScreenController extends GetxController
   final libraryFirstTab = 0.obs;
 
   @override
-  void onInit() {
+  Future<void> onInit() async {
     WidgetsBinding.instance.addObserver(this);
-    _setInitValue();
-    _createInAppSongDownDir();
-    unawaited(clearCachedUpdateApks());
+    await _setInitValue();
+    await _createInAppSongDownDir();
+    await clearCachedUpdateApks();
     super.onInit();
   }
 
@@ -82,13 +85,13 @@ class SettingsScreenController extends GetxController
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed) {
-      unawaited(refreshIgnoringBatteryOptimizations());
+      await refreshIgnoringBatteryOptimizations();
     }
   }
 
-  get currentVision => currentVersion;
+  String get currentVision => currentVersion;
 
   UpdateChannel get selectedUpdateChannel => updateChannel.value;
 
@@ -248,13 +251,29 @@ class SettingsScreenController extends GetxController
     loudnessNormalizationEnabled.value = isDesktop
         ? false
         : (setBox.get(PrefKeys.loudnessNormalizationEnabled) ?? false);
-    autoOpenPlayer.value = (setBox.get(PrefKeys.autoOpenPlayer) ?? true);
+    autoOpenPlayer.value = setBox.get(PrefKeys.autoOpenPlayer) ?? true;
     restorePlaybackSession.value =
         setBox.get(PrefKeys.restorePlaybackSession) ?? false;
     cacheHomeScreenData.value =
         setBox.get(PrefKeys.cacheHomeScreenData) ?? true;
     streamingQuality.value =
         AudioQuality.values[setBox.get(PrefKeys.streamingQuality) ?? 1];
+    final storedPlaybackMode = setBox.get(PrefKeys.playbackMode) ?? 0;
+    playbackMode.value =
+        storedPlaybackMode is int &&
+            storedPlaybackMode >= 0 &&
+            storedPlaybackMode < PlaybackMode.values.length
+        ? PlaybackMode.values[storedPlaybackMode]
+        : PlaybackMode.classic;
+    playbackPreloadRange.value =
+        ((setBox.get(PrefKeys.playbackPreloadRange) ?? 0) as int)
+            .clamp(0, 5)
+            .toInt();
+    if (playbackMode.value == PlaybackMode.preloaded &&
+        playbackPreloadRange.value == 0) {
+      playbackPreloadRange.value = 1;
+      await setBox.put(PrefKeys.playbackPreloadRange, 1);
+    }
     playerUi.value = isDesktop ? 0 : (setBox.get(PrefKeys.playerUi) ?? 0);
     backgroundPlayEnabled.value =
         setBox.get(PrefKeys.backgroundPlayEnabled) ?? true;
@@ -293,39 +312,79 @@ class SettingsScreenController extends GetxController
           setBox.get(PrefKeys.libraryFirstTab),
         );
     libraryFirstTab.value = normalizedLibraryFirstTab;
-    setBox.put(PrefKeys.libraryFirstTab, normalizedLibraryFirstTab);
+    await setBox.put(PrefKeys.libraryFirstTab, normalizedLibraryFirstTab);
   }
 
-  void changeUpdateChannel(String? val) {
+  Future<void> changeUpdateChannel(String? val) async {
     final next = val == 'rolling'
         ? UpdateChannel.rolling
         : UpdateChannel.stable;
     updateChannel.value = next;
-    setBox.put(PrefKeys.updateChannel, next.name);
-    if (updateCheckFlag) checkNewVersion();
+    await setBox.put(PrefKeys.updateChannel, next.name);
+    if (updateCheckFlag) await checkNewVersion();
   }
 
-  void setAppLanguage(String? val) {
-    Get.updateLocale(Locale(val!));
+  Future<void> setAppLanguage(String? val) async {
+    await Get.updateLocale(Locale(val!));
     Get.find<MusicServiceContract>().hlCode = val;
-    Get.find<HomeScreenController>().loadContentFromNetwork(silent: true);
+    (Get.find<HomeScreenController>().loadContentFromNetwork(silent: true),);
     currentAppLanguageCode.value = val;
-    setBox.put(PrefKeys.currentAppLanguageCode, val);
+    await setBox.put(PrefKeys.currentAppLanguageCode, val);
   }
 
-  void setContentNumber(int? no) {
+  Future<void> setContentNumber(int? no) async {
     noOfHomeScreenContent.value = no!;
-    setBox.put(PrefKeys.noOfHomeScreenContent, no);
+    await setBox.put(PrefKeys.noOfHomeScreenContent, no);
   }
 
   void setStreamingQuality(dynamic val) {
-    setBox.put(PrefKeys.streamingQuality, AudioQuality.values.indexOf(val));
+    (setBox.put(PrefKeys.streamingQuality, AudioQuality.values.indexOf(val)),);
     streamingQuality.value = val;
+    if (Get.isRegistered<AudioHandler>()) {
+      unawaited(Get.find<AudioHandler>().customAction("preloadConfigChanged"));
+    }
   }
 
-  void setPlayerUi(dynamic val) {
+  Future<void> setPlaybackMode(PlaybackMode? mode) async {
+    final selectedMode = mode ?? PlaybackMode.classic;
+    await setBox.put(PrefKeys.playbackMode, selectedMode.index);
+    playbackMode.value = selectedMode;
+    if (selectedMode == PlaybackMode.classic) {
+      playbackPreloadRange.value = 0;
+      await setBox.put(PrefKeys.playbackPreloadRange, 0);
+    } else if (playbackPreloadRange.value == 0) {
+      playbackPreloadRange.value = 1;
+      await setBox.put(PrefKeys.playbackPreloadRange, 1);
+    }
+    if (Get.isRegistered<AudioHandler>()) {
+      await Get.find<AudioHandler>().customAction("updatePlaybackMode", {
+        "mode": selectedMode.index,
+      });
+      await Get.find<AudioHandler>().customAction(
+        "updatePlaybackPreloadRange",
+        {"range": playbackPreloadRange.value},
+      );
+    }
+  }
+
+  Future<void> setPlaybackPreloadRange(int? value) async {
+    final range = (value ?? 0).clamp(0, 5).toInt();
+    await setBox.put(PrefKeys.playbackPreloadRange, range);
+    playbackPreloadRange.value = range;
+    if (range > 0 && playbackMode.value != PlaybackMode.preloaded) {
+      await setPlaybackMode(PlaybackMode.preloaded);
+    }
+    if (Get.isRegistered<AudioHandler>()) {
+      await Get.find<AudioHandler>().customAction(
+        "updatePlaybackPreloadRange",
+        {"range": range},
+      );
+    }
+  }
+
+  Future<void> setPlayerUi(dynamic val) async {
     final playerCon = Get.find<PlayerController>();
-    setBox.put(PrefKeys.playerUi, val);
+    await setBox.put(PrefKeys.playerUi, val);
     if (val == 1 && playerCon.gesturePlayerStateAnimationController == null) {
       playerCon.initGesturePlayerStateAnimationController();
     }
@@ -333,7 +392,7 @@ class SettingsScreenController extends GetxController
     playerUi.value = val;
   }
 
-  void enableBottomNavBar(bool val) {
+  Future<void> enableBottomNavBar(bool val) async {
     final homeScrCon = Get.find<HomeScreenController>();
     final playerCon = Get.find<PlayerController>();
     if (val) {
@@ -348,16 +407,16 @@ class SettingsScreenController extends GetxController
           ? 75.0
           : 75.0 + Get.mediaQuery.viewPadding.bottom;
     }
-    setBox.put(PrefKeys.isBottomNavBarEnabled, val);
+    await setBox.put(PrefKeys.isBottomNavBarEnabled, val);
   }
 
-  void toggleSlidableAction(bool val) {
-    setBox.put(PrefKeys.slidableActionEnabled, val);
+  Future<void> toggleSlidableAction(bool val) async {
+    await setBox.put(PrefKeys.slidableActionEnabled, val);
     slidableActionEnabled.value = val;
   }
 
-  void changeDownloadingFormat(String? val) {
-    setBox.put(PrefKeys.downloadingFormat, val);
+  Future<void> changeDownloadingFormat(String? val) async {
+    await setBox.put(PrefKeys.downloadingFormat, val);
     downloadingFormat.value = val!;
   }
 
@@ -373,7 +432,7 @@ class SettingsScreenController extends GetxController
       return;
     }
 
-    setBox.put(PrefKeys.exportLocationPath, pickedFolderPath);
+    await setBox.put(PrefKeys.exportLocationPath, pickedFolderPath);
     exportLocationPath.value = pickedFolderPath;
   }
 
@@ -389,12 +448,12 @@ class SettingsScreenController extends GetxController
       return;
     }
 
-    setBox.put(PrefKeys.downloadLocationPath, pickedFolderPath);
+    await setBox.put(PrefKeys.downloadLocationPath, pickedFolderPath);
     downloadLocationPath.value = pickedFolderPath;
   }
 
-  void disableTransitionAnimation(bool val) {
-    setBox.put(PrefKeys.isTransitionAnimationDisabled, val);
+  Future<void> disableTransitionAnimation(bool val) async {
+    await setBox.put(PrefKeys.isTransitionAnimationDisabled, val);
     isTransitionAnimationDisabled.value = val;
   }
 
@@ -410,57 +469,59 @@ class SettingsScreenController extends GetxController
     } catch (e) {}
   }
 
-  void resetDownloadLocation() {
+  Future<void> resetDownloadLocation() async {
     final defaultPath = "$_supportDir/Music";
-    setBox.put(PrefKeys.downloadLocationPath, defaultPath);
+    await setBox.put(PrefKeys.downloadLocationPath, defaultPath);
     downloadLocationPath.value = defaultPath;
   }
 
-  void onThemeChange(dynamic val) {
-    setBox.put(PrefKeys.themeModeType, ThemeType.values.indexOf(val));
+  Future<void> onThemeChange(dynamic val) async {
+    (setBox.put(PrefKeys.themeModeType, ThemeType.values.indexOf(val)),);
     themeModeType.value = val;
-    Get.find<ThemeController>().changeThemeModeType(val);
+    await Get.find<ThemeController>().changeThemeModeType(val);
   }
 
-  void onContentChange(dynamic value) {
-    setBox.put(PrefKeys.discoverContentType, value);
+  Future<void> onContentChange(dynamic value) async {
+    await setBox.put(PrefKeys.discoverContentType, value);
     discoverContentType.value = value;
-    Get.find<HomeScreenController>().changeDiscoverContent(value);
+    await Get.find<HomeScreenController>().changeDiscoverContent(value);
   }
 
-  void toggleCachingSongsValue(bool value) {
-    setBox.put(PrefKeys.cacheSongs, value);
+  Future<void> toggleCachingSongsValue(bool value) async {
+    await setBox.put(PrefKeys.cacheSongs, value);
     cacheSongs.value = value;
   }
 
-  void toggleSkipSilence(bool val) {
-    Get.find<PlayerController>().toggleSkipSilence(val);
-    setBox.put(PrefKeys.skipSilenceEnabled, val);
+  Future<void> toggleSkipSilence(bool val) async {
+    await Get.find<PlayerController>().toggleSkipSilence(val);
+    await setBox.put(PrefKeys.skipSilenceEnabled, val);
     skipSilenceEnabled.value = val;
   }
 
-  void toggleLoudnessNormalization(bool val) {
-    Get.find<PlayerController>().toggleLoudnessNormalization(val);
-    setBox.put(PrefKeys.loudnessNormalizationEnabled, val);
+  Future<void> toggleLoudnessNormalization(bool val) async {
+    await Get.find<PlayerController>().toggleLoudnessNormalization(val);
+    await setBox.put(PrefKeys.loudnessNormalizationEnabled, val);
     loudnessNormalizationEnabled.value = val;
   }
 
-  void toggleRestorePlaybackSession(bool val) {
-    setBox.put(PrefKeys.restorePlaybackSession, val);
+  Future<void> toggleRestorePlaybackSession(bool val) async {
+    await setBox.put(PrefKeys.restorePlaybackSession, val);
     restorePlaybackSession.value = val;
   }
 
   Future<void> toggleCacheHomeScreenData(bool val) async {
-    setBox.put(PrefKeys.cacheHomeScreenData, val);
+    await setBox.put(PrefKeys.cacheHomeScreenData, val);
     cacheHomeScreenData.value = val;
     if (!val) {
-      Hive.openBox(BoxNames.homeScreenData).then((box) async {
-        await box.clear();
-        await box.close();
-      });
+      (
+        Hive.openBox(BoxNames.homeScreenData).then((box) async {
+          await box.clear();
+          await box.close();
+        }),
+      );
     } else {
       await Hive.openBox(BoxNames.homeScreenData);
-      Get.find<HomeScreenController>().cachedHomeScreenData(updateAll: true);
+      (Get.find<HomeScreenController>().cachedHomeScreenData(updateAll: true),);
     }
   }
 
@@ -475,7 +536,7 @@ class SettingsScreenController extends GetxController
 
     final homeController = Get.find<HomeScreenController>();
     homeController.tabIndex.value = 0;
-    homeController.isHomeSreenOnTop.value = true;
+    homeController.isHomeScreenOnTop.value = true;
     homeController.networkError.value = false;
     homeController.isContentFetched.value = false;
 
@@ -622,28 +683,28 @@ class SettingsScreenController extends GetxController
     }
   }
 
-  void toggleAutoDownloadFavoriteSong(bool val) {
-    setBox.put(PrefKeys.autoDownloadFavoriteSongEnabled, val);
+  Future<void> toggleAutoDownloadFavoriteSong(bool val) async {
+    await setBox.put(PrefKeys.autoDownloadFavoriteSongEnabled, val);
     autoDownloadFavoriteSongEnabled.value = val;
   }
 
-  void toggleBackgroundPlay(bool val) {
-    setBox.put(PrefKeys.backgroundPlayEnabled, val);
+  Future<void> toggleBackgroundPlay(bool val) async {
+    await setBox.put(PrefKeys.backgroundPlayEnabled, val);
     backgroundPlayEnabled.value = val;
   }
 
-  void toggleKeepScreenAwake(bool val) {
-    setBox.put(PrefKeys.keepScreenAwake, val);
+  Future<void> toggleKeepScreenAwake(bool val) async {
+    await setBox.put(PrefKeys.keepScreenAwake, val);
     keepScreenAwake.value = val;
     try {
       if (val) {
         // enable wakelock immediately if music is playing
         if (Get.find<PlayerController>().buttonState.value ==
             PlayButtonState.playing) {
-          AppPlatformService.setKeepScreenAwake(true);
+          await AppPlatformService.setKeepScreenAwake(true);
         }
       } else {
-        AppPlatformService.setKeepScreenAwake(false);
+        await AppPlatformService.setKeepScreenAwake(false);
       }
     } catch (e) {
       // ignore if player/controller not available
@@ -680,16 +741,16 @@ class SettingsScreenController extends GetxController
     await refreshIgnoringBatteryOptimizations();
   }
 
-  void toggleAutoOpenPlayer(bool val) {
-    setBox.put(PrefKeys.autoOpenPlayer, val);
+  Future<void> toggleAutoOpenPlayer(bool val) async {
+    await setBox.put(PrefKeys.autoOpenPlayer, val);
     autoOpenPlayer.value = val;
   }
 
-  void setFirstLibraryTab(int index) {
+  Future<void> setFirstLibraryTab(int index) async {
     final normalizedIndex = SettingsScreenController.normalizeLibraryFirstTab(
       index,
     );
-    setBox.put(PrefKeys.libraryFirstTab, normalizedIndex);
+    await setBox.put(PrefKeys.libraryFirstTab, normalizedIndex);
     libraryFirstTab.value = normalizedIndex;
   }
 
@@ -701,23 +762,23 @@ class SettingsScreenController extends GetxController
   }
 
   Future<void> unlinkPiped() async {
-    Get.find<PipedServices>().logout();
+    await Get.find<PipedServices>().logout();
     isLinkedWithPiped.value = false;
     Get.find<LibraryPlaylistsController>().removePipedPlaylists();
     final box = await Hive.openBox('blacklistedPlaylist');
-    box.clear();
+    await box.clear();
     ScaffoldMessenger.of(Get.context!).showSnackBar(
       snackbar(Get.context!, "unlinkAlert".tr, size: SanckBarSize.MEDIUM),
     );
-    box.close();
+    await box.close();
   }
 
   Future<void> resetAppSettingsToDefault() async {
     await setBox.clear();
   }
 
-  void toggleStopPlaybackOnSwipeAway(bool val) {
-    setBox.put('stopPlaybackOnSwipeAway', val);
+  Future<void> toggleStopPlaybackOnSwipeAway(bool val) async {
+    await setBox.put('stopPlaybackOnSwipeAway', val);
     stopPlaybackOnSwipeAway.value = val;
   }
 

@@ -35,7 +35,7 @@ void sortSongsNVideos(List songlist, SortType sortType, bool isAscending) {
   Comparator compareFunction;
 
   switch (sortType) {
-    case SortType.Date:
+    case SortType.date:
       compareFunction = (a, b) {
         if (a.extras!['date'] == null || b.extras!['date'] == null) {
           return 0.compareTo(0);
@@ -43,10 +43,10 @@ void sortSongsNVideos(List songlist, SortType sortType, bool isAscending) {
         return a.extras!['date'].compareTo(b.extras!['date']);
       };
       break;
-    case SortType.Duration:
+    case SortType.duration:
       compareFunction = (a, b) =>
           (a.duration ?? Duration.zero).compareTo(b.duration ?? Duration.zero);
-    case SortType.Name:
+    case SortType.name:
     default:
       compareFunction = (a, b) =>
           a.title.toLowerCase().compareTo(b.title.toLowerCase());
@@ -66,11 +66,11 @@ void sortAlbumNSingles(List albumList, SortType sortType, bool isAscending) {
   Comparator compareFunction;
 
   switch (sortType) {
-    case SortType.Date:
+    case SortType.date:
       compareFunction = (a, b) =>
           a.title.toLowerCase().compareTo(b.title.toLowerCase());
       break;
-    case SortType.Name:
+    case SortType.name:
     default:
       compareFunction = (a, b) {
         if (a.year == null || b.year == null) {
@@ -95,7 +95,7 @@ void sortPlayLists(List playlists, SortType sortType, bool isAscending) {
   int titleSort(a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase());
 
   switch (sortType) {
-    case SortType.RecentlyPlayed:
+    case SortType.recentlyPlayed:
       compareFunction = (a, b) {
         DateTime? alp = a.lastPlayed;
         DateTime? blp = b.lastPlayed;
@@ -111,7 +111,7 @@ void sortPlayLists(List playlists, SortType sortType, bool isAscending) {
         return blp.compareTo(alp);
       };
       break;
-    case SortType.Name:
+    case SortType.name:
     default:
       compareFunction = titleSort;
       break;
@@ -130,7 +130,7 @@ void sortArtist(List artistList, SortType sortType, bool isAscending) {
   Comparator compareFunction;
 
   switch (sortType) {
-    case SortType.Name:
+    case SortType.name:
     default:
       compareFunction = (a, b) =>
           a.name.toLowerCase().compareTo(b.name.toLowerCase());

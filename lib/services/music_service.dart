@@ -1,5 +1,3 @@
-// ignore_for_file: constant_identifier_names
-
 import 'dart:convert';
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
@@ -38,8 +36,8 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
   };
 
   @override
-  void onInit() {
-    init();
+  Future<void> onInit() async {
+    await init();
     super.onInit();
   }
 
@@ -61,7 +59,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       final visitorData = appPrefsBox.get("visitorId");
       if (visitorData != null && !isExpired(epoch: visitorData['exp'])) {
         _headers['X-Goog-Visitor-Id'] = visitorData['id'];
-        appPrefsBox.put("visitorId", {
+        await appPrefsBox.put("visitorId", {
           'id': visitorData['id'],
           'exp': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 2590200,
         });
@@ -70,11 +68,11 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       }
     }
 
-    final visitorId = await genrateVisitorId();
+    final visitorId = await generateVisitorId();
     if (visitorId != null) {
       _headers['X-Goog-Visitor-Id'] = visitorId;
       printINFO("New Visitor id generated ($visitorId)");
-      appPrefsBox.put("visitorId", {
+      await appPrefsBox.put("visitorId", {
         'id': visitorId,
         'exp': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 2592000,
       });
@@ -90,7 +88,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
     _context['context']['client']['hl'] = code;
   }
 
-  Future<String?> genrateVisitorId() async {
+  Future<String?> generateVisitorId() async {
     try {
       final response = await dio.get(
         domain,
@@ -161,13 +159,13 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       }
 
       parseFunc(contents) => parseMixedContent(contents);
-      final x = (await getContinuations(
+      final x = await getContinuations(
         sectionList,
         'sectionListContinuation',
         limit - home.length,
         requestFunc,
         parseFunc,
-      ));
+      );
       // inspect(x);
       home.addAll([...x]);
     }
@@ -177,7 +175,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
 
   @override
   Future<List<Map<String, dynamic>>> getCharts(
-    String catogory, {
+    String category, {
     String? countryCode,
   }) async {
     final List<Map<String, dynamic>> charts = [];
@@ -204,7 +202,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
         for (dynamic item in result['musicCarouselShelfRenderer']['contents']) {
           final chartItem = await getChartItems(
             parseChartsItemBrowseId(item),
-            catogory,
+            category,
           );
           charts.add(chartItem);
         }
@@ -218,10 +216,10 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
 
   Future<Map<String, dynamic>> getChartItems(
     Map<String, dynamic> item,
-    String catogory,
+    String category,
   ) async {
-    final catString = catogory == "TMV" ? "Top Music Videos" : "Trending";
-    if ((item['title'])!.contains(catString)) {
+    final catString = category == "TMV" ? "Top Music Videos" : "Trending";
+    if (item['title']!.contains(catString)) {
       final songs = (await getPlaylistOrAlbumSongs(
         playlistId: item['browseId'],
       ))['tracks'];
@@ -356,10 +354,10 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       queryParameters: {"list": audioPlaylistId},
     );
     final reg = RegExp(r'\"MPRE.+?\"');
-    final matchs = reg.firstMatch(response.data.toString());
-    if (matchs != null) {
-      final x = (matchs[0])!;
-      final res = (x.substring(1)).split("\\")[0];
+    final matches = reg.firstMatch(response.data.toString());
+    if (matches != null) {
+      final x = matches[0]!;
+      final res = x.substring(1).split("\\")[0];
       return res;
     }
     return audioPlaylistId;
@@ -466,9 +464,9 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       final int secondSubtitleRunCount =
           header['secondSubtitle']['runs'].length;
       final String count =
-          (((header['secondSubtitle']['runs'][secondSubtitleRunCount %
-                              3]['text'])
-                          .split(' ')[0])
+          (header['secondSubtitle']['runs'][secondSubtitleRunCount %
+                              3]['text']
+                          .split(' ')[0]
                       .split(',')
                   as List)
               .join();
@@ -484,7 +482,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       //         additionalParams: additionalParams))
       //     .data;
 
-      requestFuncCountinuation(cont) async =>
+      requestFuncContinuation(cont) async =>
           (await _sendRequest("browse", {...data, ...cont})).data;
 
       if (songCount > 0) {
@@ -498,7 +496,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
           ...(await getContinuationsPlaylist(
             results,
             limit,
-            requestFuncCountinuation,
+            requestFuncContinuation,
             parseFunc,
           )),
         ];
@@ -579,12 +577,12 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
         [];
     return res
         .map<String?>((item) {
-          return (nav(item, [
+          return nav(item, [
             'searchSuggestionRenderer',
             'navigationEndpoint',
             'searchEndpoint',
             'query',
-          ])).toString();
+          ]).toString();
         })
         .whereType<String>()
         .toList();
@@ -602,7 +600,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       "category",
     ]);
     if (category == "Music" ||
-        (response["videoDetails"]).containsKey("musicVideoType")) {
+        response["videoDetails"].containsKey("musicVideoType")) {
       final list = await getWatchPlaylist(videoId: songId);
       return [true, list['tracks']];
     }
@@ -667,7 +665,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
 
     dynamic results;
 
-    if ((response['contents']).containsKey('tabbedSearchResultsRenderer')) {
+    if (response['contents'].containsKey('tabbedSearchResultsRenderer')) {
       final tabIndex = scope == null || filter != null
           ? 0
           : scopes.indexOf(scope) + 1;
@@ -938,7 +936,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
   }
 
   @override
-  Future<Map<String, dynamic>> getArtistRealtedContent(
+  Future<Map<String, dynamic>> getArtistRelatedContent(
     Map<String, dynamic> browseEndpoint,
     String category, {
     String additionalParams = "",
@@ -977,7 +975,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
         result['results'] = x;
         result['additionalParams'] = "&ctoken=${null}&continuation=${null}";
       } else if (contents.containsKey("gridRenderer")) {
-        result['results'] = (contents['gridRenderer']['items'])
+        result['results'] = contents['gridRenderer']['items']
             .map((video) => parseVideo(video['musicTwoRowItemRenderer']))
             .toList();
         result['additionalParams'] = "&ctoken=${null}&continuation=${null}";
@@ -987,11 +985,11 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
           "collapsedItemCount",
         ]);
         if (collapseContent != null) {
-          final contentlist =
+          final contentList =
               contents['musicPlaylistShelfRenderer']['contents'];
-          if (contentlist.length.toString() != collapseContent.toString()) {
-            final continuationItem = contentlist.removeAt(100);
-            result['results'] = parsePlaylistItems(contentlist);
+          if (contentList.length.toString() != collapseContent.toString()) {
+            final continuationItem = contentList.removeAt(100);
+            result['results'] = parsePlaylistItems(contentList);
             final continuationKey = nav(continuationItem, [
               "continuationItemRenderer",
               "continuationEndpoint",
@@ -1001,18 +999,18 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
             result['additionalParams'] =
                 "&ctoken=$continuationKey&continuation=$continuationKey";
           } else {
-            result['results'] = parsePlaylistItems(contentlist);
+            result['results'] = parsePlaylistItems(contentList);
             result['additionalParams'] = "&ctoken=null&continuation=null";
           }
         }
         return result;
       }
     } else if (category == 'Albums' || category == 'Singles') {
-      List contentlist;
+      List contentList;
 
       /// in continuation
       if (additionalParams != "") {
-        contentlist =
+        contentList =
             response['continuationContents']['gridContinuation']['items'];
         final continuationKey = nav(response, [
           'continuationContents',
@@ -1026,7 +1024,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
             "&ctoken=$continuationKey&continuation=$continuationKey";
       } else {
         /// in first request
-        contentlist = contents['gridRenderer']['items'];
+        contentList = contents['gridRenderer']['items'];
 
         final continuationKey = nav(contents, [
           'gridRenderer',
@@ -1040,11 +1038,11 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       }
 
       result['results'] = category == 'Albums'
-          ? contentlist
+          ? contentList
                 .map((item) => parseAlbum(item['musicTwoRowItemRenderer']))
                 .whereType<Album>()
                 .toList()
-          : contentlist
+          : contentList
                 .map((item) => parseSingle(item['musicTwoRowItemRenderer']))
                 .whereType<Album>()
                 .toList();

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '/models/durationstate.dart';
+import '/models/duration_state.dart';
 
 class MiniPlayerProgressBar extends StatelessWidget {
   const MiniPlayerProgressBar(

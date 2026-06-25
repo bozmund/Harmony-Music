@@ -123,7 +123,7 @@ class Audio {
       itag: json['itag'],
       duration: json["approxDurationMs"] ?? 0,
       bitrate: json["bitrate"] ?? 0,
-      loudnessDb: (json['loudnessDb'])?.toDouble() ?? 0.0,
+      loudnessDb: json['loudnessDb']?.toDouble() ?? 0.0,
       url: json['url'],
       size: json["size"] ?? 0);
 }

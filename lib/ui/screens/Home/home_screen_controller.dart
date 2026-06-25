@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 import '/models/media_Item_builder.dart';
+import '/ui/navigator.dart';
 import '/ui/player/player_controller.dart';
 import '../../../utils/update_check_flag_file.dart';
 import '/services/constant.dart';
@@ -29,17 +30,17 @@ class HomeScreenController extends GetxController {
   final fixedContent = [].obs;
   final showVersionDialog = true.obs;
   //isHomeScreenOnTop var only useful if bottom nav enabled
-  final isHomeSreenOnTop = true.obs;
+  final isHomeScreenOnTop = true.obs;
   final List<ScrollController> contentScrollControllers = [];
   bool _updateDialogPending = false;
   bool _updateDialogShown = false;
-  bool reverseAnimationtransiton = false;
+  bool reverseAnimationTransition = false;
 
   @override
-  onInit() {
+  Future<void> onInit() async {
     super.onInit();
-    unawaited(Get.find<SettingsScreenController>().clearCachedUpdateApks());
-    loadContent();
+    await Get.find<SettingsScreenController>().clearCachedUpdateApks();
+    await loadContent();
     if (updateCheckFlag) {
       _checkNewVersion();
     } else if (kDebugMode) {
@@ -60,13 +61,13 @@ class HomeScreenController extends GetxController {
             (box.get(PrefKeys.homeScreenDataTime) ??
                 DateTime.now().millisecondsSinceEpoch);
         if (currTimeSecsDiff / 1000 > 3600 * 8) {
-          loadContentFromNetwork(silent: true);
+          await loadContentFromNetwork(silent: true);
         }
       } else {
-        loadContentFromNetwork();
+        await loadContentFromNetwork();
       }
     } else {
-      loadContentFromNetwork();
+      await loadContentFromNetwork();
     }
   }
 
@@ -166,10 +167,10 @@ class HomeScreenController extends GetxController {
         try {
           final songId = box.get(PrefKeys.recentSongId);
           if (songId != null) {
-            final rel = (await _musicServices.getContentRelatedToSong(
+            final rel = await _musicServices.getContentRelatedToSong(
               songId,
               getContentHlCode(),
-            ));
+            );
             final con = rel.removeAt(0);
             quickPicks.value = QuickPicks(
               List<MediaItem>.from(con["contents"]),
@@ -207,7 +208,7 @@ class HomeScreenController extends GetxController {
       isContentFetched.value = true;
 
       // set home content last update time
-      cachedHomeScreenData(updateAll: true);
+      await cachedHomeScreenData(updateAll: true);
       await Hive.box(
         BoxNames.appPrefs,
       ).put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
@@ -245,20 +246,20 @@ class HomeScreenController extends GetxController {
   List _setContentList(List<dynamic> contents) {
     List contentTemp = [];
     for (var content in contents) {
-      if (content["contents"] is! List || (content["contents"]).isEmpty) {
+      if (content["contents"] is! List || content["contents"].isEmpty) {
         continue;
       }
-      if ((content["contents"][0]).runtimeType == Playlist) {
+      if (content["contents"][0].runtimeType == Playlist) {
         final tmp = PlaylistContent(
-          playlistList: (content["contents"]).whereType<Playlist>().toList(),
+          playlistList: content["contents"].whereType<Playlist>().toList(),
           title: content["title"],
         );
         if (tmp.playlistList.length >= 2) {
           contentTemp.add(tmp);
         }
-      } else if ((content["contents"][0]).runtimeType == Album) {
+      } else if (content["contents"][0].runtimeType == Album) {
         final tmp = AlbumContent(
-          albumList: (content["contents"]).whereType<Album>().toList(),
+          albumList: content["contents"].whereType<Album>().toList(),
           title: content["title"],
         );
         if (tmp.albumList.length >= 2) {
@@ -303,11 +304,13 @@ class HomeScreenController extends GetxController {
             getContentHlCode(),
           );
           middleContent.value = _setContentList(value);
-          if (value.isNotEmpty && (value[0]['title']).contains("like")) {
+          if (value.isNotEmpty && value[0]['title'].contains("like")) {
             quickPicks_ = QuickPicks(
               List<MediaItem>.from(value[0]["contents"]),
             );
-            Hive.box(BoxNames.appPrefs).put(PrefKeys.recentSongId, songId);
+            (
+              Hive.box(BoxNames.appPrefs).put(PrefKeys.recentSongId, songId),
+            );
           }
           // ignore: empty_catches
         } catch (e) {}
@@ -318,7 +321,7 @@ class HomeScreenController extends GetxController {
     quickPicks.value = quickPicks_;
 
     // set home content last update time
-    cachedHomeScreenData(updateQuickPicksNMiddleContent: true);
+    await cachedHomeScreenData(updateQuickPicksNMiddleContent: true);
     await Hive.box(
       BoxNames.appPrefs,
     ).put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
@@ -332,13 +335,20 @@ class HomeScreenController extends GetxController {
   }
 
   void onSideBarTabSelected(int index) {
-    reverseAnimationtransiton = index > tabIndex.value;
+    _popNestedNavigatorToRoot();
+    reverseAnimationTransition = index > tabIndex.value;
     tabIndex.value = index;
   }
 
   void onBottonBarTabSelected(int index) {
-    reverseAnimationtransiton = index > tabIndex.value;
+    _popNestedNavigatorToRoot();
+    reverseAnimationTransition = index > tabIndex.value;
     tabIndex.value = index;
+  }
+
+  void _popNestedNavigatorToRoot() {
+    final navigator = Get.nestedKey(ScreenNavigationSetup.id)?.currentState;
+    navigator?.popUntil((route) => route.isFirst);
   }
 
   void _checkNewVersion() {
@@ -346,11 +356,13 @@ class HomeScreenController extends GetxController {
         Hive.box(BoxNames.appPrefs).get(PrefKeys.newVersionVisibility) ?? true;
     if (showVersionDialog.isTrue) {
       final settingsController = Get.find<SettingsScreenController>();
-      settingsController.checkNewVersion().then((value) {
-        if (value != null) {
-          _showNewVersionDialog(value);
-        }
-      });
+      (
+        settingsController.checkNewVersion().then((value) {
+          if (value != null) {
+            _showNewVersionDialog(value);
+          }
+        }),
+      );
     }
   }
 
@@ -376,9 +388,11 @@ class HomeScreenController extends GetxController {
 
     _updateDialogPending = false;
     _updateDialogShown = true;
-    Get.dialog(NewVersionDialog(updateInfo: updateInfo)).whenComplete(() {
-      _updateDialogShown = false;
-    });
+    (
+      Get.dialog(NewVersionDialog(updateInfo: updateInfo)).whenComplete(() {
+        _updateDialogShown = false;
+      }),
+    );
   }
 
   void _showDebugUpdateDialog() {
@@ -394,11 +408,13 @@ class HomeScreenController extends GetxController {
   }
 
   void onChangeVersionVisibility(bool val) {
-    Hive.box(BoxNames.appPrefs).put(PrefKeys.newVersionVisibility, !val);
+    (
+      Hive.box(BoxNames.appPrefs).put(PrefKeys.newVersionVisibility, !val),
+    );
     showVersionDialog.value = !val;
   }
 
-  ///This is used to minimized bottom navigation bar by setting [isHomeSreenOnTop.value] to `true` and set mini player height.
+  ///This is used to minimized bottom navigation bar by setting [isHomeScreenOnTop.value] to `true` and set mini player height.
   ///
   ///and applicable/useful if bottom nav enabled
   void whenHomeScreenOnTop() {
@@ -408,9 +424,9 @@ class HomeScreenController extends GetxController {
       final isResultScreenOnTop = currentRoute == '/searchResultScreen';
       final playerCon = Get.find<PlayerController>();
 
-      isHomeSreenOnTop.value = isHomeOnTop;
+      isHomeScreenOnTop.value = isHomeOnTop;
 
-      // Set miniplayer height accordingly
+      // Set mini-player height accordingly
       if (!playerCon.initFlagForPlayer) {
         if (isHomeOnTop) {
           playerCon.playerPanelMinHeight.value = 75.0;
@@ -483,10 +499,10 @@ class HomeScreenController extends GetxController {
 
   void disposeDetachedScrollControllers({bool disposeAll = false}) {
     final scrollControllersCopy = contentScrollControllers.toList();
-    for (final contoller in scrollControllersCopy) {
-      if (!contoller.hasClients || disposeAll) {
-        contentScrollControllers.remove(contoller);
-        contoller.dispose();
+    for (final controller in scrollControllersCopy) {
+      if (!controller.hasClients || disposeAll) {
+        contentScrollControllers.remove(controller);
+        controller.dispose();
       }
     }
   }

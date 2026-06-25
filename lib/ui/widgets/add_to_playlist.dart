@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -52,12 +50,12 @@ class AddToPlaylist extends StatelessWidget {
                     ),
                     InkWell(
                       child: const Icon(Icons.playlist_add),
-                      onTap: () {
+                      onTap: () async {
                         Navigator.of(context).pop();
-                        showDialog(
+                        await showDialog(
                           context: context,
                           builder: (context) => CreateNRenamePlaylistPopup(
-                              isCreateNadd: true, songItems: songItems),
+                              isCreateNAdd: true, songItems: songItems),
                         );
                       },
                     )
@@ -66,36 +64,32 @@ class AddToPlaylist extends StatelessWidget {
               ),
               if (isPipedLinked)
                 Obx(
-                  () => Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Radio(
-                              value: "piped",
-                              groupValue:
-                                  addToPlaylistController.playlistType.value,
-                              onChanged:
-                                  addToPlaylistController.changePlaylistType),
-                          Text("Piped".tr),
-                        ],
+                      () =>
+                      RadioGroup<String>(
+                        groupValue: addToPlaylistController.playlistType.value,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          addToPlaylistController.changePlaylistType(value);
+                        },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Radio<String>(value: 'piped'),
+                                Text('Piped'.tr),
+                              ],
+                            ),
+                            const SizedBox(width: 15),
+                            Row(
+                              children: [
+                                const Radio<String>(value: 'local'),
+                                Text('local'.tr),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(
-                        width: 15,
-                      ),
-                      Row(
-                        children: [
-                          Radio(
-                              value: "local",
-                              groupValue:
-                                  addToPlaylistController.playlistType.value,
-                              onChanged:
-                                  addToPlaylistController.changePlaylistType),
-                          Text("local".tr),
-                        ],
-                      )
-                    ],
-                  ),
                 ),
               Container(
                 decoration: BoxDecoration(
@@ -110,13 +104,13 @@ class AddToPlaylist extends StatelessWidget {
                           itemBuilder: (context, index) => ListTile(
                             leading: const Icon(Icons.playlist_play),
                             title: Text(
-                              (addToPlaylistController.playlists[index]).title,
+                              addToPlaylistController.playlists[index].title,
                             ),
-                            onTap: () {
-                              addToPlaylistController
+                            onTap: () async {
+                              await addToPlaylistController
                                   .addSongsToPlaylist(
                                       songItems,
-                                      (addToPlaylistController.playlists[index])
+                                      addToPlaylistController.playlists[index]
                                           .playlistId,
                                       context)
                                   .then((value) {
@@ -170,13 +164,16 @@ class AddToPlaylistController extends GetxController {
   final additionInProgress = false.obs;
   List<Playlist> localPlaylists = [];
   List<Playlist> pipedPlaylists = [];
-  AddToPlaylistController() {
-    _getAllPlaylist();
+  AddToPlaylistController();
+  @override
+  Future<void> onInit() async {
+    super.onInit();
+    await _getAllPlaylist();
   }
 
   Future<void> _getAllPlaylist() async {
-    final plstsBox = await Hive.openBox("LibraryPlaylists");
-    playlists.value = plstsBox.values
+    final playlistsBox = await Hive.openBox("LibraryPlaylists");
+    playlists.value = playlistsBox.values
         .map((e) {
           if (!e["isCloudPlaylist"]) return Playlist.fromJson(e);
         })
@@ -198,7 +195,7 @@ class AddToPlaylistController extends GetxController {
     }
   }
 
-  void changePlaylistType(val) {
+  void changePlaylistType(String val) {
     playlistType.value = val;
     playlists.value = val == "piped" ? pipedPlaylists : localPlaylists;
   }
@@ -207,14 +204,14 @@ class AddToPlaylistController extends GetxController {
       List<MediaItem> songs, String playlistId, BuildContext context) async {
     additionInProgress.value = true;
     if (playlistType.value == "local") {
-      final plstBox = await Hive.openBox(playlistId);
-      final playlistSongIds = plstBox.values.map((item) => item['videoId']);
+      final playlistBox = await Hive.openBox(playlistId);
+      final playlistSongIds = playlistBox.values.map((item) => item['videoId']);
       for (MediaItem element in songs) {
         if (!playlistSongIds.contains(element.id)) {
-          await plstBox.add(MediaItemBuilder.toJson(element));
+          await playlistBox.add(MediaItemBuilder.toJson(element));
         }
       }
-      await plstBox.close();
+      await playlistBox.close();
       additionInProgress.value = false;
       return true;
     } else {
@@ -229,13 +226,13 @@ class AddToPlaylistController extends GetxController {
   // Future<bool> addSongToPlaylist(
   //     MediaItem song, String playlistId, BuildContext context) async {
   //   if (playlistType.value == "local") {
-  //     final plstBox = await Hive.openBox(playlistId);
-  //     if (!plstBox.containsKey(song.id)) {
-  //       plstBox.put(song.id, MediaItemBuilder.toJson(song));
-  //       plstBox.close();
+  //     final playlistBox = await Hive.openBox(playlistId);
+  //     if (!playlistBox.containsKey(song.id)) {
+  //       playlistBox.put(song.id, MediaItemBuilder.toJson(song));
+  //       playlistBox.close();
   //       return true;
   //     } else {
-  //       plstBox.close();
+  //       playlistBox.close();
   //       return false;
   //     }
   //   } else {

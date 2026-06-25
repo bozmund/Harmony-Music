@@ -199,11 +199,11 @@ class AlbumScreen extends StatelessWidget {
                                                 ? "addToLibrary".tr
                                                 : "removeFromLibrary".tr,
                                             splashRadius: 10,
-                                            onPressed: () {
+                                            onPressed: () async {
                                               final add = albumController
                                                   .isAddedToLibrary
                                                   .isFalse;
-                                              albumController
+                                              await albumController
                                                   .addNRemoveFromLibrary(
                                                     albumController.album.value,
                                                     add: add,
@@ -244,20 +244,21 @@ class AlbumScreen extends StatelessWidget {
                                         // Play button
                                         IconButton(
                                           tooltip: "play".tr,
-                                          onPressed: () {
-                                            playerController.playPlayListSong(
-                                              List<MediaItem>.from(
-                                                albumController.songList,
-                                              ),
-                                              0,
-                                              playfrom: PlayingFrom(
-                                                name: albumController
-                                                    .album
-                                                    .value
-                                                    .title,
-                                                type: PlayingFromType.ALBUM,
-                                              ),
-                                            );
+                                          onPressed: () async {
+                                            await playerController
+                                                .playPlayListSong(
+                                                  List<MediaItem>.from(
+                                                    albumController.songList,
+                                                  ),
+                                                  0,
+                                                  playFrom: PlayingFrom(
+                                                    name: albumController
+                                                        .album
+                                                        .value
+                                                        .title,
+                                                    type: PlayingFromType.ALBUM,
+                                                  ),
+                                                );
                                           },
                                           icon: Icon(
                                             Icons.play_circle,
@@ -269,8 +270,8 @@ class AlbumScreen extends StatelessWidget {
                                         // Enqueue button
                                         IconButton(
                                           tooltip: "enqueueAlbumSongs".tr,
-                                          onPressed: () {
-                                            Get.find<PlayerController>()
+                                          onPressed: () async {
+                                            await Get.find<PlayerController>()
                                                 .enqueueSongList(
                                                   albumController.songList
                                                       .toList(),
@@ -307,17 +308,18 @@ class AlbumScreen extends StatelessWidget {
                                                 .browseId;
                                             return IconButton(
                                               tooltip: "downloadAlbumSongs".tr,
-                                              onPressed: () {
+                                              onPressed: () async {
                                                 if (albumController
                                                     .isDownloaded
                                                     .isTrue) {
                                                   return;
                                                 }
-                                                controller.downloadPlaylist(
-                                                  id,
-                                                  albumController.songList
-                                                      .toList(),
-                                                );
+                                                await controller
+                                                    .downloadPlaylist(
+                                                      id,
+                                                      albumController.songList
+                                                          .toList(),
+                                                    );
                                               },
                                               icon:
                                                   albumController
@@ -395,8 +397,8 @@ class AlbumScreen extends StatelessWidget {
                                             vertical: -3,
                                           ),
                                           splashRadius: 10,
-                                          onPressed: () {
-                                            AppPlatformService.shareText(
+                                          onPressed: () async {
+                                            await AppPlatformService.shareText(
                                               "https://youtube.com/playlist?list=${albumController.album.value.audioPlaylistId}",
                                             );
                                           },
@@ -486,13 +488,13 @@ class AlbumScreen extends StatelessWidget {
                                   right: 5,
                                 ),
                                 child: SongListTile(
-                                  onTap: () {
-                                    playerController.playPlayListSong(
+                                  onTap: () async {
+                                    await playerController.playPlayListSong(
                                       List<MediaItem>.from(
                                         albumController.songList,
                                       ),
                                       index - 3,
-                                      playfrom: PlayingFrom(
+                                      playFrom: PlayingFrom(
                                         name: albumController.album.value.title,
                                         type: PlayingFromType.ALBUM,
                                       ),

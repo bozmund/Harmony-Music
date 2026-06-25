@@ -17,21 +17,21 @@ class WindowsAudioService extends GetxService {
   _initService() {
     smtc = SMTCWindows(enabled: false);
     try {
-      smtc.buttonPressStream.listen((event) {
+      smtc.buttonPressStream.listen((event) async {
         switch (event) {
           case PressedButton.play:
-            playerController.play();
-            smtc.setPlaybackStatus(PlaybackStatus.playing);
+            playerController.requestPlay();
+            await smtc.setPlaybackStatus(PlaybackStatus.playing);
             break;
           case PressedButton.pause:
-            playerController.pause();
-            smtc.setPlaybackStatus(PlaybackStatus.paused);
+            playerController.requestPause();
+            await smtc.setPlaybackStatus(PlaybackStatus.paused);
             break;
           case PressedButton.next:
-            playerController.next();
+            playerController.requestNext();
             break;
           case PressedButton.previous:
-            playerController.prev();
+            playerController.requestPrev();
             break;
 
           default:
@@ -42,22 +42,22 @@ class WindowsAudioService extends GetxService {
       printERROR("Error: $e");
     }
 
-    playerController.buttonState.listen((state) {
+    playerController.buttonState.listen((state) async {
       switch (state) {
         case PlayButtonState.playing:
-          smtc.setPlaybackStatus(PlaybackStatus.playing);
+          await smtc.setPlaybackStatus(PlaybackStatus.playing);
           break;
         case PlayButtonState.paused:
-          smtc.setPlaybackStatus(PlaybackStatus.paused);
+          await smtc.setPlaybackStatus(PlaybackStatus.paused);
           break;
         case PlayButtonState.loading:
-          smtc.setPlaybackStatus(PlaybackStatus.paused);
+          await smtc.setPlaybackStatus(PlaybackStatus.paused);
           break;
       }
     });
 
-    playerController.progressBarStatus.listen((status) {
-      smtc.setPosition(status.current);
+    playerController.progressBarStatus.listen((status) async {
+      await smtc.setPosition(status.current);
     });
 
     playerController.currentSong.listen((song) async {
@@ -72,16 +72,16 @@ class WindowsAudioService extends GetxService {
             thumbnail: song.artUri.toString(),
           ),
         );
-        smtc.setEndTime(playerController.progressBarStatus.value.total);
+        await smtc.setEndTime(playerController.progressBarStatus.value.total);
       }
     });
   }
 
   @override
-  void onClose() {
-    smtc.clearMetadata();
-    smtc.disableSmtc();
-    smtc.dispose();
+  Future<void> onClose() async {
+    await smtc.clearMetadata();
+    await smtc.disableSmtc();
+    await smtc.dispose();
     super.onClose();
   }
 }

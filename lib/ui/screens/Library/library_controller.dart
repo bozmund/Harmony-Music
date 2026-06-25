@@ -32,8 +32,8 @@ class LibrarySongsController extends GetxController {
   final additionalOperationMode = OperationMode.none.obs;
 
   @override
-  void onInit() {
-    init();
+  Future<void> onInit() async {
+    await init();
     super.onInit();
   }
 
@@ -70,7 +70,7 @@ class LibrarySongsController extends GetxController {
     final box = Hive.box(BoxNames.songsCache);
     for (var element in box.keys) {
       if (!songsList.contains(element)) {
-        box.delete(element);
+        await box.delete(element);
       }
     }
 
@@ -88,7 +88,7 @@ class LibrarySongsController extends GetxController {
     isSongFetched.value = true;
 
     //Remove deleted songs and expired songUrl from database
-    startHouseKeeping();
+    await startHouseKeeping();
   }
 
   void onSort(SortType sortType, bool isAscending) {
@@ -141,8 +141,8 @@ class LibrarySongsController extends GetxController {
       filePath = "$cacheDir/cachedSongs/${item.id}.mp3";
     }
 
-    if (await (File(filePath)).exists()) {
-      await (File(filePath)).delete();
+    if (await File(filePath).exists()) {
+      await File(filePath).delete();
     }
 
     final thumbFile = File(
@@ -182,19 +182,19 @@ class LibrarySongsController extends GetxController {
     }
   }
 
-  void performAdditionalOperation() {
+  Future<void> performAdditionalOperation() async {
     final currMode = additionalOperationMode.value;
     if (currMode == OperationMode.delete) {
-      deleteMultipleSongs(selectedSongs()).then((value) {
+      await deleteMultipleSongs(selectedSongs()).then((value) {
         sortWidgetController?.setActiveMode(OperationMode.none);
         cancelAdditionalOperation();
       });
     } else if (currMode == OperationMode.addToPlaylist) {
-      showDialog(
+      await showDialog(
         context: Get.context!,
         builder: (context) => AddToPlaylist(selectedSongs()),
-      ).whenComplete(() {
-        Get.delete<AddToPlaylistController>();
+      ).whenComplete(() async {
+        await Get.delete<AddToPlaylistController>();
         sortWidgetController?.setActiveMode(OperationMode.none);
         cancelAdditionalOperation();
       });
@@ -207,10 +207,10 @@ class LibrarySongsController extends GetxController {
     for (MediaItem element in songs) {
       if (downloadsBox.containsKey(element.id)) {
         await downloadsBox.delete(element.id);
-        removeSong(element, true);
+        await removeSong(element, true);
       } else {
         await cacheBox.delete(element.id);
-        removeSong(element, false);
+        await removeSong(element, false);
       }
     }
   }
@@ -392,16 +392,16 @@ class LibraryPlaylistsController extends GetxController
   final importProgress = 0.0.obs;
 
   @override
-  void onInit() {
+  Future<void> onInit() async {
     controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
     );
-    refreshLib();
+    await refreshLib();
     super.onInit();
   }
 
-  void refreshLib() async {
+  Future<void> refreshLib() async {
     final box = await Hive.openBox(BoxNames.libraryPlaylists);
     final localPlaylists = box.values
         .map<Playlist?>((item) => Playlist.fromJson(item))
@@ -421,10 +421,10 @@ class LibraryPlaylistsController extends GetxController
     await box.close();
   }
 
-  void updatePlaylistIntoDb(Playlist playlist) async {
+  Future<void> updatePlaylistIntoDb(Playlist playlist) async {
     final box = await Hive.openBox(BoxNames.libraryPlaylists);
-    box.put(playlist.playlistId, playlist.toJson());
-    refreshLib();
+    await box.put(playlist.playlistId, playlist.toJson());
+    await refreshLib();
   }
 
   void removePipedPlaylists() {
@@ -483,7 +483,7 @@ class LibraryPlaylistsController extends GetxController
         }
       }
     }
-    box.close();
+    await box.close();
   }
 
   Future<bool> renamePlaylist(Playlist playlist) async {
@@ -500,9 +500,9 @@ class LibraryPlaylistsController extends GetxController
         final box = await Hive.openBox(BoxNames.libraryPlaylists);
         title = "${title[0].toUpperCase()}${title.substring(1).toLowerCase()}";
         playlist.newTitle = title;
-        box.put(playlist.playlistId, playlist.toJson());
+        await box.put(playlist.playlistId, playlist.toJson());
       }
-      refreshLib();
+      await refreshLib();
       return true;
     }
     return false;
@@ -549,7 +549,7 @@ class LibraryPlaylistsController extends GetxController
           isCloudPlaylist: false,
         );
         final box = await Hive.openBox(BoxNames.libraryPlaylists);
-        box.put(newPlaylist.playlistId, newPlaylist.toJson());
+        await box.put(newPlaylist.playlistId, newPlaylist.toJson());
         await box.close();
       }
 
@@ -561,8 +561,8 @@ class LibraryPlaylistsController extends GetxController
           await playlistBox.add(MediaItemBuilder.toJson(item));
         }
         await playlistBox.close();
-      } else if ((createPlaylistNAddSong &&
-          playlistCreationMode.value == "piped")) {
+      } else if (createPlaylistNAddSong &&
+          playlistCreationMode.value == "piped") {
         final songIds = songItems!.map((e) => e.id).toList();
         await Get.find<PipedServices>().addToPlaylist(
           newPlaylist.playlistId,
@@ -577,15 +577,15 @@ class LibraryPlaylistsController extends GetxController
 
   Future<void> blacklistPipedPlaylist(Playlist playlist) async {
     final box = await Hive.openBox('blacklistedPlaylist');
-    box.add(playlist.playlistId);
+    await box.add(playlist.playlistId);
     libraryPlaylists.remove(playlist);
-    box.close();
+    await box.close();
   }
 
   Future<void> resetBlacklistedPlaylist() async {
     final box = await Hive.openBox('blacklistedPlaylist');
-    box.clear();
-    syncPipedPlaylist();
+    await box.clear();
+    await syncPipedPlaylist();
   }
 
   void onSort(SortType sortType, bool isAscending) {
@@ -653,7 +653,7 @@ class LibraryPlaylistsController extends GetxController
     onStatus?.call("Checking conflicts");
     final conflictAddedCount = await _addImportedConflicts(tracks);
 
-    refreshLib();
+    await refreshLib();
     onStatus?.call("Completed");
     return YouTubePlaylistImportResult(
       playlist: newPlaylist,
@@ -712,7 +712,7 @@ class LibraryPlaylistsController extends GetxController
       playlistsImported++;
     }
 
-    refreshLib();
+    await refreshLib();
     onStatus?.call("Completed");
 
     if (playlistsImported == 0 && reviewAddedCount == 0) {
@@ -979,7 +979,7 @@ class LibraryPlaylistsController extends GetxController
 
       // Show progress dialog
       if (context.mounted) {
-        _showImportProgressDialog(context);
+        await _showImportProgressDialog(context);
       }
 
       final result = await FilePickerService.openFile(
@@ -1040,7 +1040,7 @@ class LibraryPlaylistsController extends GetxController
 
       // Save playlist to database
       final box = await Hive.openBox(BoxNames.libraryPlaylists);
-      box.put(newPlaylistId, newPlaylist.toJson());
+      await box.put(newPlaylistId, newPlaylist.toJson());
       importProgress.value = 0.7;
 
       // Save songs to playlist
@@ -1065,7 +1065,7 @@ class LibraryPlaylistsController extends GetxController
       }
 
       // Refresh library to show the new playlist
-      refreshLib();
+      await refreshLib();
 
       // Show success message
       if (context.mounted) {
@@ -1108,8 +1108,8 @@ class LibraryPlaylistsController extends GetxController
   }
 
   // Helper method to show import progress dialog
-  void _showImportProgressDialog(BuildContext context) {
-    Get.dialog(
+  Future<void> _showImportProgressDialog(BuildContext context) async {
+    await Get.dialog(
       AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -1152,12 +1152,12 @@ class LibraryAlbumsController extends GetxController {
   List<Album> tempListContainer = [];
 
   @override
-  void onInit() {
-    refreshLib();
+  Future<void> onInit() async {
+    await refreshLib();
     super.onInit();
   }
 
-  void refreshLib() async {
+  Future<void> refreshLib() async {
     final box = await Hive.openBox(BoxNames.libraryAlbums);
     libraryAlbums.value = box.values
         .map<Album?>((item) => Album.fromJson(item))
@@ -1165,7 +1165,7 @@ class LibraryAlbumsController extends GetxController {
         .toList();
 
     isContentFetched.value = true;
-    box.close();
+    await box.close();
   }
 
   void onSort(SortType sortType, bool isAscending) {
@@ -1204,19 +1204,19 @@ class LibraryArtistsController extends GetxController {
   List<Artist> tempListContainer = [];
 
   @override
-  void onInit() {
-    refreshLib();
+  Future<void> onInit() async {
+    await refreshLib();
     super.onInit();
   }
 
-  void refreshLib() async {
+  Future<void> refreshLib() async {
     final box = await Hive.openBox(BoxNames.libraryArtists);
     libraryArtists.value = box.values
         .map<Artist?>((item) => Artist.fromJson(item))
         .whereType<Artist>()
         .toList();
     isContentFetched.value = true;
-    box.close();
+    await box.close();
   }
 
   void onSort(SortType sortType, bool isAscending) {
@@ -1254,16 +1254,16 @@ class LibrarySearchesController extends GetxController {
   final isContentFetched = false.obs;
 
   @override
-  void onInit() {
-    refreshLib();
+  Future<void> onInit() async {
+    await refreshLib();
     super.onInit();
   }
 
-  void refreshLib() async {
+  Future<void> refreshLib() async {
     final box = await Hive.openBox(BoxNames.librarySearches);
     savedSearches.value = box.values.whereType<String>().toList();
     isContentFetched.value = true;
-    box.close();
+    await box.close();
   }
 
   Future<void> saveSearch(String query) async {

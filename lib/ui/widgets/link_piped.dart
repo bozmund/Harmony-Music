@@ -124,26 +124,26 @@ class PipedLinkedController extends GetxController {
   final errorText = "".obs;
 
   @override
-  void onInit() {
-    getAllInstList();
+  Future<void> onInit() async {
+    await getAllInstList();
     super.onInit();
   }
 
   Future<void> getAllInstList() async {
-    _pipedServices.getAllInstanceList().then((res) {
+    await _pipedServices.getAllInstanceList().then((res) {
       if (res.code == 1) {
         pipedInstList.addAll(List<PipedInstance>.from(res.response) +
             [PipedInstance(name: "customIns".tr, apiUrl: "custom")]);
       } else {
         errorText.value =
-            "${res.errorMessage ?? "errorOccuredAlert".tr}! ${"customInsSelectMsg".tr}";
+            "${res.errorMessage ?? "errorOccurredAlert".tr}! ${"customInsSelectMsg".tr}";
         pipedInstList
             .add(PipedInstance(name: "customIns".tr, apiUrl: "custom"));
       }
     });
   }
 
-  void link() {
+  Future<void> link() async {
     errorText.value = "";
     final userName = usernameInputController.text;
     final password = passwordInputController.text;
@@ -159,23 +159,23 @@ class PipedLinkedController extends GetxController {
       errorText.value = "allFieldsReqMsg".tr;
       return;
     }
-    _pipedServices
+    await _pipedServices
         .login(
             selectedInst.toString() == 'custom'
                 ? instApiUrlInputController.text
                 : selectedInst.toString(),
             userName,
             password)
-        .then((res) {
+        .then((res) async {
       if (res.code == 1) {
-        printINFO("Login Successfull");
+        printINFO("Login Successful");
         Get.find<SettingsScreenController>().isLinkedWithPiped.value = true;
         Navigator.of(Get.context!).pop();
         ScaffoldMessenger.of(Get.context!).showSnackBar(
             snackbar(Get.context!, "linkAlert".tr, size: SanckBarSize.MEDIUM));
-        Get.find<LibraryPlaylistsController>().syncPipedPlaylist();
+        await Get.find<LibraryPlaylistsController>().syncPipedPlaylist();
       } else {
-        errorText.value = res.errorMessage ?? "errorOccuredAlert".tr;
+        errorText.value = res.errorMessage ?? "errorOccurredAlert".tr;
       }
     });
   }

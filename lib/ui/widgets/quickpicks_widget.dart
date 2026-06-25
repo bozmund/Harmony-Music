@@ -46,10 +46,10 @@ class QuickPicksWidget extends StatelessWidget {
                   ),
                   itemBuilder: (_, item) {
                     return Listener(
-                      onPointerDown: (PointerDownEvent event) {
+                      onPointerDown: (PointerDownEvent event) async {
                         if (event.buttons == kSecondaryMouseButton) {
-                          //show songinfobotomsheet
-                          showModalBottomSheet(
+                          //show song info bottom sheet
+                          await showModalBottomSheet(
                             constraints: const BoxConstraints(maxWidth: 500),
                             shape: const RoundedRectangleBorder(
                               borderRadius: BorderRadius.vertical(
@@ -57,7 +57,7 @@ class QuickPicksWidget extends StatelessWidget {
                             ),
                             isScrollControlled: true,
                             context: playerController
-                                .homeScaffoldkey.currentState!.context,
+                                .homeScaffoldKey.currentState!.context,
                             barrierColor: Colors.transparent.withAlpha(100),
                             builder: (context) => SongInfoBottomSheet(
                               content.songList[item],
@@ -82,12 +82,12 @@ class QuickPicksWidget extends StatelessWidget {
                             maxLines: 1,
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
-                          onTap: () {
-                            playerController
+                          onTap: () async {
+                            await playerController
                                 .pushSongToQueue(content.songList[item]);
                           },
-                          onLongPress: () {
-                            showModalBottomSheet(
+                          onLongPress: () async {
+                            await showModalBottomSheet(
                               constraints: const BoxConstraints(maxWidth: 500),
                               shape: const RoundedRectangleBorder(
                                 borderRadius: BorderRadius.vertical(
@@ -95,7 +95,7 @@ class QuickPicksWidget extends StatelessWidget {
                               ),
                               isScrollControlled: true,
                               context: playerController
-                                  .homeScaffoldkey.currentState!.context,
+                                  .homeScaffoldKey.currentState!.context,
                               //constraints: BoxConstraints(maxHeight:Get.height),
                               barrierColor: Colors.transparent.withAlpha(100),
                               builder: (context) =>
@@ -106,8 +106,8 @@ class QuickPicksWidget extends StatelessWidget {
                           trailing: (GetPlatform.isDesktop)
                               ? IconButton(
                                   splashRadius: 20,
-                                  onPressed: () {
-                                    showModalBottomSheet(
+                                  onPressed: () async {
+                                    await showModalBottomSheet(
                                       constraints:
                                           const BoxConstraints(maxWidth: 500),
                                       shape: const RoundedRectangleBorder(
@@ -115,7 +115,7 @@ class QuickPicksWidget extends StatelessWidget {
                                             top: Radius.circular(10.0)),
                                       ),
                                       isScrollControlled: true,
-                                      context: playerController.homeScaffoldkey
+                                      context: playerController.homeScaffoldKey
                                           .currentState!.context,
                                       //constraints: BoxConstraints(maxHeight:Get.height),
                                       barrierColor:

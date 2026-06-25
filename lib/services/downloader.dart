@@ -289,10 +289,10 @@ class Downloader extends GetxService implements DownloaderContract {
     // [playability status, info map]
     songJson["streamInfo"] = [true, streamInfoJson];
 
-    Hive.box(BoxNames.songDownloads).put(song.id, songJson);
+    await Hive.box(BoxNames.songDownloads).put(song.id, songJson);
     Get.find<LibrarySongsController>().librarySongsList.add(song);
     try {
-      Get.find<PlaylistScreenController>(
+      await Get.find<PlaylistScreenController>(
         tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
       ).addNRemoveItemsInList(song, action: 'remove');
       // ignore: empty_catches

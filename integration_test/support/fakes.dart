@@ -70,12 +70,12 @@ class FakeMusicService extends GetxService implements MusicServiceContract {
 
   @override
   Future<List<Map<String, dynamic>>> getCharts(
-    String catogory, {
+    String category, {
     String? countryCode,
   }) async {
     return [
       {
-        'title': catogory == 'TMV' ? 'Top Music Videos' : 'Trending',
+        'title': category == 'TMV' ? 'Top Music Videos' : 'Trending',
         'contents': [songOne, songTwo],
       },
     ];
@@ -157,7 +157,7 @@ class FakeMusicService extends GetxService implements MusicServiceContract {
   }
 
   @override
-  Future<Map<String, dynamic>> getArtistRealtedContent(
+  Future<Map<String, dynamic>> getArtistRelatedContent(
     Map<String, dynamic> browseEndpoint,
     String category, {
     String additionalParams = "",

@@ -17,7 +17,9 @@ Future<String?> getVisitorData({bool generateNew = false}) async {
     dynamic data;
     try {
       data = jsonDecode(await file.readAsString());
-    } catch (e) {}
+    } catch (e) {
+      //
+    }
     if (data == null ||
         DateTime.now().millisecondsSinceEpoch > (data![1] + 6 * 3600000)) {
       generateNew = true;

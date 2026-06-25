@@ -25,7 +25,7 @@ class ResultWidget extends StatelessWidget {
           child: SingleChildScrollView(
             padding:
                 EdgeInsets.only(bottom: 200, top: isv2Used ? 0 : topPadding),
-            child: searchResScrController.isResultContentFetced.value
+            child: searchResScrController.isResultContentFetched.value
                 ? Column(children: [
                     if (!isv2Used)
                       Align(
