@@ -343,18 +343,34 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     _player.processingStateStream.listen((state) async {
       if (state != ProcessingState.completed ||
           isSongLoading ||
-          loopModeEnabled ||
           _completionInProgress) {
         return;
       }
 
       _completionInProgress = true;
       try {
+        if (loopModeEnabled) {
+          await _repeatCurrentSongFromStart();
+          return;
+        }
+
         await skipToNext();
       } finally {
         _completionInProgress = false;
       }
     });
+  }
+
+  Future<void> _repeatCurrentSongFromStart() async {
+    if (_playList.children.isEmpty || currentSongUrl == null) return;
+
+    await _player.seek(Duration.zero, index: 0);
+    unawaited(
+      _player.play().catchError((Object error, StackTrace stackTrace) {
+        printERROR(error, tag: LogTags.audioHandler);
+        printERROR(stackTrace, tag: LogTags.audioHandler);
+      }),
+    );
   }
 
   void _listenForSequenceStateChanges() {

@@ -46,6 +46,17 @@ void main() {
       },
     );
 
+    test('repeat completion restarts the current source from the beginning', () {
+      final listenerBlock = _methodBlock(source, '_listenToPlaybackForNextSong');
+      final repeatBlock = _methodBlock(source, '_repeatCurrentSongFromStart');
+
+      expect(listenerBlock, contains('await _repeatCurrentSongFromStart();'));
+      expect(listenerBlock, contains('return;'));
+      expect(repeatBlock, contains('await _player.seek(Duration.zero, index: 0);'));
+      expect(repeatBlock, contains('unawaited('));
+      expect(repeatBlock, contains('_player.play().catchError'));
+    });
+
     test('restores saved repeat mode to the underlying player on init', () {
       final block = _methodBlock(source, '_init');
 
