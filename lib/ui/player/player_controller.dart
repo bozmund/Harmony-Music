@@ -398,8 +398,8 @@ class PlayerController extends GetxController
     });
 
     if (playlistId != null) {
+      unawaited(_playerPanelCheck());
       await queueUpdate;
-      await _playerPanelCheck();
       await _audioHandler.customAction("playByIndex", {"index": 0});
       return;
     }

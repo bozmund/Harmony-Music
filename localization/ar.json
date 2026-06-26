@@ -235,9 +235,9 @@
     "reArrangeSongs": "إعادة ترتيب الأغاني",
     "selectSongs": "اختر الأغاني",
     "selectAll": "حدد الكل",
-    "playingfromAlbum": "اللعب من الألبوم",
-    "playingfromPlaylist": "التشغيل من قائمة التشغيل",
-    "playingfromSelection": "اللعب من المختارة",
+    "playingFromAlbum": "اللعب من الألبوم",
+    "playingFromPlaylist": "التشغيل من قائمة التشغيل",
+    "playingFromSelection": "اللعب من المختارة",
     "keepScreenOnWhilePlaying": "ابقِ الشاشة مضاءة أثناء التشغيل",
     "keepScreenOnWhilePlayingDes": "إذا تم التفعيل، ستبقى شاشة الجهاز مضاءة أثناء تشغيل الموسيقى"
 }

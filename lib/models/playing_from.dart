@@ -1,5 +1,3 @@
-// ignore_for_file: constant_identifier_names
-
 import 'package:get/get.dart';
 
 class PlayingFrom {
@@ -11,13 +9,13 @@ class PlayingFrom {
   get typeString {
     switch (type) {
       case PlayingFromType.ALBUM:
-        return "playingfromAlbum".tr;
+        return "playingFromAlbum".tr;
       case PlayingFromType.PLAYLIST:
-        return "playingfromPlaylist".tr;
+        return "playingFromPlaylist".tr;
       case PlayingFromType.SELECTION:
-        return "playingfromSelection".tr;
+        return "playingFromSelection".tr;
       case PlayingFromType.ARTIST:
-        return "playingfromArtist".tr;
+        return "playingFromArtist".tr;
     }
   }
 

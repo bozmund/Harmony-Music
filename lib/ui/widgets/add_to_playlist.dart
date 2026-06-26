@@ -102,7 +102,7 @@ class AddToPlaylist extends StatelessWidget {
                       ? ListView.builder(
                           itemCount: addToPlaylistController.playlists.length,
                           itemBuilder: (context, index) => ListTile(
-                            leading: const Icon(Icons.playlist_play),
+                            leading: const Icon(Icons.add_circle_outline),
                             title: Text(
                               addToPlaylistController.playlists[index].title,
                             ),

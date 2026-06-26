@@ -331,7 +331,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
         requestFunc,
         parseFunc,
         ctokenPath: isPlaylist ? '' : 'Radio',
-        isAdditionparamReturnReq: true,
+        isAdditionalParamReturnReq: true,
         additionalParams_: additionalParamsNext,
       );
       additionalParamsForNext = x[1];
@@ -353,7 +353,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       options: Options(headers: _headers),
       queryParameters: {"list": audioPlaylistId},
     );
-    final reg = RegExp(r'\"MPRE.+?\"');
+    final reg = RegExp(r'"MPRE.+?"');
     final matches = reg.firstMatch(response.data.toString());
     if (matches != null) {
       final x = matches[0]!;
@@ -798,7 +798,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
             limit - ((searchResults[continuationCategory] as List).length),
             requestFunc,
             parseFunc,
-            isAdditionparamReturnReq: true,
+            isAdditionalParamReturnReq: true,
           );
 
           searchResults["params"] = {
@@ -869,7 +869,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       limit,
       requestFunc,
       parseFunc,
-      isAdditionparamReturnReq: true,
+      isAdditionalParamReturnReq: true,
       additionalParams_: additionalParamsNext['additionalParams'],
     );
 

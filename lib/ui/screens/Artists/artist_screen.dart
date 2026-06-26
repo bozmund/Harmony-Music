@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -52,10 +54,10 @@ class ArtistScreen extends StatelessWidget {
                     );
                     return;
                   }
-                  await playerController.startRadio(
+                  unawaited(playerController.startRadio(
                     null,
                     playlistId: artistScreenController.artist_.radioId,
-                  );
+                  ));
                 },
                 child: const Icon(Icons.sensors),
               ),
