@@ -114,7 +114,7 @@ class SongInfoBottomSheet extends StatelessWidget {
                 ? const SizedBox.shrink()
                 : ListTile(
                     visualDensity: const VisualDensity(vertical: -1),
-                    leading: const Icon(Icons.add_circle_outline),
+                    leading: const Icon(Icons.queue_play_next),
                     title: Text("playNext".tr),
                     onTap: () {
                       final messenger = ScaffoldMessenger.of(context);
