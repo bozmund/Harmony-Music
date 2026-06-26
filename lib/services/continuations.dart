@@ -53,7 +53,7 @@ Future<List<dynamic>> getContinuations(
     {String ctokenPath = "",
     bool reloadable = false,
     String? additionalParams_,
-    bool isAdditionparamReturnReq = false}) async {
+    bool isAdditionalParamReturnReq = false}) async {
   List<dynamic> items = [];
 
   while ((additionalParams_ != null || results.containsKey('continuations')) &&
@@ -79,7 +79,7 @@ Future<List<dynamic>> getContinuations(
     }
     items.addAll(contents);
   }
-  if (isAdditionparamReturnReq) {
+  if (isAdditionalParamReturnReq) {
     String additionalParam = (reloadable
         ? getReloadableContinuationParams(results)
         : getContinuationParams(results, ctokenPath: ctokenPath));

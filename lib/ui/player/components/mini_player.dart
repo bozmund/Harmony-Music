@@ -9,13 +9,12 @@ import 'package:widget_marquee/widget_marquee.dart';
 import '/ui/widgets/lyrics_dialog.dart';
 import '/ui/widgets/song_info_dialog.dart';
 import '/ui/player/player_controller.dart';
-import '../../widgets/add_to_playlist.dart';
+import '../../widgets/add_to_playlist_btn.dart';
 import '../../widgets/sleep_timer_bottom_sheet.dart';
 import '../../widgets/song_download_btn.dart';
 import '../../widgets/image_widget.dart';
 import '../../widgets/mini_player_progress_bar.dart';
 import 'animated_play_button.dart';
-
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
 
@@ -509,28 +508,7 @@ class MiniPlayer extends StatelessWidget {
                                           calledFromPlayer: true,
                                         ),
                                         const SizedBox(width: 10),
-                                        IconButton(
-                                          onPressed: () async {
-                                            final currentSong = playerController
-                                                .currentSong
-                                                .value;
-                                            if (currentSong != null) {
-                                              await showDialog(
-                                                context: context,
-                                                builder: (context) =>
-                                                    AddToPlaylist([
-                                                      currentSong,
-                                                    ]),
-                                              ).whenComplete(
-                                                () =>
-                                                    Get.delete<
-                                                      AddToPlaylistController
-                                                    >(),
-                                              );
-                                            }
-                                          },
-                                          icon: const Icon(Icons.playlist_add),
-                                        ),
+                                        const AddToPlaylistButton(calledFromPlayer: true),
                                         if (size.width > 965)
                                           IconButton(
                                             onPressed: () async {

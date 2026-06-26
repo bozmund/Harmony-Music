@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
+import '../../widgets/add_to_playlist_btn.dart';
 import '/ui/player/components/animated_play_button.dart';
 import '../player_controller.dart';
 
@@ -73,6 +74,10 @@ class PlayerControlWidget extends StatelessWidget {
                   );
                 }),
               ),
+            ),
+            const SizedBox(
+              width: 45,
+              child: AddToPlaylistButton(calledFromPlayer: true),
             ),
             SizedBox(
               width: 45,

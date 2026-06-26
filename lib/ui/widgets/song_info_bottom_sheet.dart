@@ -114,7 +114,7 @@ class SongInfoBottomSheet extends StatelessWidget {
                 ? const SizedBox.shrink()
                 : ListTile(
                     visualDensity: const VisualDensity(vertical: -1),
-                    leading: const Icon(Icons.playlist_play),
+                    leading: const Icon(Icons.add_circle_outline),
                     title: Text("playNext".tr),
                     onTap: () {
                       final messenger = ScaffoldMessenger.of(context);
@@ -136,7 +136,7 @@ class SongInfoBottomSheet extends StatelessWidget {
                   ),
             ListTile(
               visualDensity: const VisualDensity(vertical: -1),
-              leading: const Icon(Icons.playlist_add),
+              leading: const Icon(Icons.add_circle_outline),
               title: Text("addToPlaylist".tr),
               onTap: () async {
                 Navigator.of(context).pop();
