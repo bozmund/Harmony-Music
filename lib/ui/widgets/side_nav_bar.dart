@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:harmonymusic/ui/screens/Home/home_screen_controller.dart';
 import 'package:sidebar_with_animation/animated_side_bar.dart';
 
+import 'update_badged_settings_icon.dart';
+
 class SideNavBar extends StatelessWidget {
   const SideNavBar({super.key});
 
@@ -34,37 +36,59 @@ class SideNavBar extends StatelessWidget {
                     //backgroundColor: Colors.green,
                     destinations: <NavigationRailDestination>[
                       railDestination(
-                          "home".tr, isMobileOrTabScreen, Icons.home),
+                        "home".tr,
+                        isMobileOrTabScreen,
+                        Icons.home,
+                      ),
                       railDestination(
-                          "songs".tr, isMobileOrTabScreen, Icons.art_track),
-                      railDestination("playlists".tr, isMobileOrTabScreen,
-                          Icons.featured_play_list),
+                        "songs".tr,
+                        isMobileOrTabScreen,
+                        Icons.art_track,
+                      ),
                       railDestination(
-                          "albums".tr, isMobileOrTabScreen, Icons.album),
+                        "playlists".tr,
+                        isMobileOrTabScreen,
+                        Icons.featured_play_list,
+                      ),
                       railDestination(
-                          "artists".tr, isMobileOrTabScreen, Icons.people),
+                        "albums".tr,
+                        isMobileOrTabScreen,
+                        Icons.album,
+                      ),
+                      railDestination(
+                        "artists".tr,
+                        isMobileOrTabScreen,
+                        Icons.people,
+                      ),
                       //railDestination("Settings")
                       const NavigationRailDestination(
                         padding: EdgeInsets.only(top: 10, bottom: 10),
-                        icon: Icon(Icons.settings),
+                        icon: UpdateBadgedSettingsIcon(
+                          icon: Icons.settings_outlined,
+                        ),
                         label: SizedBox.shrink(),
-                        selectedIcon: Icon(Icons.settings),
-                      )
+                        selectedIcon: UpdateBadgedSettingsIcon(
+                          icon: Icons.settings,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ))
+              ),
+            )
           : Padding(
               padding: const EdgeInsets.only(bottom: 100.0),
               child: SideBarAnimated(
                 onTap: homeScreenController.onSideBarTabSelected,
                 sideBarColor: Theme.of(context).primaryColor.withAlpha(250),
                 animatedContainerColor: Theme.of(context).colorScheme.secondary,
-                hoverColor:
-                    Theme.of(context).colorScheme.secondary.withAlpha(180),
+                hoverColor: Theme.of(
+                  context,
+                ).colorScheme.secondary.withAlpha(180),
                 splashColor: Theme.of(context).colorScheme.secondary,
-                highlightColor:
-                    Theme.of(context).colorScheme.secondary.withAlpha(180),
+                highlightColor: Theme.of(
+                  context,
+                ).colorScheme.secondary.withAlpha(180),
                 widthSwitch: 800,
                 mainLogoImage: 'assets/icons/icon.png',
                 sidebarItems: [
@@ -88,10 +112,7 @@ class SideNavBar extends StatelessWidget {
                     iconUnselected: Icons.album_outlined,
                     text: 'albums'.tr,
                   ),
-                  SideBarItem(
-                    iconSelected: Icons.person,
-                    text: 'artists'.tr,
-                  ),
+                  SideBarItem(iconSelected: Icons.person, text: 'artists'.tr),
                   SideBarItem(
                     iconSelected: Icons.settings,
                     iconUnselected: Icons.settings_outlined,
@@ -104,22 +125,28 @@ class SideNavBar extends StatelessWidget {
   }
 
   NavigationRailDestination railDestination(
-      String label, bool isMobileOrTabScreen, IconData icon) {
+    String label,
+    bool isMobileOrTabScreen,
+    IconData icon,
+  ) {
     return isMobileOrTabScreen
         ? NavigationRailDestination(
             icon: const SizedBox.shrink(),
             label: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: isMobileOrTabScreen
-                    ? RotatedBox(quarterTurns: -1, child: Text(label))
-                    : Text(label)),
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: isMobileOrTabScreen
+                  ? RotatedBox(quarterTurns: -1, child: Text(label))
+                  : Text(label),
+            ),
           )
         : NavigationRailDestination(
             icon: Icon(icon),
             label: Text(label),
             padding: const EdgeInsets.only(left: 10),
             indicatorShape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10))),
-            indicatorColor: Colors.amber);
+              borderRadius: BorderRadius.all(Radius.circular(10)),
+            ),
+            indicatorColor: Colors.amber,
+          );
   }
 }

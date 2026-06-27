@@ -282,8 +282,10 @@ class Downloader extends GetxService implements DownloaderContract {
     }
 
     _setPhase("savingLibraryEntry", "Saving library entry", song, traceId);
-    song.extras?['url'] = filePath;
     final songJson = MediaItemBuilder.toJson(song);
+    songJson['url'] = filePath;
+    songJson['extras'] = Map<String, dynamic>.from(songJson['extras'] ?? {})
+      ..['url'] = filePath;
     final streamInfoJson = requiredAudioStream.toJson();
     streamInfoJson['url'] = filePath;
     // [playability status, info map]

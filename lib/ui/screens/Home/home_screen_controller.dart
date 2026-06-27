@@ -352,8 +352,7 @@ class HomeScreenController extends GetxController {
   }
 
   void _checkNewVersion() {
-    showVersionDialog.value =
-        Hive.box(BoxNames.appPrefs).get(PrefKeys.newVersionVisibility) ?? true;
+    showVersionDialog.value = isStartupUpdatePopupEnabled();
     if (showVersionDialog.isTrue) {
       final settingsController = Get.find<SettingsScreenController>();
       (
@@ -407,11 +406,22 @@ class HomeScreenController extends GetxController {
     );
   }
 
+  bool isStartupUpdatePopupEnabled() {
+    return Hive.box(BoxNames.appPrefs).get(PrefKeys.newVersionVisibility) ??
+        true;
+  }
+
+  void setStartupUpdatePopupEnabled(bool enabled) {
+    (Hive.box(BoxNames.appPrefs).put(PrefKeys.newVersionVisibility, enabled),);
+    showVersionDialog.value = enabled;
+  }
+
+  void disableStartupUpdatePopup() {
+    setStartupUpdatePopupEnabled(false);
+  }
+
   void onChangeVersionVisibility(bool val) {
-    (
-      Hive.box(BoxNames.appPrefs).put(PrefKeys.newVersionVisibility, !val),
-    );
-    showVersionDialog.value = !val;
+    setStartupUpdatePopupEnabled(!val);
   }
 
   ///This is used to minimized bottom navigation bar by setting [isHomeScreenOnTop.value] to `true` and set mini player height.
