@@ -89,6 +89,9 @@ class PlaybackPreloadService {
       Uri.parse(url),
       prefixFile: preloadedPrefix.prefixFile,
       contentType: preloadedPrefix.contentType,
+      sourceLength: preloadedPrefix.streamInfo.audio?.size == 0
+          ? null
+          : preloadedPrefix.streamInfo.audio?.size,
       tag: mediaItem,
     );
   }

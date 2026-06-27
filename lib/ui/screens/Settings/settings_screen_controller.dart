@@ -17,6 +17,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../utils/update_check_flag_file.dart';
 import '/services/piped_service.dart';
 import '../Library/library_controller.dart';
+import '../../widgets/new_version_dialog.dart';
 import '../../widgets/snackbar.dart';
 import '../../../utils/helper.dart';
 import '/services/music_service.dart';
@@ -27,6 +28,13 @@ import '/ui/utils/theme_controller.dart';
 
 import '/services/constant.dart';
 import '../../navigator.dart';
+
+class DeveloperSettingValue {
+  const DeveloperSettingValue(this.name, this.value);
+
+  final String name;
+  final String value;
+}
 
 class SettingsScreenController extends GetxController
     with WidgetsBindingObserver {
@@ -64,6 +72,8 @@ class SettingsScreenController extends GetxController
   final keepScreenAwake = false.obs;
   final restorePlaybackSession = false.obs;
   final cacheHomeScreenData = true.obs;
+  final developerSettingsEnabled = false.obs;
+  final developerSettingValues = <DeveloperSettingValue>[].obs;
   final currentVersion =
       "V${(BuildInfo.version.isEmpty ? '5.9.2' : BuildInfo.version).split('+').first.split('-').first}";
 
@@ -256,6 +266,11 @@ class SettingsScreenController extends GetxController
         setBox.get(PrefKeys.restorePlaybackSession) ?? false;
     cacheHomeScreenData.value =
         setBox.get(PrefKeys.cacheHomeScreenData) ?? true;
+    developerSettingsEnabled.value =
+        setBox.get(PrefKeys.developerSettingsEnabled) ?? false;
+    if (developerSettingsEnabled.isTrue) {
+      refreshDeveloperSettingValues();
+    }
     streamingQuality.value =
         AudioQuality.values[setBox.get(PrefKeys.streamingQuality) ?? 1];
     final storedPlaybackMode = setBox.get(PrefKeys.playbackMode) ?? 0;
@@ -315,6 +330,22 @@ class SettingsScreenController extends GetxController
     await setBox.put(PrefKeys.libraryFirstTab, normalizedLibraryFirstTab);
   }
 
+  Future<void> checkUpdate(BuildContext context) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      snackbar(context, "checkingUpdate".tr, size: SanckBarSize.MEDIUM),
+    );
+    final info = await checkNewVersion();
+    if (info != null) {
+      await Get.dialog(NewVersionDialog(updateInfo: info));
+    } else {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        snackbar(context, "upToDate".tr, size: SanckBarSize.MEDIUM),
+      );
+    }
+  }
+
   Future<void> changeUpdateChannel(String? val) async {
     final next = val == 'rolling'
         ? UpdateChannel.rolling
@@ -322,6 +353,122 @@ class SettingsScreenController extends GetxController
     updateChannel.value = next;
     await setBox.put(PrefKeys.updateChannel, next.name);
     if (updateCheckFlag) await checkNewVersion();
+  }
+
+  Future<void> setDeveloperSettingsEnabled(bool value) async {
+    developerSettingsEnabled.value = value;
+    await setBox.put(PrefKeys.developerSettingsEnabled, value);
+    if (value) {
+      refreshDeveloperSettingValues();
+    } else {
+      developerSettingValues.clear();
+    }
+  }
+
+  void refreshDeveloperSettingValues() {
+    final values = <DeveloperSettingValue>[
+      DeveloperSettingValue("app.currentVersion", currentVersion),
+      DeveloperSettingValue(
+        "build.channel",
+        _formatDeveloperValue(BuildInfo.channel),
+      ),
+      DeveloperSettingValue(
+        "build.version",
+        _formatDeveloperValue(BuildInfo.version),
+      ),
+      DeveloperSettingValue("build.sha", _formatDeveloperValue(BuildInfo.sha)),
+      DeveloperSettingValue(
+        "update.updateCheckFlag",
+        updateCheckFlag.toString(),
+      ),
+      DeveloperSettingValue(
+        "update.newVersionVisibility",
+        _formatDeveloperValue(setBox.get(PrefKeys.newVersionVisibility)),
+      ),
+      DeveloperSettingValue("update.channel", updateChannel.value.name),
+      DeveloperSettingValue(
+        "update.isNewVersionAvailable",
+        isNewVersionAvailable.value.toString(),
+      ),
+      DeveloperSettingValue(
+        "update.info",
+        _formatDeveloperValue(_updateInfoForDeveloperView()),
+      ),
+    ];
+
+    final appPrefs = setBox.keys.toList()
+      ..sort((a, b) => a.toString().compareTo(b.toString()));
+    for (final key in appPrefs) {
+      final keyName = key.toString();
+      values.add(
+        DeveloperSettingValue(
+          "appPrefs.$keyName",
+          _formatDeveloperValue(setBox.get(key), key: keyName),
+        ),
+      );
+    }
+
+    developerSettingValues.assignAll(values);
+  }
+
+  Map<String, dynamic>? _updateInfoForDeveloperView() {
+    final info = updateInfo.value;
+    if (info == null) return null;
+    return {
+      "channel": info.channel.name,
+      "version": info.version,
+      "downloadUrl": info.downloadUrl,
+      "releaseUrl": info.releaseUrl,
+      "sha": info.sha,
+    };
+  }
+
+  String _formatDeveloperValue(dynamic value, {String? key}) {
+    if (_shouldRedactDeveloperValue(key)) return "<redacted>";
+    final text = switch (value) {
+      null => "null",
+      bool() || num() || String() => value.toString(),
+      _ => _jsonLikeDeveloperValue(value),
+    };
+    return _truncateDeveloperValue(text);
+  }
+
+  bool _shouldRedactDeveloperValue(String? key) {
+    final lowerKey = key?.toLowerCase();
+    if (lowerKey == null) return false;
+    return lowerKey.contains("token") ||
+        lowerKey.contains("secret") ||
+        lowerKey.contains("password") ||
+        lowerKey.contains("cookie") ||
+        lowerKey.contains("auth") ||
+        lowerKey == PrefKeys.visitorId.toLowerCase();
+  }
+
+  String _jsonLikeDeveloperValue(dynamic value) {
+    try {
+      return jsonEncode(_normalizeDeveloperValue(value));
+    } catch (_) {
+      return value.toString();
+    }
+  }
+
+  dynamic _normalizeDeveloperValue(dynamic value) {
+    if (value is Map) {
+      return value.map(
+        (key, mapValue) =>
+            MapEntry(key.toString(), _normalizeDeveloperValue(mapValue)),
+      );
+    }
+    if (value is Iterable) {
+      return value.map(_normalizeDeveloperValue).toList();
+    }
+    return value;
+  }
+
+  String _truncateDeveloperValue(String value) {
+    const maxLength = 240;
+    if (value.length <= maxLength) return value;
+    return "${value.substring(0, maxLength)}...";
   }
 
   Future<void> setAppLanguage(String? val) async {

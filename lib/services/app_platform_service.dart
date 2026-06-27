@@ -58,6 +58,16 @@ class DefaultAppPlatformService implements AppPlatformContract {
   }
 
   @override
+  Future<void> setPlaybackWakeLock(bool enable) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _channel.invokeMethod<void>('setPlaybackWakeLock', enable);
+    } catch (_) {
+      // Best effort only; playback should never fail because this call failed.
+    }
+  }
+
+  @override
   Future<void> shareText(String text) async {
     if (Platform.isAndroid) {
       try {
@@ -124,6 +134,9 @@ class AppPlatformService {
 
   static Future<void> setKeepScreenAwake(bool enable) =>
       _service.setKeepScreenAwake(enable);
+
+  static Future<void> setPlaybackWakeLock(bool enable) =>
+      _service.setPlaybackWakeLock(enable);
 
   static Future<void> shareText(String text) => _service.shareText(text);
 

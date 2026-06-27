@@ -246,6 +246,7 @@ class FakeAppPlatform implements AppPlatformContract {
   final sharedTexts = <String>[];
   var restarted = false;
   var keepAwake = false;
+  var playbackWakeLocked = false;
 
   @override
   Future<AppPlatformInfo> getAppInfo() async {
@@ -260,6 +261,11 @@ class FakeAppPlatform implements AppPlatformContract {
   @override
   Future<void> setKeepScreenAwake(bool enable) async {
     keepAwake = enable;
+  }
+
+  @override
+  Future<void> setPlaybackWakeLock(bool enable) async {
+    playbackWakeLocked = enable;
   }
 
   @override
