@@ -46,16 +46,25 @@ void main() {
       },
     );
 
-    test('repeat completion restarts the current source from the beginning', () {
-      final listenerBlock = _methodBlock(source, '_listenToPlaybackForNextSong');
-      final repeatBlock = _methodBlock(source, '_repeatCurrentSongFromStart');
+    test(
+      'repeat completion restarts the current source from the beginning',
+      () {
+        final listenerBlock = _methodBlock(
+          source,
+          '_listenToPlaybackForNextSong',
+        );
+        final repeatBlock = _methodBlock(source, '_repeatCurrentSongFromStart');
 
-      expect(listenerBlock, contains('await _repeatCurrentSongFromStart();'));
-      expect(listenerBlock, contains('return;'));
-      expect(repeatBlock, contains('await _player.seek(Duration.zero, index: 0);'));
-      expect(repeatBlock, contains('unawaited('));
-      expect(repeatBlock, contains('_player.play().catchError'));
-    });
+        expect(listenerBlock, contains('await _repeatCurrentSongFromStart();'));
+        expect(listenerBlock, contains('return;'));
+        expect(
+          repeatBlock,
+          contains('await _player.seek(Duration.zero, index: 0);'),
+        );
+        expect(repeatBlock, contains('unawaited('));
+        expect(repeatBlock, contains('_player.play().catchError'));
+      },
+    );
 
     test('restores saved repeat mode to the underlying player on init', () {
       final block = _methodBlock(source, '_init');
@@ -68,6 +77,28 @@ void main() {
 
     test('completion guard is declared on the audio handler', () {
       expect(source, contains('bool _completionInProgress = false;'));
+    });
+
+    test('completion delegates queue advancement to skipToNext', () {
+      final block = _methodBlock(source, '_listenToPlaybackForNextSong');
+
+      expect(block, contains('await skipToNext();'));
+      expect(block, isNot(contains('await _player.seek(Duration.zero);')));
+      expect(block, isNot(contains('await _player.play();')));
+    });
+
+    test('queue end without loop pauses at the start instead of replaying', () {
+      final block = _methodBlock(source, 'skipToNext');
+      final queueLoopBranch = block.indexOf(
+        '} else if (queueLoopModeEnabled) {',
+      );
+      final queueEndBranch = block.indexOf('} else {', queueLoopBranch);
+      final queueEndBlock = block.substring(queueEndBranch);
+
+      expect(queueEndBlock, contains('await _player.seek(Duration.zero);'));
+      expect(queueEndBlock, contains('await _player.pause();'));
+      expect(queueEndBlock, isNot(contains('await _player.play();')));
+      expect(block, contains('Completion reached queue end'));
     });
   });
 }

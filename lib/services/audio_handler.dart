@@ -569,11 +569,23 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   Future<void> skipToNext() async {
     final index = _getNextSongIndex();
     if (index != currentIndex) {
+      printINFO(
+        "Completion advancing from $currentIndex to $index",
+        tag: LogTags.audioHandler,
+      );
       await customAction("playByIndex", {'index': index});
     } else if (queueLoopModeEnabled) {
+      printINFO(
+        "Completion restarting current queue item because queue loop is enabled",
+        tag: LogTags.audioHandler,
+      );
       await _player.seek(Duration.zero);
       await _player.play();
     } else {
+      printINFO(
+        "Completion reached queue end; pausing at start of current item",
+        tag: LogTags.audioHandler,
+      );
       await _player.seek(Duration.zero);
       await _player.pause();
     }

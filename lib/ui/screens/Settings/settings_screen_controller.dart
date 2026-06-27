@@ -336,7 +336,12 @@ class SettingsScreenController extends GetxController
     );
     final info = await checkNewVersion();
     if (info != null) {
-      await Get.dialog(NewVersionDialog(updateInfo: info));
+      await Get.dialog(
+        NewVersionDialog(
+          updateInfo: info,
+          disableStartupPopupOnUpdateTap: true,
+        ),
+      );
     } else {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();

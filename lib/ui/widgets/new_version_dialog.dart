@@ -7,8 +7,14 @@ import '../screens/Settings/settings_screen_controller.dart';
 import 'common_dialog_widget.dart';
 
 class NewVersionDialog extends StatelessWidget {
-  const NewVersionDialog({super.key, required this.updateInfo});
+  const NewVersionDialog({
+    super.key,
+    required this.updateInfo,
+    this.disableStartupPopupOnUpdateTap = false,
+  });
+
   final UpdateInfo updateInfo;
+  final bool disableStartupPopupOnUpdateTap;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +41,7 @@ class NewVersionDialog extends StatelessWidget {
                 child: FittedBox(
                   child: FloatingActionButton(
                     onPressed: () async {
-                      await settingsController.downloadAndInstallUpdate(updateInfo);
+                      await _handleUpdateTap(settingsController);
                     },
                     child: Obx(
                       () => settingsController.isUpdateDownloading.value
@@ -96,7 +102,7 @@ class NewVersionDialog extends StatelessWidget {
                       label: "download".tr,
                       enabled: !settingsController.isUpdateDownloading.value,
                       onTap: () async {
-                        await settingsController.downloadAndInstallUpdate(updateInfo);
+                        await _handleUpdateTap(settingsController);
                       },
                     ),
                     _DialogActionButton(
@@ -111,6 +117,15 @@ class NewVersionDialog extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _handleUpdateTap(
+    SettingsScreenController settingsController,
+  ) async {
+    if (disableStartupPopupOnUpdateTap) {
+      Get.find<HomeScreenController>().disableStartupUpdatePopup();
+    }
+    await settingsController.downloadAndInstallUpdate(updateInfo);
   }
 }
 
