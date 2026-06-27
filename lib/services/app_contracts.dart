@@ -84,6 +84,8 @@ abstract class AppPlatformContract {
 
   Future<void> setKeepScreenAwake(bool enable);
 
+  Future<void> setPlaybackWakeLock(bool enable);
+
   Future<void> shareText(String text);
 
   Future<void> openUrl(String url);

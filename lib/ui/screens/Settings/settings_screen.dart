@@ -991,6 +991,15 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     ListTile(
                       contentPadding: const EdgeInsets.only(left: 5, right: 10),
+                      title: Text("checkUpdate".tr),
+                      subtitle: Text(
+                        "Click here to check for updates manually",
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      onTap: () => settingsController.checkUpdate(context),
+                    ),
+                    ListTile(
+                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
                       title: const Text("Update channel"),
                       subtitle: Text(
                         "Stable follows production releases. Rolling follows main-latest candidate builds.",
@@ -1019,9 +1028,20 @@ class SettingsScreen extends StatelessWidget {
                     SizedBox(
                       child: Column(
                         children: [
-                          Text(
-                            "Harmony Music",
-                            style: Theme.of(context).textTheme.titleLarge,
+                          GestureDetector(
+                            onTap: () {
+                              unawaited(
+                                settingsController.setDeveloperSettingsEnabled(
+                                  !settingsController
+                                      .developerSettingsEnabled
+                                      .value,
+                                ),
+                              );
+                            },
+                            child: Text(
+                              "Harmony Music",
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
                           ),
                           Text(
                             settingsController.currentVersion,
@@ -1031,6 +1051,11 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+                Obx(
+                  () => settingsController.developerSettingsEnabled.isTrue
+                      ? const _DeveloperSettingsInspector()
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
@@ -1044,6 +1069,55 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DeveloperSettingsInspector extends StatelessWidget {
+  const _DeveloperSettingsInspector();
+
+  @override
+  Widget build(BuildContext context) {
+    final settingsController = Get.find<SettingsScreenController>();
+    return CustomExpansionTile(
+      icon: Icons.developer_mode,
+      title: "Developer settings",
+      children: [
+        ListTile(
+          contentPadding: const EdgeInsets.only(left: 5, right: 10),
+          title: const Text("Refresh values"),
+          subtitle: Text(
+            "Reloads current AppPrefs, build, and update debug values.",
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          trailing: IconButton(
+            tooltip: "Refresh values",
+            icon: const Icon(Icons.refresh),
+            onPressed: settingsController.refreshDeveloperSettingValues,
+          ),
+        ),
+        const Divider(),
+        Obx(
+          () => Column(
+            children: settingsController.developerSettingValues
+                .map(
+                  (entry) => ListTile(
+                    contentPadding: const EdgeInsets.only(left: 5, right: 10),
+                    dense: true,
+                    title: SelectableText(
+                      entry.name,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    subtitle: SelectableText(
+                      entry.value,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ],
     );
   }
 }

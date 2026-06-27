@@ -1,6 +1,7 @@
 package com.anandnet.harmonymusic
 
 import android.os.Build
+import android.os.PowerManager
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -13,6 +14,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
+    private var playbackWakeLock: PowerManager.WakeLock? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -24,6 +27,10 @@ class MainActivity : AudioServiceActivity() {
                 "getAppInfo" -> result.success(appInfo())
                 "setKeepScreenAwake" -> {
                     setKeepScreenAwake(call.arguments as? Boolean == true)
+                    result.success(null)
+                }
+                "setPlaybackWakeLock" -> {
+                    setPlaybackWakeLock(call.arguments as? Boolean == true)
                     result.success(null)
                 }
                 "shareText" -> {
@@ -70,6 +77,30 @@ class MainActivity : AudioServiceActivity() {
                 window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             } else {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+    }
+
+    private fun setPlaybackWakeLock(enable: Boolean) {
+        if (enable) {
+            val lock = playbackWakeLock ?: run {
+                val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                powerManager.newWakeLock(
+                    PowerManager.PARTIAL_WAKE_LOCK,
+                    "$packageName:PlaybackWakeLock"
+                ).also {
+                    it.setReferenceCounted(false)
+                    playbackWakeLock = it
+                }
+            }
+            if (!lock.isHeld) {
+                lock.acquire()
+            }
+        } else {
+            playbackWakeLock?.let { lock ->
+                if (lock.isHeld) {
+                    lock.release()
+                }
             }
         }
     }

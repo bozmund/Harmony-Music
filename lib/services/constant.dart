@@ -74,6 +74,7 @@ class PrefKeys {
       'batteryOptimizationPromptShown';
   static const String playbackMode = 'playbackMode';
   static const String playbackPreloadRange = 'playbackPreloadRange';
+  static const String developerSettingsEnabled = 'developerSettingsEnabled';
 }
 
 enum PlaybackMode { classic, preloaded }

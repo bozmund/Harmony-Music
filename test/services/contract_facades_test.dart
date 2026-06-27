@@ -57,14 +57,17 @@ void main() {
         () => platform.openUrl('https://example.test'),
       ).thenAnswer((_) async {});
       when(() => platform.installApk('/tmp/app.apk')).thenAnswer((_) async {});
+      when(() => platform.setPlaybackWakeLock(true)).thenAnswer((_) async {});
 
       Get.put<AppPlatformContract>(platform);
 
       await AppPlatformService.openUrl('https://example.test');
       await AppPlatformService.installApk('/tmp/app.apk');
+      await AppPlatformService.setPlaybackWakeLock(true);
 
       verify(() => platform.openUrl('https://example.test')).called(1);
       verify(() => platform.installApk('/tmp/app.apk')).called(1);
+      verify(() => platform.setPlaybackWakeLock(true)).called(1);
     },
   );
 }

@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:harmonymusic/ui/player/player_controller.dart';
 
 void main() {
   group('player controller queue ordering', () {
@@ -108,8 +110,113 @@ void main() {
       expect(block, contains('unawaited('));
       expect(block, contains('_playbackCommand'));
     });
+
+    test('display queue keeps first song first when current index is zero', () {
+      final queue = [_song('a'), _song('b'), _song('c')];
+
+      expect(PlayerController.displayQueueFor(queue, 0), queue);
+    });
+
+    test('display queue rotates current song to the first row', () {
+      final queue = [_song('a'), _song('b'), _song('c'), _song('d')];
+
+      final displayQueue = PlayerController.displayQueueFor(queue, 2);
+
+      expect(displayQueue.map((song) => song.id), ['c', 'd', 'a', 'b']);
+    });
+
+    test('display queue falls back to real order for invalid index', () {
+      final queue = [_song('a'), _song('b'), _song('c')];
+
+      final displayQueue = PlayerController.displayQueueFor(queue, 99);
+
+      expect(displayQueue.map((song) => song.id), ['a', 'b', 'c']);
+    });
+
+    test('display reorder maps back while preserving current real index', () {
+      final queue = [_song('a'), _song('b'), _song('c'), _song('d')];
+
+      final reordered = PlayerController.realQueueAfterDisplayReorder(
+        queue: queue,
+        currentIndex: 2,
+        oldDisplayIndex: 2,
+        newDisplayIndex: 1,
+      );
+
+      expect(reordered.map((song) => song.id), ['d', 'b', 'c', 'a']);
+      expect(reordered[2].id, 'c');
+      expect(PlayerController.displayQueueFor(reordered, 2).first.id, 'c');
+    });
+
+    test('playback wake lock is tied to player state transitions', () {
+      final listenerBlock = _methodBlock(
+        source,
+        '_listenForChangesInPlayerState',
+      );
+      final disposeBlock = _methodBlock(source, 'dispose');
+
+      expect(listenerBlock, contains('_setPlaybackWakeLock'));
+      expect(listenerBlock, contains('AudioProcessingState.completed'));
+      expect(listenerBlock, contains('AudioProcessingState.error'));
+      expect(disposeBlock, contains('_setPlaybackWakeLock(false)'));
+    });
+
+    test('media item listener only clears lyrics when song changes', () {
+      final block = _methodBlock(source, '_listenForChangesInDuration');
+
+      expect(block, contains('final previousSongId = currentSong.value?.id;'));
+      expect(
+        block,
+        contains('final isSameSong = previousSongId == mediaItem.id;'),
+      );
+      expect(block, contains('if (!isSameSong)'));
+      expect(block, contains('_clearLyricsForSongChange();'));
+    });
+
+    test('same-song replay preserves visible lyrics state', () {
+      final block = _methodBlock(source, '_listenForChangesInDuration');
+      final clearIndex = block.indexOf('_clearLyricsForSongChange();');
+      final currentSongUpdateIndex = block.indexOf(
+        'currentSong.value = mediaItem;',
+      );
+
+      expect(clearIndex, isNot(-1));
+      expect(currentSongUpdateIndex, isNot(-1));
+      expect(block, isNot(contains('showLyricsFlag.value = false;')));
+      expect(currentSongUpdateIndex, lessThan(clearIndex));
+    });
+
+    test('showLyrics guards against stale async results', () {
+      final block = _methodBlock(source, 'showLyrics');
+
+      expect(block, contains('final songId = song.id;'));
+      expect(block, contains('final generation = ++_lyricsLoadGeneration;'));
+      expect(block, contains('_isCurrentLyricsRequest(songId, generation)'));
+      expect(block, contains('finally'));
+    });
+
+    test('synced lyric controller ignores empty and NA lyrics', () {
+      final block = _methodBlock(source, 'updateSyncedLyricsController');
+
+      expect(
+        block,
+        contains('if (syncedLyrics.isEmpty || syncedLyrics == "NA") return;'),
+      );
+      expect(block, contains('lyricController.loadLyric(syncedLyrics);'));
+    });
+
+    test('song changes reset loaded lyrics and pending requests', () {
+      final block = _methodBlock(source, '_clearLyricsForSongChange');
+
+      expect(block, contains('_lyricsLoadGeneration++;'));
+      expect(block, contains('_loadedSyncedLyrics = null;'));
+      expect(block, contains('showLyricsFlag.value = false;'));
+      expect(block, contains('isLyricsLoading.value = false;'));
+    });
   });
 }
+
+MediaItem _song(String id) => MediaItem(id: id, title: 'Song $id');
 
 String _methodBlock(String source, String methodName) {
   var methodStart = source.indexOf('Future<void> $methodName(');

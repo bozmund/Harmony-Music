@@ -74,6 +74,7 @@ class PlayerController extends GetxController
   final gesturePlayerVisibleState = 2.obs;
   final lyricController = LyricController();
   String? _loadedSyncedLyrics;
+  int _lyricsLoadGeneration = 0;
   RxMap<String, dynamic> lyrics = <String, dynamic>{
     "synced": "",
     "plainLyrics": "",
@@ -85,12 +86,101 @@ class PlayerController extends GetxController
 
   // track whether wakelock is currently enabled to avoid repeated calls
   bool _wakelockActive = false;
+  bool _playbackWakeLockActive = false;
   Future<void>? _playbackCommand;
 
   var _newSongFlag = true;
   final isCurrentSongBuffered = false.obs;
 
   late StreamSubscription<bool> keyboardSubscription;
+
+  List<MediaItem> get displayQueue =>
+      displayQueueFor(currentQueue, currentSongIndex.value);
+
+  int realQueueIndexForDisplayIndex(int displayIndex) {
+    return realQueueIndexForDisplayIndexIn(
+      queueLength: currentQueue.length,
+      currentIndex: currentSongIndex.value,
+      displayIndex: displayIndex,
+    );
+  }
+
+  static List<MediaItem> displayQueueFor(
+    List<MediaItem> queue,
+    int currentIndex,
+  ) {
+    if (!_isValidQueueIndex(queue.length, currentIndex)) {
+      return List<MediaItem>.from(queue);
+    }
+
+    return <MediaItem>[
+      ...queue.sublist(currentIndex),
+      ...queue.sublist(0, currentIndex),
+    ];
+  }
+
+  static int realQueueIndexForDisplayIndexIn({
+    required int queueLength,
+    required int currentIndex,
+    required int displayIndex,
+  }) {
+    if (queueLength <= 0 || displayIndex < 0 || displayIndex >= queueLength) {
+      return displayIndex;
+    }
+    if (currentIndex < 0 || currentIndex >= queueLength) {
+      return displayIndex;
+    }
+    return (currentIndex + displayIndex) % queueLength;
+  }
+
+  static List<MediaItem> realQueueAfterDisplayReorder({
+    required List<MediaItem> queue,
+    required int currentIndex,
+    required int oldDisplayIndex,
+    required int newDisplayIndex,
+  }) {
+    if (!_isValidQueueIndex(queue.length, currentIndex)) {
+      return List<MediaItem>.from(queue);
+    }
+    if (oldDisplayIndex < 0 ||
+        oldDisplayIndex >= queue.length ||
+        newDisplayIndex < 0 ||
+        newDisplayIndex > queue.length) {
+      return List<MediaItem>.from(queue);
+    }
+
+    final displayQueue = displayQueueFor(queue, currentIndex);
+    var insertIndex = newDisplayIndex;
+    if (oldDisplayIndex < insertIndex) {
+      insertIndex--;
+    }
+    final movedItem = displayQueue.removeAt(oldDisplayIndex);
+    displayQueue.insert(insertIndex, movedItem);
+
+    final currentItem = queue[currentIndex];
+    final displayCurrentIndex = displayQueue.indexWhere(
+      (item) => item.id == currentItem.id,
+    );
+    if (displayCurrentIndex == -1) {
+      return List<MediaItem>.from(queue);
+    }
+
+    final realQueue = List<MediaItem>.filled(queue.length, currentItem);
+    for (
+      var displayIndex = 0;
+      displayIndex < displayQueue.length;
+      displayIndex++
+    ) {
+      final realIndex =
+          (currentIndex + displayIndex - displayCurrentIndex) % queue.length;
+      realQueue[realIndex < 0 ? realIndex + queue.length : realIndex] =
+          displayQueue[displayIndex];
+    }
+    return realQueue;
+  }
+
+  static bool _isValidQueueIndex(int queueLength, int index) =>
+      queueLength > 0 && index >= 0 && index < queueLength;
 
   @override
   Future<void> onInit() async {
@@ -205,6 +295,12 @@ class PlayerController extends GetxController
       // Keep the screen awake whenever playback is active and the setting is enabled.
       final shouldEnable = settings.keepScreenAwake.isTrue && isPlaying;
       _setWakelock(shouldEnable);
+      final shouldHoldPlaybackWakeLock =
+          isPlaying &&
+          processingState != AudioProcessingState.completed &&
+          processingState != AudioProcessingState.error &&
+          processingState != AudioProcessingState.idle;
+      _setPlaybackWakeLock(shouldHoldPlaybackWakeLock);
     });
   }
 
@@ -221,6 +317,17 @@ class PlayerController extends GetxController
         unawaited(AppPlatformService.setKeepScreenAwake(false));
         _wakelockActive = false;
       }
+    } catch (e) {
+      printERROR(e, tag: LogTags.player);
+    }
+  }
+
+  void _setPlaybackWakeLock(bool enable) {
+    if (_playbackWakeLockActive == enable) return;
+
+    try {
+      unawaited(AppPlatformService.setPlaybackWakeLock(enable));
+      _playbackWakeLockActive = enable;
     } catch (e) {
       printERROR(e, tag: LogTags.player);
     }
@@ -276,6 +383,8 @@ class PlayerController extends GetxController
         val.buffered = oldState.buffered;
       });
       if (mediaItem != null) {
+        final previousSongId = currentSong.value?.id;
+        final isSameSong = previousSongId == mediaItem.id;
         printINFO(mediaItem.title, tag: LogTags.player);
         _newSongFlag = true;
         isCurrentSongBuffered.value = false;
@@ -288,8 +397,9 @@ class PlayerController extends GetxController
           val.current = Duration.zero;
           val.buffered = Duration.zero;
         });
-        lyrics.value = {"synced": "", "plainLyrics": ""};
-        showLyricsFlag.value = false;
+        if (!isSameSong) {
+          _clearLyricsForSongChange();
+        }
         if (isDesktopLyricsDialogOpen) {
           Navigator.pop(Get.context!);
         }
@@ -624,6 +734,19 @@ class PlayerController extends GetxController
     });
   }
 
+  Future<void> onDisplayReorder(
+    int oldDisplayIndex,
+    int newDisplayIndex,
+  ) async {
+    final reorderedQueue = realQueueAfterDisplayReorder(
+      queue: currentQueue,
+      currentIndex: currentSongIndex.value,
+      oldDisplayIndex: oldDisplayIndex,
+      newDisplayIndex: newDisplayIndex,
+    );
+    await _audioHandler.updateQueue(reorderedQueue);
+  }
+
   void onReorderStart(int index) {
     isQueueReorderingInProcess.value = true;
   }
@@ -904,33 +1027,44 @@ class PlayerController extends GetxController
     showLyricsFlag.value = !showLyricsFlag.value;
     if ((lyrics["synced"].isEmpty && lyrics['plainLyrics'].isEmpty) &&
         showLyricsFlag.value) {
+      final song = currentSong.value;
+      if (song == null) return;
+      final songId = song.id;
+      final generation = ++_lyricsLoadGeneration;
       isLyricsLoading.value = true;
       try {
         final Map<String, dynamic>? lyricsR =
             await SyncedLyricsService.getSyncedLyrics(
-              currentSong.value!,
+              song,
               progressBarStatus.value.total.inSeconds,
             );
+        if (!_isCurrentLyricsRequest(songId, generation)) return;
         if (lyricsR != null) {
           lyrics.value = lyricsR;
           isLyricsLoading.value = false;
           return;
         }
         final related = await _musicServices.getWatchPlaylist(
-          videoId: currentSong.value!.id,
+          videoId: songId,
           onlyRelated: true,
         );
+        if (!_isCurrentLyricsRequest(songId, generation)) return;
         final relatedLyricsId = related['lyrics'];
         if (relatedLyricsId != null) {
           final lyrics_ = await _musicServices.getLyrics(relatedLyricsId);
+          if (!_isCurrentLyricsRequest(songId, generation)) return;
           lyrics.value = {"synced": "", "plainLyrics": lyrics_};
         } else {
           lyrics.value = {"synced": "", "plainLyrics": "NA"};
         }
       } catch (e) {
+        if (!_isCurrentLyricsRequest(songId, generation)) return;
         lyrics.value = {"synced": "", "plainLyrics": "NA"};
+      } finally {
+        if (_isCurrentLyricsRequest(songId, generation)) {
+          isLyricsLoading.value = false;
+        }
       }
-      isLyricsLoading.value = false;
     }
   }
 
@@ -941,11 +1075,25 @@ class PlayerController extends GetxController
 
   void updateSyncedLyricsController() {
     final syncedLyrics = lyrics['synced']?.toString() ?? "";
+    if (syncedLyrics.isEmpty || syncedLyrics == "NA") return;
     if (_loadedSyncedLyrics != syncedLyrics) {
       lyricController.loadLyric(syncedLyrics);
       _loadedSyncedLyrics = syncedLyrics;
     }
     lyricController.setProgress(progressBarStatus.value.current);
+  }
+
+  void _clearLyricsForSongChange() {
+    _lyricsLoadGeneration++;
+    _loadedSyncedLyrics = null;
+    lyrics.value = {"synced": "", "plainLyrics": ""};
+    showLyricsFlag.value = false;
+    isLyricsLoading.value = false;
+  }
+
+  bool _isCurrentLyricsRequest(String songId, int generation) {
+    return generation == _lyricsLoadGeneration &&
+        currentSong.value?.id == songId;
   }
 
   void sleepEndOfSong() {
@@ -1015,6 +1163,7 @@ class PlayerController extends GetxController
     // ensure wakelock disabled when player controller disposed
     try {
       _setWakelock(false);
+      _setPlaybackWakeLock(false);
     } catch (e) {
       printERROR(e, tag: LogTags.player);
     }

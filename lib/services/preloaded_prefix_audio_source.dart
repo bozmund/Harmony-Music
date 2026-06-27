@@ -11,6 +11,7 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
     this.uri, {
     required this.prefixFile,
     required this.contentType,
+    this.sourceLength,
     this.headers,
     super.tag,
   });
@@ -18,6 +19,7 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
   final Uri uri;
   final File prefixFile;
   final String contentType;
+  final int? sourceLength;
   final Map<String, String>? headers;
 
   @override
@@ -37,20 +39,29 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
     if (end != null && end <= prefixLength) {
       return StreamAudioResponse(
         rangeRequestsSupported: true,
-        sourceLength: null,
+        sourceLength: sourceLength,
         contentLength: end - rangeStart,
-        offset: start,
+        offset: rangeStart,
         contentType: contentType,
         stream: prefixStream.asBroadcastStream(),
       );
     }
 
     final networkResponse = await _networkResponse(prefixEnd, end);
+    final prefixContentLength = prefixEnd - rangeStart;
+    final responseSourceLength = networkResponse.sourceLength ?? sourceLength;
+    final responseContentLength = _combinedContentLength(
+      prefixContentLength: prefixContentLength,
+      networkContentLength: networkResponse.contentLength,
+      requestStart: rangeStart,
+      requestEnd: end,
+      responseSourceLength: responseSourceLength,
+    );
     return StreamAudioResponse(
       rangeRequestsSupported: true,
-      sourceLength: networkResponse.sourceLength,
-      contentLength: end == null ? null : end - rangeStart,
-      offset: start,
+      sourceLength: responseSourceLength,
+      contentLength: responseContentLength,
+      offset: rangeStart,
       contentType: networkResponse.contentType,
       stream: _concatStreams(
         prefixStream,
@@ -87,9 +98,11 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
         );
       }
 
-      final sourceLength = _sourceLengthFromContentRange(
-        response.headers.value(HttpHeaders.contentRangeHeader),
-      );
+      final sourceLength =
+          _sourceLengthFromContentRange(
+            response.headers.value(HttpHeaders.contentRangeHeader),
+          ) ??
+          this.sourceLength;
       final responseContentType =
           response.headers.contentType?.mimeType ?? contentType;
       final contentLength = response.contentLength == -1
@@ -114,6 +127,23 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
     if (contentRange == null) return null;
     final match = RegExp(r'/(\d+)$').firstMatch(contentRange);
     return match == null ? null : int.tryParse(match.group(1)!);
+  }
+
+  int? _combinedContentLength({
+    required int prefixContentLength,
+    required int? networkContentLength,
+    required int requestStart,
+    required int? requestEnd,
+    required int? responseSourceLength,
+  }) {
+    if (requestEnd != null) return requestEnd - requestStart;
+    if (networkContentLength != null) {
+      return prefixContentLength + networkContentLength;
+    }
+    if (responseSourceLength != null) {
+      return responseSourceLength - requestStart;
+    }
+    return null;
   }
 
   Stream<List<int>> _concatStreams(
