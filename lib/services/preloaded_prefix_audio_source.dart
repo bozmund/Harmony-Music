@@ -43,7 +43,7 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
         contentLength: end - rangeStart,
         offset: rangeStart,
         contentType: contentType,
-        stream: prefixStream.asBroadcastStream(),
+        stream: prefixStream,
       );
     }
 
@@ -63,10 +63,7 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
       contentLength: responseContentLength,
       offset: rangeStart,
       contentType: networkResponse.contentType,
-      stream: _concatStreams(
-        prefixStream,
-        networkResponse.stream,
-      ).asBroadcastStream(),
+      stream: _concatStreams(prefixStream, networkResponse.stream),
     );
   }
 
@@ -115,7 +112,7 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
         contentLength: contentLength,
         offset: start,
         contentType: responseContentType,
-        stream: _closeClientOnDone(client, response).asBroadcastStream(),
+        stream: _closeClientOnDone(client, response),
       );
     } catch (_) {
       client.close(force: true);

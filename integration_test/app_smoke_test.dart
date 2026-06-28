@@ -1,6 +1,8 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:harmonymusic/data/repositories/hive_app_repositories.dart';
+import 'package:harmonymusic/domain/repositories/app_repositories.dart';
 import 'package:harmonymusic/main.dart' as app;
 import 'package:harmonymusic/services/app_contracts.dart';
 import 'package:integration_test/integration_test.dart';
@@ -17,7 +19,8 @@ void main() {
     Get.reset();
 
     await app.initHive();
-    app.setAppInitPrefs();
+    registerHiveRepositories();
+    await app.setAppInitPrefs(Get.find<SettingsRepository>());
 
     Get.put<AudioHandler>(FakeAudioHandler(), permanent: true);
     Get.put<MusicServiceContract>(FakeMusicService(), permanent: true);

@@ -1,9 +1,8 @@
 import 'dart:io';
 
 import 'package:get/get.dart';
-import '/models/media_Item_builder.dart';
+import '../domain/repositories/app_repositories.dart';
 import '/ui/screens/Library/library_controller.dart';
-import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/utils.dart';
 import 'helper.dart';
@@ -14,16 +13,17 @@ Future<void> startHouseKeeping() async {
 
 Future<void> removeExpiredSongsUrlFromDb() async {
   try {
-    final songsUrlCacheBox = Hive.box("SongsUrlCache");
-    final songsUrlCacheKeysList =
-        songsUrlCacheBox.keys.whereType<String>().toList();
-    for (var i = 0; i < songsUrlCacheKeysList.length; i++) {
-      final songUrlKey = songsUrlCacheKeysList[i];
-      final streamData = songsUrlCacheBox.get(songUrlKey)[1];
+    final songCacheRepository = Get.find<SongCacheRepository>();
+    final entries = await songCacheRepository.getAllStreamCacheEntries();
+    for (final entry in entries.entries) {
+      final songUrlKey = entry.key;
+      final cacheValue = entry.value;
+      if (cacheValue is! List || cacheValue.isEmpty) continue;
+      final streamData = cacheValue.length > 1 ? cacheValue[1] : null;
       if (streamData == null ||
           streamData.runtimeType == String ||
           (streamData != null && isExpired(url: streamData['url'] as String))) {
-        await songsUrlCacheBox.delete(songUrlKey);
+        await songCacheRepository.deleteStreamCacheEntry(songUrlKey);
       }
     }
   } catch (e) {
@@ -36,17 +36,18 @@ Future<void> removeExpiredSongsUrlFromDb() async {
 Future<void> removeDeletedOfflineSongsFromDb() async {
   final supportDir = (await getApplicationSupportDirectory()).path;
   try {
-    final songDownloadsBox = Hive.box("SongDownloads");
-    final downloadedSongs = songDownloadsBox.values.toList();
+    final downloadRepository = Get.find<DownloadRepository>();
+    final downloadedSongs = await Get.find<LibraryRepository>()
+        .getDownloadedSongs();
     final LibrarySongsController librarySongsController =
         Get.find<LibrarySongsController>();
-    for (var i = 0; i < downloadedSongs.length; i++) {
-      final songKey = downloadedSongs[i]['videoId'];
-      final songUrl = downloadedSongs[i]['url'];
+    for (final downloadedSong in downloadedSongs) {
+      final songKey = downloadedSong.id;
+      final songUrl = downloadedSong.extras?['url'];
+      if (songUrl is! String) continue;
       if (await File(songUrl).exists() == false) {
-        await songDownloadsBox.delete(songKey);
-        await librarySongsController.removeSong(
-            MediaItemBuilder.fromJson(downloadedSongs[i]), true);
+        await downloadRepository.deleteDownloadedSong(songKey);
+        await librarySongsController.removeSong(downloadedSong, true);
         final thumbNailPath = "$supportDir/thumbnails/$songKey.png";
         if (await File(thumbNailPath).exists()) {
           await File(thumbNailPath).delete();

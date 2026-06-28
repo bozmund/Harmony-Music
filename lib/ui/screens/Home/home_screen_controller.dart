@@ -4,13 +4,12 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 
+import '../../../domain/repositories/app_repositories.dart';
 import '/models/media_Item_builder.dart';
 import '/ui/navigator.dart';
 import '/ui/player/player_controller.dart';
 import '../../../utils/update_check_flag_file.dart';
-import '/services/constant.dart';
 import '../../../utils/helper.dart';
 import '/models/album.dart';
 import '/models/playlist.dart';
@@ -21,6 +20,14 @@ import '../Settings/settings_screen_controller.dart';
 import '/ui/widgets/new_version_dialog.dart';
 
 class HomeScreenController extends GetxController {
+  HomeScreenController({
+    required SettingsRepository settingsRepository,
+    required HomeRepository homeRepository,
+  }) : _settingsRepository = settingsRepository,
+       _homeRepository = homeRepository;
+
+  final SettingsRepository _settingsRepository;
+  final HomeRepository _homeRepository;
   final MusicServiceContract _musicServices = Get.find<MusicServiceContract>();
   final isContentFetched = false.obs;
   final tabIndex = 0.obs;
@@ -49,16 +56,15 @@ class HomeScreenController extends GetxController {
   }
 
   Future<void> loadContent() async {
-    final box = Hive.box(BoxNames.appPrefs);
-    final isCachedHomeScreenDataEnabled =
-        box.get(PrefKeys.cacheHomeScreenData) ?? true;
+    final isCachedHomeScreenDataEnabled = _settingsRepository
+        .getCacheHomeScreenData();
     if (isCachedHomeScreenDataEnabled) {
       final loaded = await loadContentFromDb();
 
       if (loaded) {
         final currTimeSecsDiff =
             DateTime.now().millisecondsSinceEpoch -
-            (box.get(PrefKeys.homeScreenDataTime) ??
+            (_settingsRepository.getHomeScreenDataTime() ??
                 DateTime.now().millisecondsSinceEpoch);
         if (currTimeSecsDiff / 1000 > 3600 * 8) {
           await loadContentFromNetwork(silent: true);
@@ -72,12 +78,12 @@ class HomeScreenController extends GetxController {
   }
 
   Future<bool> loadContentFromDb() async {
-    final homeScreenData = await Hive.openBox(BoxNames.homeScreenData);
-    if (homeScreenData.keys.isNotEmpty) {
-      final String quickPicksType = homeScreenData.get("quickPicksType");
-      final List quickPicksData = homeScreenData.get("quickPicks");
-      final List middleContentData = homeScreenData.get("middleContent") ?? [];
-      final List fixedContentData = homeScreenData.get("fixedContent") ?? [];
+    final homeScreenData = await _homeRepository.getAllHomeData();
+    if (homeScreenData.isNotEmpty) {
+      final String quickPicksType = homeScreenData["quickPicksType"];
+      final List quickPicksData = homeScreenData["quickPicks"];
+      final List middleContentData = homeScreenData["middleContent"] ?? [];
+      final List fixedContentData = homeScreenData["fixedContent"] ?? [];
       quickPicks.value = QuickPicks(
         quickPicksData.map((e) => MediaItemBuilder.fromJson(e)).toList(),
         title: quickPicksType,
@@ -105,8 +111,7 @@ class HomeScreenController extends GetxController {
   }
 
   Future<void> loadContentFromNetwork({bool silent = false}) async {
-    final box = Hive.box(BoxNames.appPrefs);
-    String contentType = box.get(PrefKeys.discoverContentType) ?? "QP";
+    String contentType = _settingsRepository.getDiscoverContentType();
 
     networkError.value = false;
     try {
@@ -165,7 +170,7 @@ class HomeScreenController extends GetxController {
         }
       } else if (contentType == "BOLI") {
         try {
-          final songId = box.get(PrefKeys.recentSongId);
+          final songId = _settingsRepository.getRecentSongId();
           if (songId != null) {
             final rel = await _musicServices.getContentRelatedToSong(
               songId,
@@ -209,9 +214,9 @@ class HomeScreenController extends GetxController {
 
       // set home content last update time
       await cachedHomeScreenData(updateAll: true);
-      await Hive.box(
-        BoxNames.appPrefs,
-      ).put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
+      await _settingsRepository.setHomeScreenDataTime(
+        DateTime.now().millisecondsSinceEpoch,
+      );
     } on NetworkError catch (r) {
       printERROR("Home Content not loaded due to ${r.message}");
       await Future.delayed(const Duration(seconds: 1));
@@ -296,7 +301,7 @@ class HomeScreenController extends GetxController {
         );
       }
     } else {
-      songId ??= Hive.box(BoxNames.appPrefs).get(PrefKeys.recentSongId);
+      songId ??= _settingsRepository.getRecentSongId();
       if (songId != null) {
         try {
           final value = await _musicServices.getContentRelatedToSong(
@@ -308,9 +313,7 @@ class HomeScreenController extends GetxController {
             quickPicks_ = QuickPicks(
               List<MediaItem>.from(value[0]["contents"]),
             );
-            (
-              Hive.box(BoxNames.appPrefs).put(PrefKeys.recentSongId, songId),
-            );
+            unawaited(_settingsRepository.setRecentSongId(songId));
           }
           // ignore: empty_catches
         } catch (e) {}
@@ -322,9 +325,9 @@ class HomeScreenController extends GetxController {
 
     // set home content last update time
     await cachedHomeScreenData(updateQuickPicksNMiddleContent: true);
-    await Hive.box(
-      BoxNames.appPrefs,
-    ).put(PrefKeys.homeScreenDataTime, DateTime.now().millisecondsSinceEpoch);
+    await _settingsRepository.setHomeScreenDataTime(
+      DateTime.now().millisecondsSinceEpoch,
+    );
   }
 
   String getContentHlCode() {
@@ -407,12 +410,11 @@ class HomeScreenController extends GetxController {
   }
 
   bool isStartupUpdatePopupEnabled() {
-    return Hive.box(BoxNames.appPrefs).get(PrefKeys.newVersionVisibility) ??
-        true;
+    return _settingsRepository.getNewVersionVisibility(true);
   }
 
   void setStartupUpdatePopupEnabled(bool enabled) {
-    (Hive.box(BoxNames.appPrefs).put(PrefKeys.newVersionVisibility, enabled),);
+    unawaited(_settingsRepository.setNewVersionVisibility(enabled));
     showVersionDialog.value = enabled;
   }
 
@@ -464,27 +466,36 @@ class HomeScreenController extends GetxController {
       return;
     }
 
-    final homeScreenData = Hive.box(BoxNames.homeScreenData);
-
     if (updateQuickPicksNMiddleContent) {
-      await homeScreenData.putAll({
-        "quickPicksType": quickPicks.value.title,
-        "quickPicks": _getContentDataInJson(
-          quickPicks.value.songList,
-          isQuickPicks: true,
-        ),
-        "middleContent": _getContentDataInJson(middleContent.toList()),
-      });
+      await _homeRepository.setHomeData(
+        "quickPicksType",
+        quickPicks.value.title,
+      );
+      await _homeRepository.setHomeData(
+        "quickPicks",
+        _getContentDataInJson(quickPicks.value.songList, isQuickPicks: true),
+      );
+      await _homeRepository.setHomeData(
+        "middleContent",
+        _getContentDataInJson(middleContent.toList()),
+      );
     } else if (updateAll) {
-      await homeScreenData.putAll({
-        "quickPicksType": quickPicks.value.title,
-        "quickPicks": _getContentDataInJson(
-          quickPicks.value.songList,
-          isQuickPicks: true,
-        ),
-        "middleContent": _getContentDataInJson(middleContent.toList()),
-        "fixedContent": _getContentDataInJson(fixedContent.toList()),
-      });
+      await _homeRepository.setHomeData(
+        "quickPicksType",
+        quickPicks.value.title,
+      );
+      await _homeRepository.setHomeData(
+        "quickPicks",
+        _getContentDataInJson(quickPicks.value.songList, isQuickPicks: true),
+      );
+      await _homeRepository.setHomeData(
+        "middleContent",
+        _getContentDataInJson(middleContent.toList()),
+      );
+      await _homeRepository.setHomeData(
+        "fixedContent",
+        _getContentDataInJson(fixedContent.toList()),
+      );
     }
 
     printINFO("Saved Homescreen data data");

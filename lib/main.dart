@@ -6,6 +6,8 @@ import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '/data/repositories/hive_app_repositories.dart';
+import '/domain/repositories/app_repositories.dart';
 import '/services/constant.dart';
 import '/services/app_contracts.dart';
 import '/services/app_platform_service.dart';
@@ -30,7 +32,8 @@ import 'utils/update_check_flag_file.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initHive();
-  setAppInitPrefs();
+  registerHiveRepositories();
+  await setAppInitPrefs(Get.find<SettingsRepository>());
   await startApplicationServices();
   Get.put<AudioHandler>(await initAudioService(), permanent: true);
   WidgetsBinding.instance.addObserver(LifecycleHandler());
@@ -51,10 +54,7 @@ class MyApp extends StatelessWidget {
       home: const Home(),
       debugShowCheckedModeBanner: false,
       translations: Languages(),
-      locale: Locale(
-        Hive.box(BoxNames.appPrefs).get(PrefKeys.currentAppLanguageCode) ??
-            "en",
-      ),
+      locale: Locale(Get.find<SettingsRepository>().getLanguageCode()),
       fallbackLocale: const Locale("en"),
       builder: (context, child) {
         final mQuery = MediaQuery.of(context);
@@ -92,11 +92,18 @@ class MyApp extends StatelessWidget {
 }
 
 Future<void> startApplicationServices() async {
+  registerHiveRepositories();
   if (!Get.isRegistered<PipedServices>()) {
-    Get.lazyPut(() => PipedServices(), fenix: true);
+    Get.lazyPut(
+      () => PipedServices(Get.find<SettingsRepository>()),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<MusicServices>()) {
-    Get.lazyPut(() => MusicServices(), fenix: true);
+    Get.lazyPut(
+      () => MusicServices(Get.find<SettingsRepository>()),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<MusicServiceContract>()) {
     Get.lazyPut<MusicServiceContract>(
@@ -123,38 +130,84 @@ Future<void> startApplicationServices() async {
     );
   }
   if (!Get.isRegistered<ThemeController>()) {
-    Get.lazyPut(() => ThemeController(), fenix: true);
+    Get.lazyPut(
+      () => ThemeController(Get.find<SettingsRepository>()),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<PlayerController>()) {
-    Get.lazyPut(() => PlayerController(), fenix: true);
+    Get.lazyPut(
+      () => PlayerController(
+        settingsRepository: Get.find<SettingsRepository>(),
+        libraryRepository: Get.find<LibraryRepository>(),
+        playbackSessionRepository: Get.find<PlaybackSessionRepository>(),
+      ),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<HomeScreenController>()) {
-    Get.lazyPut(() => HomeScreenController(), fenix: true);
+    Get.lazyPut(
+      () => HomeScreenController(
+        settingsRepository: Get.find<SettingsRepository>(),
+        homeRepository: Get.find<HomeRepository>(),
+      ),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<LibrarySongsController>()) {
-    Get.lazyPut(() => LibrarySongsController(), fenix: true);
+    Get.lazyPut(
+      () => LibrarySongsController(
+        libraryRepository: Get.find<LibraryRepository>(),
+      ),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<LibraryPlaylistsController>()) {
-    Get.lazyPut(() => LibraryPlaylistsController(), fenix: true);
+    Get.lazyPut(
+      () => LibraryPlaylistsController(
+        playlistRepository: Get.find<PlaylistRepository>(),
+        settingsRepository: Get.find<SettingsRepository>(),
+      ),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<LibraryAlbumsController>()) {
-    Get.lazyPut(() => LibraryAlbumsController(), fenix: true);
+    Get.lazyPut(
+      () => LibraryAlbumsController(
+        libraryRepository: Get.find<LibraryRepository>(),
+      ),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<LibraryArtistsController>()) {
-    Get.lazyPut(() => LibraryArtistsController(), fenix: true);
+    Get.lazyPut(
+      () => LibraryArtistsController(
+        libraryRepository: Get.find<LibraryRepository>(),
+      ),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<SettingsScreenController>()) {
-    Get.lazyPut(() => SettingsScreenController(), fenix: true);
+    Get.lazyPut(
+      () => SettingsScreenController(
+        settingsRepository: Get.find<SettingsRepository>(),
+        storageAdminRepository: Get.find<StorageAdminRepository>(),
+      ),
+      fenix: true,
+    );
   }
   if (!Get.isRegistered<Downloader>()) {
-    Get.lazyPut(() => Downloader(), fenix: true);
+    Get.lazyPut(() => Downloader(Get.find<DownloadRepository>()), fenix: true);
   }
   if (!Get.isRegistered<DownloaderContract>()) {
     Get.lazyPut<DownloaderContract>(() => Get.find<Downloader>(), fenix: true);
   }
   if (GetPlatform.isDesktop) {
     if (!Get.isRegistered<SearchScreenController>()) {
-      Get.lazyPut(() => SearchScreenController(), fenix: true);
+      Get.lazyPut(
+        () => SearchScreenController(Get.find<SearchHistoryRepository>()),
+        fenix: true,
+      );
     }
     if (!Get.isRegistered<DesktopSystemTray>()) {
       Get.put(DesktopSystemTray());
@@ -178,41 +231,8 @@ Future<void> initHive() async {
   await Hive.openBox(BoxNames.appPrefs);
 }
 
-void setAppInitPrefs() {
-  final appPrefs = Hive.box(BoxNames.appPrefs);
-  if (appPrefs.isEmpty) {
-    unawaited(
-      appPrefs.putAll({
-        PrefKeys.themeModeType: 0,
-        PrefKeys.cacheSongs: false,
-        PrefKeys.skipSilenceEnabled: false,
-        PrefKeys.streamingQuality: 1,
-        PrefKeys.themePrimaryColor: 4278199603,
-        PrefKeys.discoverContentType: "BOLI",
-        PrefKeys.newVersionVisibility: updateCheckFlag,
-        PrefKeys.updateChannel: 'rolling',
-        PrefKeys.cacheHomeScreenData: true,
-        PrefKeys.queueLoopModeEnabled: true,
-        PrefKeys.isBottomNavBarEnabled: true,
-        PrefKeys.downloadingFormat: "opus",
-        PrefKeys.batteryOptimizationPromptShown: false,
-        PrefKeys.playbackMode: PlaybackMode.classic.index,
-        PrefKeys.playbackPreloadRange: 0,
-      }),
-    );
-  }
-  if (!appPrefs.containsKey(PrefKeys.queueLoopModeEnabled)) {
-    unawaited(appPrefs.put(PrefKeys.queueLoopModeEnabled, true));
-  }
-  if (!appPrefs.containsKey(PrefKeys.batteryOptimizationPromptShown)) {
-    unawaited(appPrefs.put(PrefKeys.batteryOptimizationPromptShown, true));
-  }
-  if (!appPrefs.containsKey(PrefKeys.playbackMode)) {
-    unawaited(appPrefs.put(PrefKeys.playbackMode, PlaybackMode.classic.index));
-  }
-  if (!appPrefs.containsKey(PrefKeys.playbackPreloadRange)) {
-    unawaited(appPrefs.put(PrefKeys.playbackPreloadRange, 0));
-  }
+Future<void> setAppInitPrefs(SettingsRepository settingsRepository) async {
+  await settingsRepository.seedDefaults(updateCheckFlag);
 }
 
 class LifecycleHandler extends WidgetsBindingObserver {

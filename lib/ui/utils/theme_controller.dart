@@ -5,10 +5,22 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
+import '../../domain/repositories/app_repositories.dart';
 import '/utils/helper.dart';
 
 class ThemeController extends GetxController {
+  ThemeController(this._settingsRepository) {
+    systemBrightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+
+    primaryColor.value = Color(_settingsRepository.getThemePrimaryColor());
+
+    _listenSystemBrightness();
+
+    super.onInit();
+  }
+
+  final SettingsRepository _settingsRepository;
   final primaryColor = Colors.deepPurple[400].obs;
   final textColor = Colors.white24.obs;
   final themeData = Rxn<ThemeData>();
@@ -21,33 +33,25 @@ class ThemeController extends GetxController {
   Future<void> onInit() async {
     super.onInit();
     await changeThemeModeType(
-    ThemeType.values[Hive.box('appPrefs').get("themeModeType") ?? 0],
+      ThemeType.values[_settingsRepository.getThemeModeType()],
     );
   }
-  ThemeController() {
-    systemBrightness =
-        WidgetsBinding.instance.platformDispatcher.platformBrightness;
 
-    primaryColor.value = Color(
-      Hive.box('appPrefs').get("themePrimaryColor") ?? 4278199603,
-    );
-
-    _listenSystemBrightness();
-
-    super.onInit();
-  }
   void _listenSystemBrightness() {
     final platformDispatcher = WidgetsBinding.instance.platformDispatcher;
     platformDispatcher.onPlatformBrightnessChanged = () async {
       systemBrightness = platformDispatcher.platformBrightness;
       await changeThemeModeType(
-        ThemeType.values[Hive.box('appPrefs').get("themeModeType")],
+        ThemeType.values[_settingsRepository.getThemeModeType()],
         sysCall: true,
       );
     };
   }
 
-  Future<void> changeThemeModeType(dynamic value, {bool sysCall = false}) async {
+  Future<void> changeThemeModeType(
+    dynamic value, {
+    bool sysCall = false,
+  }) async {
     if (value == ThemeType.system) {
       themeData.value = _createThemeData(
         null,
@@ -87,9 +91,9 @@ class ThemeController extends GetxController {
       titleColorSwatch: _createMaterialColor(textColor.value),
     );
     currentSongId = songId;
-    await Hive.box(
-      'appPrefs',
-    ).put("themePrimaryColor", primaryColor.value!.toARGB32());
+    await _settingsRepository.setThemePrimaryColor(
+      primaryColor.value!.toARGB32(),
+    );
     await setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
   }
 

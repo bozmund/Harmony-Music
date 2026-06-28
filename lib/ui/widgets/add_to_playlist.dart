@@ -3,12 +3,11 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
+import '../../domain/repositories/app_repositories.dart';
 import '../../services/piped_service.dart';
 import '../../utils/helper.dart';
-import '/models/media_Item_builder.dart';
 import '/ui/widgets/create_playlist_dialog.dart';
 import '../../models/playlist.dart';
 import 'common_dialog_widget.dart';
@@ -249,6 +248,11 @@ class AddToPlaylist extends StatelessWidget {
 }
 
 class AddToPlaylistController extends GetxController {
+  AddToPlaylistController({PlaylistRepository? playlistRepository})
+    : _playlistRepository =
+          playlistRepository ?? Get.find<PlaylistRepository>();
+
+  final PlaylistRepository _playlistRepository;
   final RxList<Playlist> playlists = RxList();
   final playlistType = "local".obs;
   final additionInProgress = false.obs;
@@ -257,7 +261,6 @@ class AddToPlaylistController extends GetxController {
   final loadingMembershipPlaylistIds = <String>{}.obs;
   List<Playlist> localPlaylists = [];
   List<Playlist> pipedPlaylists = [];
-  AddToPlaylistController();
   @override
   Future<void> onInit() async {
     super.onInit();
@@ -265,12 +268,8 @@ class AddToPlaylistController extends GetxController {
   }
 
   Future<void> _getAllPlaylist() async {
-    final playlistsBox = await Hive.openBox("LibraryPlaylists");
-    playlists.value = playlistsBox.values
-        .map((e) {
-          if (!e["isCloudPlaylist"]) return Playlist.fromJson(e);
-        })
-        .whereType<Playlist>()
+    playlists.value = (await _playlistRepository.getPlaylists())
+        .where((playlist) => !playlist.isCloudPlaylist)
         .toList();
     localPlaylists = playlists.toList();
     final res = await Get.find<PipedServices>().getAllPlaylists();
@@ -397,26 +396,22 @@ class AddToPlaylistController extends GetxController {
     List<MediaItem> missingSongs,
   ) async {
     final actuallyAddedSongs = <MediaItem>[];
-    final wasOpen = Hive.isBoxOpen(playlistId);
-    final playlistBox = await Hive.openBox(playlistId);
-    try {
-      final existingIds = playlistBox.values
-          .map(_songIdFromPlaylistEntry)
-          .whereType<String>()
-          .toSet();
-      for (MediaItem element in missingSongs) {
-        if (!existingIds.contains(element.id)) {
-          await playlistBox.add(MediaItemBuilder.toJson(element));
-          existingIds.add(element.id);
-          actuallyAddedSongs.add(element);
-        }
-      }
-      updatePlaylistMembership(playlistId, existingIds);
-    } finally {
-      if (!wasOpen) {
-        await playlistBox.close();
+    final existingIds = await _playlistRepository.getPlaylistSongIds(
+      playlistId,
+    );
+    for (MediaItem element in missingSongs) {
+      if (!existingIds.contains(element.id)) {
+        actuallyAddedSongs.add(element);
       }
     }
+    await _playlistRepository.addSongsToPlaylist(
+      playlistId,
+      actuallyAddedSongs,
+    );
+    updatePlaylistMembership(playlistId, {
+      ...existingIds,
+      ...actuallyAddedSongs.map((song) => song.id),
+    });
     return actuallyAddedSongs;
   }
 
@@ -456,45 +451,6 @@ class AddToPlaylistController extends GetxController {
   }
 
   Future<Set<String>> _readLocalPlaylistSongIds(String playlistId) async {
-    final wasOpen = Hive.isBoxOpen(playlistId);
-    final playlistBox = await Hive.openBox(playlistId);
-    final ids = playlistBox.values
-        .map(_songIdFromPlaylistEntry)
-        .whereType<String>()
-        .toSet();
-    if (!wasOpen) {
-      await playlistBox.close();
-    }
-    return ids;
+    return _playlistRepository.getPlaylistSongIds(playlistId);
   }
-
-  String? _songIdFromPlaylistEntry(dynamic item) {
-    if (item is Map) {
-      final id = item['videoId'];
-      if (id is String) return id;
-    }
-    return null;
-  }
-
-  // Future<bool> addSongToPlaylist(
-  //     MediaItem song, String playlistId, BuildContext context) async {
-  //   if (playlistType.value == "local") {
-  //     final playlistBox = await Hive.openBox(playlistId);
-  //     if (!playlistBox.containsKey(song.id)) {
-  //       playlistBox.put(song.id, MediaItemBuilder.toJson(song));
-  //       playlistBox.close();
-  //       return true;
-  //     } else {
-  //       playlistBox.close();
-  //       return false;
-  //     }
-  //   } else {
-  //     additionInProgress.value = true;
-
-  //     final res =
-  //         await Get.find<PipedServices>().addToPlaylist(playlistId, song.id);
-  //     additionInProgress.value = false;
-  //     return (res.code == 1);
-  //   }
-  // }
 }

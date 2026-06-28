@@ -9,6 +9,7 @@ import 'package:file_selector/file_selector.dart';
 import '/services/file_picker_service.dart';
 import 'dart:convert';
 
+import '../../../domain/repositories/app_repositories.dart';
 import '/utils/search_filter.dart';
 import '/services/constant.dart';
 import '../../../utils/house_keeping.dart';
@@ -25,6 +26,13 @@ import '/models/media_Item_builder.dart';
 import '/models/playlist.dart';
 
 class LibrarySongsController extends GetxController {
+  LibrarySongsController({LibraryRepository? libraryRepository})
+    : _libraryRepository = libraryRepository;
+
+  final LibraryRepository? _libraryRepository;
+  LibraryRepository get _library =>
+      _libraryRepository ?? Get.find<LibraryRepository>();
+
   static const sortWidgetTag = "LibSongSort";
   static const defaultSortType = SortType.date;
   static const defaultSortAscending = false;
@@ -72,24 +80,14 @@ class LibrarySongsController extends GetxController {
       //printINFO("all files: $downloadedFiles \n $songsList");
     }
 
-    final box = Hive.box(BoxNames.songsCache);
-    for (var element in box.keys) {
+    final cachedSongs = await _library.getCachedSongs();
+    for (var element in cachedSongs.map((song) => song.id)) {
       if (!songsList.contains(element)) {
-        await box.delete(element);
+        await _library.deleteCachedSong(element);
       }
     }
 
-    final songs = box.values
-        .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
-        .whereType<MediaItem>()
-        .toList();
-
-    songs.addAll(
-      Hive.box(BoxNames.songDownloads).values
-          .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
-          .whereType<MediaItem>()
-          .toList(),
-    );
+    final songs = await _library.getAllLibrarySongs();
     sortSongsNVideos(songs, defaultSortType, defaultSortAscending);
     librarySongsList.value = songs;
     isSongFetched.value = true;
@@ -358,6 +356,15 @@ class _SpotifyTrackMatch {
 
 class LibraryPlaylistsController extends GetxController
     with GetTickerProviderStateMixin {
+  LibraryPlaylistsController({
+    required PlaylistRepository playlistRepository,
+    required SettingsRepository settingsRepository,
+  }) : _playlistRepository = playlistRepository,
+       _settingsRepository = settingsRepository;
+
+  final PlaylistRepository _playlistRepository;
+  final SettingsRepository _settingsRepository;
+
   late AnimationController controller;
 
   final playlistCreationMode = "local".obs;
@@ -442,23 +449,14 @@ class LibraryPlaylistsController extends GetxController
   }
 
   Future<void> refreshLib() async {
-    final box = await Hive.openBox(BoxNames.libraryPlaylists);
-    final localPlaylists = box.values
-        .map<Playlist?>((item) => Playlist.fromJson(item))
-        .whereType<Playlist>()
-        .toList()
-        .reversed;
+    final localPlaylists = (await _playlistRepository.getPlaylists()).reversed;
     libraryPlaylists.value = withInitialPlaylistsTail(localPlaylists);
 
-    final appPrefsBox = Hive.box(BoxNames.appPrefs);
-    if (appPrefsBox.containsKey(PrefKeys.piped)) {
-      if (appPrefsBox.get(PrefKeys.piped)['isLoggedIn']) {
-        await syncPipedPlaylist();
-      }
+    if (_settingsRepository.getPiped()?['isLoggedIn'] == true) {
+      await syncPipedPlaylist();
     }
 
     isContentFetched.value = true;
-    await box.close();
   }
 
   Future<void> updatePlaylistIntoDb(Playlist playlist) async {
@@ -1187,6 +1185,11 @@ class LibraryPlaylistsController extends GetxController
 }
 
 class LibraryAlbumsController extends GetxController {
+  LibraryAlbumsController({LibraryRepository? libraryRepository})
+    : _libraryRepository = libraryRepository ?? Get.find<LibraryRepository>();
+
+  final LibraryRepository _libraryRepository;
+
   late RxList<Album> libraryAlbums = RxList();
   final isContentFetched = false.obs;
   List<Album> tempListContainer = [];
@@ -1198,14 +1201,8 @@ class LibraryAlbumsController extends GetxController {
   }
 
   Future<void> refreshLib() async {
-    final box = await Hive.openBox(BoxNames.libraryAlbums);
-    libraryAlbums.value = box.values
-        .map<Album?>((item) => Album.fromJson(item))
-        .whereType<Album>()
-        .toList();
-
+    libraryAlbums.value = await _libraryRepository.getAlbums();
     isContentFetched.value = true;
-    await box.close();
   }
 
   void onSort(SortType sortType, bool isAscending) {
@@ -1239,6 +1236,11 @@ class LibraryAlbumsController extends GetxController {
 }
 
 class LibraryArtistsController extends GetxController {
+  LibraryArtistsController({LibraryRepository? libraryRepository})
+    : _libraryRepository = libraryRepository ?? Get.find<LibraryRepository>();
+
+  final LibraryRepository _libraryRepository;
+
   RxList<Artist> libraryArtists = RxList();
   final isContentFetched = false.obs;
   List<Artist> tempListContainer = [];
@@ -1250,13 +1252,8 @@ class LibraryArtistsController extends GetxController {
   }
 
   Future<void> refreshLib() async {
-    final box = await Hive.openBox(BoxNames.libraryArtists);
-    libraryArtists.value = box.values
-        .map<Artist?>((item) => Artist.fromJson(item))
-        .whereType<Artist>()
-        .toList();
+    libraryArtists.value = await _libraryRepository.getArtists();
     isContentFetched.value = true;
-    await box.close();
   }
 
   void onSort(SortType sortType, bool isAscending) {

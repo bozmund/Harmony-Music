@@ -5,8 +5,8 @@ import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 
+import '../domain/repositories/app_repositories.dart';
 import '/services/constant.dart';
 import '/services/app_contracts.dart';
 import '../ui/screens/Album/album_screen_controller.dart';
@@ -21,6 +21,10 @@ import '../ui/screens/Library/library_controller.dart';
 //import '../models/thumbnail.dart' as th;
 
 class Downloader extends GetxService implements DownloaderContract {
+  Downloader(this._downloadRepository);
+
+  final DownloadRepository _downloadRepository;
+
   final _dio = Dio(
     BaseOptions(
       connectTimeout: const Duration(seconds: 20),
@@ -175,7 +179,7 @@ class Downloader extends GetxService implements DownloaderContract {
         return;
       }
 
-      if (!Hive.box(BoxNames.songDownloads).containsKey(song.id)) {
+      if (!await _downloadRepository.containsDownload(song.id)) {
         currentSong = song;
         songDownloadingProgress.value = 0;
         try {
@@ -287,15 +291,20 @@ class Downloader extends GetxService implements DownloaderContract {
     songJson['url'] = filePath;
     songJson['extras'] = Map<String, dynamic>.from(songJson['extras'] ?? {})
       ..['url'] = filePath;
-    final streamInfoJson = requiredAudioStream.toJson();
+    final streamInfoJson = Map<String, dynamic>.from(
+      requiredAudioStream.toJson(),
+    );
     streamInfoJson['url'] = filePath;
     // [playability status, info map]
     songJson["streamInfo"] = [true, streamInfoJson];
+    final downloadedSong = MediaItemBuilder.fromJson(songJson);
 
-    await Hive.box(BoxNames.songDownloads).put(song.id, songJson);
-    Get.find<LibrarySongsController>().addSongToLibraryList(
-      MediaItemBuilder.fromJson(songJson),
+    await _downloadRepository.saveDownloadedSongJson(song.id, songJson);
+    printINFO(
+      "[$traceId] Saved download metadata for ${song.id}; streamInfo=${songJson["streamInfo"] != null}",
+      tag: LogTags.downloader,
     );
+    Get.find<LibrarySongsController>().addSongToLibraryList(downloadedSong);
     try {
       await Get.find<PlaylistScreenController>(
         tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),

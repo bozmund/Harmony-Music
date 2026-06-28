@@ -5,7 +5,6 @@ import 'dart:math';
 
 import 'package:flutter/services.dart';
 
-import 'package:hive/hive.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
@@ -16,9 +15,8 @@ import 'package:audio_service/audio_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '/services/constant.dart';
+import '../domain/repositories/app_repositories.dart';
 import '/services/playback_preload_service.dart';
-import '/models/album.dart';
-import '../models/playlist.dart';
 import '/services/equalizer.dart';
 import '/services/stream_service.dart';
 import '/models/hm_streaming_data.dart';
@@ -36,7 +34,14 @@ import '../ui/screens/Library/library_controller.dart';
 import "package:media_kit/src/player/platform_player.dart" show MPVLogLevel;
 
 Future<AudioHandler> initAudioService() async {
-  final handler = await MyAudioHandler.create();
+  final handler = await MyAudioHandler.create(
+    settingsRepository: Get.find<SettingsRepository>(),
+    libraryRepository: Get.find<LibraryRepository>(),
+    downloadRepository: Get.find<DownloadRepository>(),
+    songCacheRepository: Get.find<SongCacheRepository>(),
+    playlistRepository: Get.find<PlaylistRepository>(),
+    playbackSessionRepository: Get.find<PlaybackSessionRepository>(),
+  );
   return await AudioService.init(
     builder: () => handler,
     config: const AudioServiceConfig(
@@ -55,6 +60,12 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   late AudioPlayer _player;
   late MediaLibrary _mediaLibrary;
   late PlaybackPreloadService _preloadService;
+  late final SettingsRepository _settingsRepository;
+  late final LibraryRepository _libraryRepository;
+  late final DownloadRepository _downloadRepository;
+  late final SongCacheRepository _songCacheRepository;
+  late final PlaylistRepository _playlistRepository;
+  late final PlaybackSessionRepository _playbackSessionRepository;
 
   // ignore: prefer_typing_uninitialized_variables
   dynamic currentIndex;
@@ -78,13 +89,30 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
       // ignore: deprecated_member_use
       ConcatenatingAudioSource(children: [], useLazyPreparation: false);
 
-  MyAudioHandler._() {
+  MyAudioHandler._({
+    required SettingsRepository settingsRepository,
+    required LibraryRepository libraryRepository,
+    required DownloadRepository downloadRepository,
+    required SongCacheRepository songCacheRepository,
+    required PlaylistRepository playlistRepository,
+    required PlaybackSessionRepository playbackSessionRepository,
+  }) {
+    _settingsRepository = settingsRepository;
+    _libraryRepository = libraryRepository;
+    _downloadRepository = downloadRepository;
+    _songCacheRepository = songCacheRepository;
+    _playlistRepository = playlistRepository;
+    _playbackSessionRepository = playbackSessionRepository;
+
     if (GetPlatform.isWindows || GetPlatform.isLinux) {
       JustAudioMediaKit.title = 'Harmony music';
       JustAudioMediaKit.protocolWhitelist = const ['http', 'https', 'file'];
     }
 
-    _mediaLibrary = MediaLibrary();
+    _mediaLibrary = MediaLibrary(
+      libraryRepository: _libraryRepository,
+      playlistRepository: _playlistRepository,
+    );
 
     _player = AudioPlayer(
       audioLoadConfiguration: const AudioLoadConfiguration(
@@ -98,8 +126,22 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     );
   }
 
-  static Future<MyAudioHandler> create() async {
-    final handler = MyAudioHandler._();
+  static Future<MyAudioHandler> create({
+    required SettingsRepository settingsRepository,
+    required LibraryRepository libraryRepository,
+    required DownloadRepository downloadRepository,
+    required SongCacheRepository songCacheRepository,
+    required PlaylistRepository playlistRepository,
+    required PlaybackSessionRepository playbackSessionRepository,
+  }) async {
+    final handler = MyAudioHandler._(
+      settingsRepository: settingsRepository,
+      libraryRepository: libraryRepository,
+      downloadRepository: downloadRepository,
+      songCacheRepository: songCacheRepository,
+      playlistRepository: playlistRepository,
+      playbackSessionRepository: playbackSessionRepository,
+    );
     await handler._init();
     return handler;
   }
@@ -109,6 +151,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     _preloadService = PlaybackPreloadService(
       preloadDirectory: Directory("$_cacheDir/preloadedSongs"),
       resolveStreamInfo: checkNGetUrl,
+      settingsRepository: _settingsRepository,
+      songCacheRepository: _songCacheRepository,
     );
     await _preloadService.init();
     await _addEmptyList();
@@ -117,19 +161,15 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     _listenToPlaybackForNextSong();
     _listenForSequenceStateChanges();
 
-    final appPrefsBox = Hive.box(BoxNames.appPrefs);
-
     await _player.setSkipSilenceEnabled(
-      appPrefsBox.get(PrefKeys.skipSilenceEnabled) ?? false,
+      _settingsRepository.getSkipSilenceEnabled(),
     );
 
-    loopModeEnabled = appPrefsBox.get(PrefKeys.isLoopModeEnabled) ?? false;
-    shuffleModeEnabled =
-        appPrefsBox.get(PrefKeys.isShuffleModeEnabled) ?? false;
-    queueLoopModeEnabled =
-        appPrefsBox.get(PrefKeys.queueLoopModeEnabled) ?? true;
-    loudnessNormalizationEnabled =
-        appPrefsBox.get(PrefKeys.loudnessNormalizationEnabled) ?? false;
+    loopModeEnabled = _settingsRepository.getLoopModeEnabled();
+    shuffleModeEnabled = _settingsRepository.getShuffleModeEnabled();
+    queueLoopModeEnabled = _settingsRepository.getQueueLoopModeEnabled();
+    loudnessNormalizationEnabled = _settingsRepository
+        .getLoudnessNormalizationEnabled();
     await _player.setLoopMode(loopModeEnabled ? LoopMode.one : LoopMode.off);
 
     _listenForDurationChanges();
@@ -703,27 +743,27 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
       case 'checkWithCacheDb':
         if (isPlayingUsingLockCachingSource) {
           final song = extras!['mediaItem'] as MediaItem;
-          final songsCacheBox = Hive.box(BoxNames.songsCache);
-          if (!songsCacheBox.containsKey(song.id) &&
+          if (!await _songCacheRepository.containsCachedSong(song.id) &&
               await File("$_cacheDir/cachedSongs/${song.id}.mp3").exists()) {
             song.extras!['url'] = currentSongUrl;
             song.extras!['date'] = DateTime.now().millisecondsSinceEpoch;
-            final dbStreamData = Hive.box(BoxNames.songsUrlCache).get(song.id);
+            final dbStreamData = await _songCacheRepository.getStreamCacheEntry(
+              song.id,
+            );
             final jsonData = MediaItemBuilder.toJson(song);
             jsonData['duration'] = _player.duration!.inSeconds;
             // playbility status and info
             jsonData['streamInfo'] = dbStreamData != null
                 ? [
                     true,
-                    dbStreamData[Hive.box(
-                              BoxNames.appPrefs,
-                            ).get(PrefKeys.streamingQuality) ==
+                    dbStreamData[_settingsRepository
+                                .getStreamingQualityIndex() ==
                             0
                         ? 'lowQualityAudio'
                         : "highQualityAudio"],
                   ]
                 : null;
-            await songsCacheBox.put(song.id, jsonData);
+            await _songCacheRepository.saveCachedSongJson(song.id, jsonData);
             LibrarySongsController librarySongsController =
                 Get.find<LibrarySongsController>();
             if (!librarySongsController.isClosed) {
@@ -794,20 +834,20 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         if (loudnessNormalizationEnabled) {
           try {
             final currentSongId = queue.value[currentIndex].id;
-            if (Hive.box(BoxNames.songsUrlCache).containsKey(currentSongId)) {
-              final songJson = Hive.box(
-                BoxNames.songsUrlCache,
-              ).get(currentSongId);
+            final songJson = await _songCacheRepository.getStreamCacheEntry(
+              currentSongId,
+            );
+            if (songJson != null) {
               await _normalizeVolume(
                 songJson["highQualityAudio"]["loudnessDb"],
               );
               return;
             }
 
-            if (Hive.box(BoxNames.songDownloads).containsKey(currentSongId)) {
-              final streamInfo = Hive.box(
-                BoxNames.songDownloads,
-              ).get(currentSongId)["streamInfo"];
+            if (await _downloadRepository.containsDownload(currentSongId)) {
+              final streamInfo = (await _downloadRepository.getDownloadJson(
+                currentSongId,
+              ))["streamInfo"];
 
               await _normalizeVolume(
                 streamInfo == null ? 0 : streamInfo[1]["loudnessDb"],
@@ -963,19 +1003,13 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     }
     final currQueue = queue.value;
     if (currQueue.isNotEmpty) {
-      final queueData = currQueue
-          .map((e) => MediaItemBuilder.toJson(e))
-          .toList();
       final currIndex = currentIndex ?? 0;
       final position = _player.position.inMilliseconds;
-      final prevSessionData = await Hive.openBox(BoxNames.prevSessionData);
-      await prevSessionData.clear();
-      await prevSessionData.putAll({
-        "queue": queueData,
-        "position": position,
-        "index": currIndex,
-      });
-      await prevSessionData.close();
+      await _playbackSessionRepository.saveSession(
+        queue: currQueue,
+        index: currIndex,
+        position: position,
+      );
       printINFO("Saved session data", tag: LogTags.audioHandler);
     }
   }
@@ -1033,14 +1067,14 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     bool offlineReplacementUrl = false,
   }) async {
     printINFO("Requested id : $songId", tag: LogTags.audioHandler);
-    final songDownloadsBox = Hive.box(BoxNames.songDownloads);
     if (!offlineReplacementUrl &&
-        (await Hive.openBox(BoxNames.songsCache)).containsKey(songId)) {
+        await _songCacheRepository.containsCachedSong(songId)) {
       printINFO("Got Song from cachedbox ($songId)", tag: LogTags.audioHandler);
       // if contains stream Info
-      final streamInfo = Hive.box(
-        BoxNames.songsCache,
-      ).get(songId)["streamInfo"];
+      final cachedSongJson = await _songCacheRepository.getCachedSongJson(
+        songId,
+      );
+      final streamInfo = cachedSongJson["streamInfo"];
       Audio? cacheAudioPlaceholder;
       if (streamInfo != null && streamInfo.isNotEmpty) {
         streamInfo[1]['url'] = "file://$_cacheDir/cachedSongs/$songId.mp3";
@@ -1063,14 +1097,39 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         lowQualityAudio: cacheAudioPlaceholder,
         highQualityAudio: cacheAudioPlaceholder,
       );
-    } else if (!offlineReplacementUrl && songDownloadsBox.containsKey(songId)) {
-      final song = songDownloadsBox.get(songId);
+    } else if (!offlineReplacementUrl &&
+        await _downloadRepository.containsDownload(songId)) {
+      final song = await _downloadRepository.getDownloadJson(songId);
+      if (song == null) {
+        printWarning(
+          "Download entry for $songId disappeared during stream lookup",
+          tag: LogTags.audioHandler,
+        );
+        return checkNGetUrl(songId, offlineReplacementUrl: true);
+      }
+
+      final path = song['url'];
+      if (path is! String || path.isEmpty) {
+        printWarning(
+          "Download entry for $songId has invalid path: $path",
+          tag: LogTags.audioHandler,
+        );
+        return checkNGetUrl(songId, offlineReplacementUrl: true);
+      }
+
       final streamInfoJson = song["streamInfo"];
       Audio? audio;
-      final path = song['url'];
-      if (streamInfoJson != null && streamInfoJson.isNotEmpty) {
-        audio = Audio.fromJson(streamInfoJson[1]);
+      if (streamInfoJson is List &&
+          streamInfoJson.length > 1 &&
+          streamInfoJson[1] is Map) {
+        final audioJson = Map<String, dynamic>.from(streamInfoJson[1] as Map);
+        audioJson['url'] = path;
+        audio = Audio.fromJson(audioJson);
       } else {
+        printWarning(
+          "Download entry for $songId has no usable streamInfo; using file path placeholder",
+          tag: LogTags.audioHandler,
+        );
         audio = Audio(
           itag: 140,
           audioCodec: Codec.mp4a,
@@ -1103,12 +1162,12 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
       return checkNGetUrl(songId, offlineReplacementUrl: true);
     } else {
       //check if song stream url is cached and allocate url accordingly
-      final songsUrlCacheBox = Hive.box(BoxNames.songsUrlCache);
-      final qualityIndex =
-          Hive.box(BoxNames.appPrefs).get(PrefKeys.streamingQuality) ?? 1;
+      final qualityIndex = _settingsRepository.getStreamingQualityIndex();
       HMStreamingData? streamInfo;
-      if (songsUrlCacheBox.containsKey(songId) && !generateNewUrl) {
-        final streamInfoJson = songsUrlCacheBox.get(songId);
+      final streamInfoJson = await _songCacheRepository.getStreamCacheEntry(
+        songId,
+      );
+      if (streamInfoJson != null && !generateNewUrl) {
         if (streamInfoJson.runtimeType.toString().contains("Map") &&
             !isExpired(url: streamInfoJson['lowQualityAudio']['url'])) {
           printINFO("Got cached Url ($songId)", tag: LogTags.audioHandler);
@@ -1123,10 +1182,13 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         );
         streamInfo = HMStreamingData.fromJson(streamInfoJson);
         if (streamInfo.playable)
-          await songsUrlCacheBox.put(songId, streamInfoJson);
+          await _songCacheRepository.saveStreamCacheEntry(
+            songId,
+            streamInfoJson,
+          );
       }
 
-      streamInfo.setQualityIndex(qualityIndex as int);
+      streamInfo.setQualityIndex(qualityIndex);
       return streamInfo;
     }
   }
@@ -1138,6 +1200,15 @@ class UrlError extends Error {
 
 // for Android Auto
 class MediaLibrary {
+  MediaLibrary({
+    required LibraryRepository libraryRepository,
+    required PlaylistRepository playlistRepository,
+  }) : _libraryRepository = libraryRepository,
+       _playlistRepository = playlistRepository;
+
+  final LibraryRepository _libraryRepository;
+  final PlaylistRepository _playlistRepository;
+
   static const albumsRootId = 'albums';
   static const songsRootId = 'songs';
   static const favoritesRootId = "LIBFAV";
@@ -1178,32 +1249,33 @@ class MediaLibrary {
   }
 
   Future<List<MediaItem>> getAlbums() async {
-    final box = await Hive.openBox(BoxNames.libraryAlbums);
-    final albums = box.values
-        .map((item) => Album.fromJson(item).toMediaItem())
+    return (await _libraryRepository.getAlbums())
+        .map((album) => album.toMediaItem())
         .toList();
-    await box.close();
-    return albums;
   }
 
   Future<List<MediaItem>> getPlaylists() async {
-    final box = await Hive.openBox(BoxNames.libraryPlaylists);
     final playlists = LibraryPlaylistsController.withInitialPlaylistsTail(
-      box.values.map((item) => Playlist.fromJson(item)).toList().reversed,
+      (await _playlistRepository.getPlaylists()).reversed,
     ).map((e) => e.toMediaItem()).toList();
-    await box.close();
     return playlists;
   }
 
   Future<List<MediaItem>> getLibSongs(String libId) async {
-    Box<dynamic> box;
-    try {
-      box = await Hive.openBox(libId);
-    } catch (e) {
-      box = await Hive.openBox(libId);
-    }
-    final songs = box.values.toList().map((e) {
-      final song = MediaItemBuilder.fromJson(e);
+    final songs = switch (libId) {
+      BoxNames.songDownloads => await _libraryRepository.getDownloadedSongs(),
+      BoxNames.songsCache => await _libraryRepository.getCachedSongs(),
+      BoxNames.libFav => await _libraryRepository.getFavoriteSongs(),
+      BoxNames.libFavNotDownloaded =>
+        await _libraryRepository.getFavoriteNotDownloadedSongs(),
+      BoxNames.libImportDuplicates =>
+        await _libraryRepository.getImportDuplicateSongs(),
+      BoxNames.libImportReview =>
+        await _libraryRepository.getImportReviewSongs(),
+      BoxNames.libRP => await _libraryRepository.getRecentlyPlayedSongs(),
+      _ => await _playlistRepository.getPlaylistSongs(libId),
+    };
+    final mediaItems = songs.map((song) {
       return MediaItem(
         id: song.id,
         title: song.title,
@@ -1214,35 +1286,25 @@ class MediaLibrary {
       );
     }).toList();
 
-    if (!libId.contains(BoxNames.songDownloads)) {
-      await box.close();
-    }
-
     if (libId == BoxNames.libRP) {
-      return songs.reversed.toList();
+      return mediaItems.reversed.toList();
     }
 
-    return songs;
+    return mediaItems;
   }
 
   Future<List<MediaItem>> getLikedNotDownloadedSongs() async {
-    final favBox = await Hive.openBox(BoxNames.libFav);
-    final downloadsBox = await Hive.openBox(BoxNames.songDownloads);
-    final songs = favBox.values
-        .where((item) => !downloadsBox.containsKey(item['videoId']))
-        .map((item) {
-          final song = MediaItemBuilder.fromJson(item);
-          return MediaItem(
+    return (await _libraryRepository.getFavoriteNotDownloadedSongs())
+        .map(
+          (song) => MediaItem(
             id: song.id,
             title: song.title,
             artist: song.artist,
             artUri: song.artUri,
             extras: {"libraryId": BoxNames.libFavNotDownloaded},
             playable: true,
-          );
-        })
+          ),
+        )
         .toList();
-    await favBox.close();
-    return songs;
   }
 }

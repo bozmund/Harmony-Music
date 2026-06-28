@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:hive/hive.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:audio_service/audio_service.dart';
@@ -8,6 +7,7 @@ import 'package:flutter_lyric/flutter_lyric.dart';
 
 import '../../models/playing_from.dart';
 
+import '../../domain/repositories/app_repositories.dart';
 import '../../services/app_platform_service.dart';
 import '../../services/downloader.dart';
 import '../screens/Playlist/playlist_screen_controller.dart';
@@ -16,7 +16,6 @@ import '/services/synced_lyrics_service.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
 import '../../services/windows_audio_service.dart';
 import '../../utils/helper.dart';
-import '/models/media_Item_builder.dart';
 import '../screens/Home/home_screen_controller.dart';
 import '../widgets/sliding_up_panel.dart';
 import '/models/duration_state.dart';
@@ -26,6 +25,17 @@ import '/services/constant.dart';
 
 class PlayerController extends GetxController
     with GetSingleTickerProviderStateMixin {
+  PlayerController({
+    required SettingsRepository settingsRepository,
+    required LibraryRepository libraryRepository,
+    required PlaybackSessionRepository playbackSessionRepository,
+  }) : _settingsRepository = settingsRepository,
+       _libraryRepository = libraryRepository,
+       _playbackSessionRepository = playbackSessionRepository;
+
+  final SettingsRepository _settingsRepository;
+  final LibraryRepository _libraryRepository;
+  final PlaybackSessionRepository _playbackSessionRepository;
   final _audioHandler = Get.find<AudioHandler>();
   final _musicServices = Get.find<MusicServiceContract>();
   final currentQueue = <MediaItem>[].obs;
@@ -206,18 +216,16 @@ class PlayerController extends GetxController
     _listenForPlaylistChange();
     _listenForKeyboardActivity();
     _setInitLyricsMode();
-    final appPrefs = Hive.box(BoxNames.appPrefs);
-    isLoopModeEnabled.value = appPrefs.get(PrefKeys.isLoopModeEnabled) ?? false;
-    isShuffleModeEnabled.value =
-        appPrefs.get(PrefKeys.isShuffleModeEnabled) ?? false;
-    isQueueLoopModeEnabled.value =
-        appPrefs.get(PrefKeys.queueLoopModeEnabled) ?? true;
+    isLoopModeEnabled.value = _settingsRepository.getLoopModeEnabled();
+    isShuffleModeEnabled.value = _settingsRepository.getShuffleModeEnabled();
+    isQueueLoopModeEnabled.value = _settingsRepository
+        .getQueueLoopModeEnabled();
 
     if (GetPlatform.isDesktop) {
-      await setVolume(appPrefs.get(PrefKeys.volume) ?? 100);
+      await setVolume(_settingsRepository.getVolume());
     }
 
-    if ((appPrefs.get(PrefKeys.playerUi) ?? 0) == 1) {
+    if (_settingsRepository.getPlayerUi() == 1) {
       initGesturePlayerStateAnimationController();
     }
 
@@ -242,8 +250,7 @@ class PlayerController extends GetxController
   }
 
   void _setInitLyricsMode() {
-    lyricsMode.value =
-        Hive.box(BoxNames.appPrefs).get(PrefKeys.lyricsMode) ?? 0;
+    lyricsMode.value = _settingsRepository.getLyricsMode();
   }
 
   void panelListener(double x) {
@@ -439,18 +446,13 @@ class PlayerController extends GetxController
   }
 
   Future<void> _restorePrevSession() async {
-    final restorePrevSessionEnabled =
-        Hive.box(BoxNames.appPrefs).get(PrefKeys.restorePlaybackSession) ??
-        false;
+    final restorePrevSessionEnabled = _settingsRepository
+        .getRestorePlaybackSession();
     if (restorePrevSessionEnabled) {
-      final prevSessionData = await Hive.openBox(BoxNames.prevSessionData);
-      if (prevSessionData.keys.isNotEmpty) {
-        final songList = (prevSessionData.get("queue") as List)
-            .map((e) => MediaItemBuilder.fromJson(e))
-            .toList();
-        final int currentIndex = prevSessionData.get("index");
-        final int position = prevSessionData.get("position");
-        await prevSessionData.close();
+      final songList = await _playbackSessionRepository.getQueue();
+      final currentIndex = await _playbackSessionRepository.getIndex();
+      final position = await _playbackSessionRepository.getPosition();
+      if (songList.isNotEmpty && currentIndex != null && position != null) {
         await _audioHandler.addQueueItems(songList);
         await _playerPanelCheck(restoreSession: true);
         await _audioHandler.customAction("playByIndex", {
@@ -516,8 +518,7 @@ class PlayerController extends GetxController
 
     unawaited(
       queueUpdate.then((value) async {
-        if (Hive.box(BoxNames.appPrefs).get(PrefKeys.discoverContentType) ==
-            "BOLI") {
+        if (_settingsRepository.getDiscoverContentType() == "BOLI") {
           await Get.find<HomeScreenController>().changeDiscoverContent(
             "BOLI",
             songId: mediaItem!.id,
@@ -559,8 +560,7 @@ class PlayerController extends GetxController
     //for changing home content based on last iteration
     unawaited(
       Future.delayed(const Duration(seconds: 3), () async {
-        if (Hive.box(BoxNames.appPrefs).get(PrefKeys.discoverContentType) ==
-            "BOLI") {
+        if (_settingsRepository.getDiscoverContentType() == "BOLI") {
           await Get.find<HomeScreenController>().changeDiscoverContent(
             "BOLI",
             songId: mediaItems[index].id,
@@ -624,22 +624,21 @@ class PlayerController extends GetxController
   }
 
   Future<void> _playViaAndroidAuto(String songId, String libraryId) async {
-    await Hive.openBox(libraryId).then((box) async {
-      List<MediaItem> songList = [];
-      final songJson = box.values.toList();
-      int songIndex = 0;
-      for (int i = 0; i < box.length; i++) {
-        final song = MediaItemBuilder.fromJson(songJson[i]);
-        if (song.id == songId) {
-          songIndex = i;
-        }
-        songList.add(song);
-      }
-      await playPlayListSong(songList, songIndex);
-      if (libraryId != BoxNames.songDownloads) {
-        await box.close();
-      }
-    });
+    final songList = switch (libraryId) {
+      BoxNames.songDownloads => await _libraryRepository.getDownloadedSongs(),
+      BoxNames.songsCache => await _libraryRepository.getCachedSongs(),
+      BoxNames.libFav => await _libraryRepository.getFavoriteSongs(),
+      BoxNames.libFavNotDownloaded =>
+        await _libraryRepository.getFavoriteNotDownloadedSongs(),
+      BoxNames.libImportDuplicates =>
+        await _libraryRepository.getImportDuplicateSongs(),
+      BoxNames.libImportReview =>
+        await _libraryRepository.getImportReviewSongs(),
+      BoxNames.libRP => await _libraryRepository.getRecentlyPlayedSongs(),
+      _ => <MediaItem>[],
+    };
+    final songIndex = songList.indexWhere((song) => song.id == songId);
+    await playPlayListSong(songList, songIndex < 0 ? 0 : songIndex);
   }
 
   Future<void> playNext(MediaItem song) async {
@@ -676,8 +675,7 @@ class PlayerController extends GetxController
 
   Future<void> _playerPanelCheck({bool restoreSession = false}) async {
     final isWideScreen = Get.size.width > 800;
-    final autoOpenPlayer =
-        Hive.box(BoxNames.appPrefs).get(PrefKeys.autoOpenPlayer) ?? true;
+    final autoOpenPlayer = _settingsRepository.getAutoOpenPlayer();
     if ((!isWideScreen && autoOpenPlayer && playerPanelController.isAttached) &&
         !restoreSession) {
       await playerPanelController.open();
@@ -714,16 +712,13 @@ class PlayerController extends GetxController
         ? await _audioHandler.setShuffleMode(AudioServiceShuffleMode.none)
         : await _audioHandler.setShuffleMode(AudioServiceShuffleMode.all);
     isShuffleModeEnabled.value = !shuffleModeEnabled;
-    await Hive.box(
-      BoxNames.appPrefs,
-    ).put(PrefKeys.isShuffleModeEnabled, !shuffleModeEnabled);
+    await _settingsRepository.setShuffleModeEnabled(!shuffleModeEnabled);
     // restrict queue loop mode when shuffle mode is enabled
     if (isShuffleModeEnabled.isTrue && isQueueLoopModeEnabled.isFalse) {
       isQueueLoopModeEnabled.value = true;
     } else if (isShuffleModeEnabled.isFalse) {
-      isQueueLoopModeEnabled.value = Hive.box(
-        BoxNames.appPrefs,
-      ).get(PrefKeys.queueLoopModeEnabled, defaultValue: true);
+      isQueueLoopModeEnabled.value = _settingsRepository
+          .getQueueLoopModeEnabled();
     }
   }
 
@@ -851,9 +846,7 @@ class PlayerController extends GetxController
         ? await _audioHandler.setRepeatMode(AudioServiceRepeatMode.one)
         : await _audioHandler.setRepeatMode(AudioServiceRepeatMode.none);
     isLoopModeEnabled.value = !isLoopModeEnabled.value;
-    await Hive.box(
-      BoxNames.appPrefs,
-    ).put(PrefKeys.isLoopModeEnabled, isLoopModeEnabled.value);
+    await _settingsRepository.setLoopModeEnabled(isLoopModeEnabled.value);
   }
 
   Future<void> toggleQueueLoopMode({bool showMessage = true}) async {
@@ -887,15 +880,15 @@ class PlayerController extends GetxController
     await _audioHandler.customAction("toggleQueueLoopMode", {
       "enable": isQueueLoopModeEnabled.value,
     });
-    await Hive.box(
-      BoxNames.appPrefs,
-    ).put(PrefKeys.queueLoopModeEnabled, isQueueLoopModeEnabled.value);
+    await _settingsRepository.setQueueLoopModeEnabled(
+      isQueueLoopModeEnabled.value,
+    );
   }
 
   Future<void> setVolume(int value) async {
     await _audioHandler.customAction("setVolume", {"value": value});
     volume.value = value;
-    await Hive.box(BoxNames.appPrefs).put(PrefKeys.volume, value);
+    await _settingsRepository.setVolume(value);
   }
 
   Future<void> mute() async {
@@ -903,22 +896,18 @@ class PlayerController extends GetxController
     if (volume.value != 0) {
       vol = 0;
     } else {
-      vol = await Hive.box(
-        BoxNames.appPrefs,
-      ).get(PrefKeys.volume, defaultValue: 10);
+      vol = _settingsRepository.getVolume(defaultValue: 10);
       if (vol == 0) {
         vol = 10;
-        await Hive.box(BoxNames.appPrefs).put(PrefKeys.volume, vol);
+        await _settingsRepository.setVolume(vol);
       }
     }
-    await _audioHandler.customAction("setVolume", {"value": vol!});
+    await _audioHandler.customAction("setVolume", {"value": vol});
     volume.value = vol;
   }
 
   Future<void> _checkFavFor(MediaItem song) async {
-    final isFavorite = (await Hive.openBox(
-      BoxNames.libFav,
-    )).containsKey(song.id);
+    final isFavorite = await _libraryRepository.isFavorite(song.id);
     if (currentSong.value?.id == song.id) {
       isCurrentSongFav.value = isFavorite;
     }
@@ -926,13 +915,10 @@ class PlayerController extends GetxController
 
   Future<void> toggleFavourite() async {
     final currMediaItem = currentSong.value!;
-    final box = await Hive.openBox(BoxNames.libFav);
-    isCurrentSongFav.isFalse
-        ? await box.put(
-            currMediaItem.id,
-            MediaItemBuilder.toJson(currMediaItem),
-          )
-        : await box.delete(currMediaItem.id);
+    await _libraryRepository.setFavorite(
+      currMediaItem,
+      isCurrentSongFav.isFalse,
+    );
     try {
       final playlistController = Get.find<PlaylistScreenController>(
         tag: const Key(BoxNames.libFav).hashCode.toString(),
@@ -955,7 +941,7 @@ class PlayerController extends GetxController
         tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
       );
       if (isCurrentSongFav.isFalse &&
-          !Hive.box(BoxNames.songDownloads).containsKey(currMediaItem.id)) {
+          !await _libraryRepository.isDownloaded(currMediaItem.id)) {
         await likedNotDownloadedController.addNRemoveItemsInList(
           currMediaItem,
           action: 'add',
@@ -984,19 +970,9 @@ class PlayerController extends GetxController
   /// This function is used to add a mediaItem/Song to Recently played playlist
   Future<void> _addToRP(MediaItem mediaItem) async {
     if (recentItem != mediaItem) {
-      final box = await Hive.openBox(BoxNames.libRP);
-      String? removedSongId;
-      if (box.keys.length >= 30) {
-        removedSongId = box.getAt(0)['videoId'];
-        await box.deleteAt(0);
-      }
-      final valuesCopy = box.values.toList();
-      for (int i = valuesCopy.length - 1; i >= 0; i--) {
-        if (valuesCopy[i]['videoId'] == mediaItem.id) {
-          await box.deleteAt(i);
-        }
-      }
-      await box.add(MediaItemBuilder.toJson(mediaItem));
+      final before = await _libraryRepository.getRecentlyPlayedSongs();
+      final removedSongId = before.length >= 30 ? before.first.id : null;
+      await _libraryRepository.addRecentlyPlayedSong(mediaItem);
       try {
         final playlistController = Get.find<PlaylistScreenController>(
           tag: const Key(BoxNames.libRP).hashCode.toString(),
@@ -1069,8 +1045,8 @@ class PlayerController extends GetxController
   }
 
   Future<void> changeLyricsMode(int? val) async {
-    await Hive.box(BoxNames.appPrefs).put(PrefKeys.lyricsMode, val);
-    lyricsMode.value = val!;
+    await _settingsRepository.setLyricsMode(val ?? 0);
+    lyricsMode.value = val ?? 0;
   }
 
   void updateSyncedLyricsController() {

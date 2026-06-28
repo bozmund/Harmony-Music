@@ -22,6 +22,22 @@ void main() {
       expect(block, contains("..['url'] = filePath"));
       expect(block, contains("streamInfoJson['url'] = filePath"));
     });
+
+    test('download metadata is validated before saving to the repository', () {
+      final block = _methodBlock(source, 'writeFileStream');
+
+      final validationIndex = block.indexOf(
+        'final downloadedSong = MediaItemBuilder.fromJson(songJson);',
+      );
+      final saveIndex = block.indexOf(
+        'await _downloadRepository.saveDownloadedSongJson(song.id, songJson);',
+      );
+
+      expect(validationIndex, isNonNegative);
+      expect(saveIndex, isNonNegative);
+      expect(validationIndex, lessThan(saveIndex));
+      expect(block, contains('Map<String, dynamic>.from('));
+    });
   });
 }
 

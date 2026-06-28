@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:harmonymusic/data/repositories/hive_app_repositories.dart';
 import 'package:harmonymusic/models/media_Item_builder.dart';
 import 'package:harmonymusic/models/playlist.dart';
 import 'package:harmonymusic/services/piped_service.dart';
@@ -16,7 +17,8 @@ class TestPipedServices extends PipedServices {
     Res? playlistsResponse,
     this.playlistSongsHandler,
     this.addToPlaylistHandler,
-  }) : playlistsResponse = playlistsResponse ?? Res(0);
+  }) : playlistsResponse = playlistsResponse ?? Res(0),
+       super(HiveSettingsRepository());
 
   final bool loggedIn;
   final Res playlistsResponse;
@@ -67,6 +69,7 @@ void main() {
 
   setUp(() async {
     await Hive.openBox('AppPrefs');
+    registerHiveRepositories();
   });
 
   tearDown(() async {

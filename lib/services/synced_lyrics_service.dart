@@ -1,15 +1,19 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
+import 'package:get/get.dart';
+import 'package:harmonymusic/domain/repositories/app_repositories.dart';
 import 'package:harmonymusic/utils/helper.dart';
-import 'package:hive/hive.dart';
 
 class SyncedLyricsService {
   static Future<Map<String, dynamic>?> getSyncedLyrics(
-      MediaItem song, int durInSec) async {
-    final lyricsBox = await Hive.openBox("lyrics");
+    MediaItem song,
+    int durInSec,
+  ) async {
+    final lyricsRepository = Get.find<LyricsRepository>();
     // check if lyrics available in local database
-    if (lyricsBox.containsKey(song.id)) {
-      return Map<String, dynamic>.from(await lyricsBox.get(song.id));
+    final cachedLyrics = await lyricsRepository.getLyrics(song.id);
+    if (cachedLyrics != null) {
+      return Map<String, dynamic>.from(cachedLyrics);
     }
 
     final dur = song.duration?.inSeconds ?? durInSec;
@@ -21,15 +25,13 @@ class SyncedLyricsService {
         printINFO("Synced Available");
         final lyricsData = {
           "synced": response["syncedLyrics"],
-          "plainLyrics": response["plainLyrics"]
+          "plainLyrics": response["plainLyrics"],
         };
-        await lyricsBox.put(song.id, lyricsData);
+        await lyricsRepository.saveLyrics(song.id, lyricsData);
         return lyricsData;
       }
     } on DioException catch (e) {
       printERROR(e.response);
-    } finally {
-      await lyricsBox.close();
     }
     return null;
   }

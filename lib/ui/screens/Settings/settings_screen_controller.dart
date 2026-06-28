@@ -14,6 +14,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../domain/repositories/app_repositories.dart';
 import '../../../utils/update_check_flag_file.dart';
 import '/services/piped_service.dart';
 import '../Library/library_controller.dart';
@@ -38,6 +39,16 @@ class DeveloperSettingValue {
 
 class SettingsScreenController extends GetxController
     with WidgetsBindingObserver {
+  SettingsScreenController({
+    required SettingsRepository settingsRepository,
+    required StorageAdminRepository storageAdminRepository,
+  }) : _settingsRepository = settingsRepository,
+       _storageAdminRepository = storageAdminRepository;
+
+  final SettingsRepository _settingsRepository;
+  final StorageAdminRepository _storageAdminRepository;
+  SettingsRepository get settingsRepository => _settingsRepository;
+  StorageAdminRepository get storageAdminRepository => _storageAdminRepository;
   late String _supportDir;
   final cacheSongs = false.obs;
   final setBox = Hive.box(BoxNames.appPrefs);
