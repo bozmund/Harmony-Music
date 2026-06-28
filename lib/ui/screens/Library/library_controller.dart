@@ -34,6 +34,7 @@ class LibrarySongsController extends GetxController {
   List<MediaItem> tempListContainer = [];
   SortWidgetController? sortWidgetController;
   final additionalOperationMode = OperationMode.none.obs;
+  String _activeSearchQuery = '';
 
   @override
   Future<void> onInit() async {
@@ -98,17 +99,29 @@ class LibrarySongsController extends GetxController {
   }
 
   void addSongToLibraryList(MediaItem song) {
-    final songlist = librarySongsList.toList() + [song];
     final activeSortController =
         Get.isRegistered<SortWidgetController>(tag: sortWidgetTag)
         ? Get.find<SortWidgetController>(tag: sortWidgetTag)
         : sortWidgetController;
+    final isSearching =
+        activeSortController?.isSearchingEnabled.value == true ||
+        tempListContainer.isNotEmpty;
+    final songlist =
+        (isSearching ? tempListContainer : librarySongsList)
+            .where((item) => item.id != song.id)
+            .toList()
+          ..add(song);
     final activeSortType =
         activeSortController?.sortType.value ?? defaultSortType;
     final activeSortAscending =
         activeSortController?.isAscending.value ?? defaultSortAscending;
     sortSongsNVideos(songlist, activeSortType, activeSortAscending);
-    librarySongsList.value = songlist;
+    if (isSearching) {
+      tempListContainer = songlist;
+      _applyLibrarySongSearch(_activeSearchQuery);
+    } else {
+      librarySongsList.value = songlist;
+    }
   }
 
   void onSort(SortType sortType, bool isAscending) {
@@ -119,9 +132,15 @@ class LibrarySongsController extends GetxController {
 
   void onSearchStart(String? tag) {
     tempListContainer = librarySongsList.toList();
+    _activeSearchQuery = '';
   }
 
   void onSearch(String value, String? tag) {
+    _activeSearchQuery = value;
+    _applyLibrarySongSearch(value);
+  }
+
+  void _applyLibrarySongSearch(String value) {
     librarySongsList.value = tempListContainer.where((song) {
       return SearchFilter.matches({
         'title': song.title,
@@ -141,6 +160,7 @@ class LibrarySongsController extends GetxController {
     // onSearch is called with empty string via widget logic indirectly,
     // but here we ensure internal state is clean
     tempListContainer.clear();
+    _activeSearchQuery = '';
   }
 
   /// remove song from library list and from storage only, not from database

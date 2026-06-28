@@ -363,7 +363,7 @@ class LibrarySearchWidget extends StatelessWidget {
                             Future.delayed(
                               const Duration(milliseconds: 300),
                               () {
-                                const tag = "LibSongSort";
+                                const tag = LibrarySongsController.sortWidgetTag;
                                 final targetController =
                                     Get.find<LibrarySongsController>();
                                 if (!Get.isRegistered<SortWidgetController>(

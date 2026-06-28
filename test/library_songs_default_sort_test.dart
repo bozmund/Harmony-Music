@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:harmonymusic/ui/screens/Library/library_controller.dart';
 import 'package:harmonymusic/ui/widgets/sort_widget.dart';
 import 'package:harmonymusic/utils/helper.dart';
 
@@ -58,6 +59,99 @@ void main() {
       expect(librarySource, contains('initialIsAscending:'));
       expect(sortWidgetSource, contains('initialSortType = SortType.name'));
       expect(sortWidgetSource, contains('initialIsAscending = true'));
+    });
+
+    test('song added during search remains after search closes', () {
+      final controller = LibrarySongsController();
+      controller.librarySongsList.value = [
+        _song('alpha', 'Alpha', 1000),
+        _song('bravo', 'Bravo', 2000),
+      ];
+
+      controller.onSearchStart(LibrarySongsController.sortWidgetTag);
+      controller.onSearch('Alpha', LibrarySongsController.sortWidgetTag);
+      controller.addSongToLibraryList(_song('charlie', 'Charlie', 3000));
+      controller.onSearchClose(LibrarySongsController.sortWidgetTag);
+
+      expect(
+        controller.librarySongsList.map((song) => song.id),
+        contains('charlie'),
+      );
+    });
+
+    test('matching song added during search appears immediately', () {
+      final controller = LibrarySongsController();
+      controller.librarySongsList.value = [
+        _song('alpha', 'Alpha', 1000),
+        _song('bravo', 'Bravo', 2000),
+      ];
+
+      controller.onSearchStart(LibrarySongsController.sortWidgetTag);
+      controller.onSearch('Al', LibrarySongsController.sortWidgetTag);
+      controller.addSongToLibraryList(_song('alpine', 'Alpine', 3000));
+
+      expect(controller.librarySongsList.map((song) => song.id), [
+        'alpine',
+        'alpha',
+      ]);
+    });
+
+    test(
+      'non-matching song added during search appears after search closes',
+      () {
+        final controller = LibrarySongsController();
+        controller.librarySongsList.value = [
+          _song('alpha', 'Alpha', 1000),
+          _song('bravo', 'Bravo', 2000),
+        ];
+
+        controller.onSearchStart(LibrarySongsController.sortWidgetTag);
+        controller.onSearch('Alpha', LibrarySongsController.sortWidgetTag);
+        controller.addSongToLibraryList(_song('charlie', 'Charlie', 3000));
+
+        expect(controller.librarySongsList.map((song) => song.id), ['alpha']);
+
+        controller.onSearchClose(LibrarySongsController.sortWidgetTag);
+
+        expect(controller.librarySongsList.map((song) => song.id), [
+          'charlie',
+          'bravo',
+          'alpha',
+        ]);
+      },
+    );
+
+    test('adding duplicate song id replaces instead of duplicating', () {
+      final controller = LibrarySongsController();
+      controller.librarySongsList.value = [
+        _song('alpha', 'Alpha', 1000),
+        _song('bravo', 'Bravo', 2000),
+      ];
+
+      controller.addSongToLibraryList(_song('alpha', 'Alpha Updated', 3000));
+
+      expect(
+        controller.librarySongsList.where((song) => song.id == 'alpha'),
+        hasLength(1),
+      );
+      expect(controller.librarySongsList.first.id, 'alpha');
+      expect(controller.librarySongsList.first.title, 'Alpha Updated');
+    });
+
+    test('inactive additions use date newest first sorting', () {
+      final controller = LibrarySongsController();
+      controller.librarySongsList.value = [
+        _song('old', 'Old', 1000),
+        _song('middle', 'Middle', 2000),
+      ];
+
+      controller.addSongToLibraryList(_song('new', 'New', 3000));
+
+      expect(controller.librarySongsList.map((song) => song.id), [
+        'new',
+        'middle',
+        'old',
+      ]);
     });
   });
 }
