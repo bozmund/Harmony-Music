@@ -531,7 +531,15 @@ mixin RemoveSongFromPlaylistMixin {
       final index = box.values.toList().indexWhere(
         (ele) => ele['videoId'] == item.id,
       );
-      await box.deleteAt(index);
+      if (index != -1) {
+        await box.deleteAt(index);
+        _markAddToPlaylistMembershipRemoved(item, playlist);
+      } else {
+        printWarning(
+          "Tried to remove missing song ${item.id} from playlist ${playlist.playlistId}",
+          tag: LogTags.library,
+        );
+      }
     }
 
     // this try catch block is to handle the case when song is removed from lib-songs sections
@@ -554,6 +562,7 @@ mixin RemoveSongFromPlaylistMixin {
               item,
               action: 'remove',
             );
+            _markAddToPlaylistMembershipRemoved(item, playlist);
           }
         }
         return;
@@ -573,5 +582,13 @@ mixin RemoveSongFromPlaylistMixin {
       return;
     }
     await box.close();
+  }
+
+  void _markAddToPlaylistMembershipRemoved(MediaItem item, Playlist playlist) {
+    if (!Get.isRegistered<AddToPlaylistController>()) return;
+    Get.find<AddToPlaylistController>().markSongsRemovedFromPlaylist(
+      playlist.playlistId,
+      [item],
+    );
   }
 }
