@@ -513,6 +513,36 @@ mixin RemoveSongFromPlaylistMixin {
       return;
     }
 
+    if (playlist.isPipedPlaylist) {
+      try {
+        final playlistController = Get.find<PlaylistScreenController>(
+          tag: Key(playlist.playlistId).hashCode.toString(),
+        );
+        final songs = await Get.find<PipedServices>().getPlaylistSongs(
+          playlist.playlistId,
+        );
+        final songIndex = songs.indexWhere((element) => element.id == item.id);
+        if (songIndex != -1) {
+          final res = await Get.find<PipedServices>().removeFromPlaylist(
+            playlist.playlistId,
+            songIndex,
+          );
+          if (res.code == 1) {
+            await playlistController.addNRemoveItemsInList(
+              item,
+              action: 'remove',
+            );
+            _markAddToPlaylistMembershipRemoved(item, playlist);
+          }
+        }
+      } catch (e) {
+        printERROR(
+          "Some Error in removeSongFromPlaylist (might irrelevant): $e",
+        );
+      }
+      return;
+    }
+
     final box = await Hive.openBox(playlist.playlistId);
     //Library songs case
     if (playlist.playlistId == BoxNames.songsCache) {
@@ -547,27 +577,6 @@ mixin RemoveSongFromPlaylistMixin {
       final playlistController = Get.find<PlaylistScreenController>(
         tag: Key(playlist.playlistId).hashCode.toString(),
       );
-      if (playlist.isPipedPlaylist) {
-        final res = await Get.find<PipedServices>().getPlaylistSongs(
-          playlist.playlistId,
-        );
-        final songIndex = res.indexWhere((element) => element.id == item.id);
-        if (songIndex != -1) {
-          final res = await Get.find<PipedServices>().removeFromPlaylist(
-            playlist.playlistId,
-            songIndex,
-          );
-          if (res.code == 1) {
-            await playlistController.addNRemoveItemsInList(
-              item,
-              action: 'remove',
-            );
-            _markAddToPlaylistMembershipRemoved(item, playlist);
-          }
-        }
-        return;
-      }
-
       try {
         await playlistController.addNRemoveItemsInList(item, action: 'remove');
       } catch (e) {

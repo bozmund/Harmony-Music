@@ -148,15 +148,6 @@ class AddToPlaylist extends StatelessWidget {
                                           .isPlaylistMembershipLoading(
                                             playlist.playlistId,
                                           );
-                                  if (!isMembershipLoaded &&
-                                      !isMembershipLoading) {
-                                    unawaited(
-                                      addToPlaylistController
-                                          .ensurePlaylistMembershipLoaded(
-                                            playlist.playlistId,
-                                          ),
-                                    );
-                                  }
                                   final isDisabled =
                                       isMembershipLoaded &&
                                       addToPlaylistController
@@ -167,7 +158,6 @@ class AddToPlaylist extends StatelessWidget {
                                   final isAdding = addToPlaylistController
                                       .isPlaylistAdding(playlist.playlistId);
                                   final canAdd =
-                                      isMembershipLoaded &&
                                       !isDisabled &&
                                       !isAdding &&
                                       !isMembershipLoading;
@@ -177,10 +167,7 @@ class AddToPlaylist extends StatelessWidget {
                                       type: MaterialType.transparency,
                                       child: ListTile(
                                         enabled: canAdd,
-                                        leading:
-                                            isAdding ||
-                                                isMembershipLoading ||
-                                                !isMembershipLoaded
+                                        leading: isAdding || isMembershipLoading
                                             ? const SizedBox.square(
                                                 dimension: 20,
                                                 child:

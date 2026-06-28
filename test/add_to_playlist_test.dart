@@ -244,6 +244,46 @@ void main() {
       expect(pipedServices.requestedMemberships, isEmpty);
     });
 
+    test('piped add loads only the tapped playlist membership', () async {
+      final pipedServices = await _putPipedServices(
+        TestPipedServices(playlistSongsHandler: (_) async => []),
+      );
+      final controller = AddToPlaylistController()
+        ..playlistType.value = 'piped';
+
+      final result = await controller.addSongsToPlaylist([
+        _song('song-1'),
+      ], 'piped-a');
+
+      expect(result, PlaylistAddStatus.added);
+      expect(pipedServices.requestedMemberships, ['piped-a']);
+      expect(pipedServices.requestedAdds, hasLength(1));
+      expect(pipedServices.requestedAdds.single.playlistId, 'piped-a');
+      expect(pipedServices.requestedAdds.single.videosId, ['song-1']);
+    });
+
+    test(
+      'piped add skips after tap-time membership finds existing song',
+      () async {
+        final pipedServices = await _putPipedServices(
+          TestPipedServices(
+            playlistSongsHandler: (_) async => [_song('song-1')],
+          ),
+        );
+        final controller = AddToPlaylistController()
+          ..playlistType.value = 'piped';
+
+        final result = await controller.addSongsToPlaylist([
+          _song('song-1'),
+        ], 'piped-a');
+
+        expect(result, PlaylistAddStatus.skipped);
+        expect(pipedServices.requestedMemberships, ['piped-a']);
+        expect(pipedServices.requestedAdds, isEmpty);
+        expect(controller.playlistSongIds['piped-a'], {'song-1'});
+      },
+    );
+
     test('in-flight add keeps the backend it started with', () async {
       final addCompleter = Completer<Res>();
       final pipedServices = await _putPipedServices(
