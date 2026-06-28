@@ -15,6 +15,10 @@ void main() {
 
       expect(block, isNot(contains("song.extras?['url'] = filePath")));
       expect(block, contains("songJson['url'] = filePath"));
+      expect(
+        block,
+        contains("songJson['date'] ??= DateTime.now().millisecondsSinceEpoch"),
+      );
       expect(block, contains("..['url'] = filePath"));
       expect(block, contains("streamInfoJson['url'] = filePath"));
     });

@@ -25,6 +25,10 @@ import '/models/media_Item_builder.dart';
 import '/models/playlist.dart';
 
 class LibrarySongsController extends GetxController {
+  static const sortWidgetTag = "LibSongSort";
+  static const defaultSortType = SortType.date;
+  static const defaultSortAscending = false;
+
   late RxList<MediaItem> librarySongsList = RxList();
   final isSongFetched = false.obs;
   List<MediaItem> tempListContainer = [];
@@ -74,21 +78,37 @@ class LibrarySongsController extends GetxController {
       }
     }
 
-    librarySongsList.value = box.values
+    final songs = box.values
         .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
         .whereType<MediaItem>()
         .toList();
 
-    librarySongsList.addAll(
+    songs.addAll(
       Hive.box(BoxNames.songDownloads).values
           .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
           .whereType<MediaItem>()
           .toList(),
     );
+    sortSongsNVideos(songs, defaultSortType, defaultSortAscending);
+    librarySongsList.value = songs;
     isSongFetched.value = true;
 
     //Remove deleted songs and expired songUrl from database
     await startHouseKeeping();
+  }
+
+  void addSongToLibraryList(MediaItem song) {
+    final songlist = librarySongsList.toList() + [song];
+    final activeSortController =
+        Get.isRegistered<SortWidgetController>(tag: sortWidgetTag)
+        ? Get.find<SortWidgetController>(tag: sortWidgetTag)
+        : sortWidgetController;
+    final activeSortType =
+        activeSortController?.sortType.value ?? defaultSortType;
+    final activeSortAscending =
+        activeSortController?.isAscending.value ?? defaultSortAscending;
+    sortSongsNVideos(songlist, activeSortType, activeSortAscending);
+    librarySongsList.value = songlist;
   }
 
   void onSort(SortType sortType, bool isAscending) {

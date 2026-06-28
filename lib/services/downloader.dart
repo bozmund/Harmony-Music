@@ -283,6 +283,7 @@ class Downloader extends GetxService implements DownloaderContract {
 
     _setPhase("savingLibraryEntry", "Saving library entry", song, traceId);
     final songJson = MediaItemBuilder.toJson(song);
+    songJson['date'] ??= DateTime.now().millisecondsSinceEpoch;
     songJson['url'] = filePath;
     songJson['extras'] = Map<String, dynamic>.from(songJson['extras'] ?? {})
       ..['url'] = filePath;
@@ -292,7 +293,9 @@ class Downloader extends GetxService implements DownloaderContract {
     songJson["streamInfo"] = [true, streamInfoJson];
 
     await Hive.box(BoxNames.songDownloads).put(song.id, songJson);
-    Get.find<LibrarySongsController>().librarySongsList.add(song);
+    Get.find<LibrarySongsController>().addSongToLibraryList(
+      MediaItemBuilder.fromJson(songJson),
+    );
     try {
       await Get.find<PlaylistScreenController>(
         tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
