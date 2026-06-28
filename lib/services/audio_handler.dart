@@ -727,8 +727,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
             LibrarySongsController librarySongsController =
                 Get.find<LibrarySongsController>();
             if (!librarySongsController.isClosed) {
-              librarySongsController.librarySongsList.value =
-                  librarySongsController.librarySongsList.toList() + [song];
+              librarySongsController.addSongToLibraryList(song);
             }
           }
         }

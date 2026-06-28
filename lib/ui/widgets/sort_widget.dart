@@ -7,17 +7,13 @@ import 'modified_text_field.dart';
 
 enum OperationMode { arrange, delete, addToPlaylist, none }
 
-enum SortType {
-  name,
-  date,
-  duration,
-  recentlyPlayed,
-}
+enum SortType { name, date, duration, recentlyPlayed }
 
-Set<SortType> buildSortTypeSet(
-    [bool dateRequired = false,
-    bool durationRequired = false,
-    bool recentlyPlayedRequired = false]) {
+Set<SortType> buildSortTypeSet([
+  bool dateRequired = false,
+  bool durationRequired = false,
+  bool recentlyPlayedRequired = false,
+]) {
   Set<SortType> requiredSortTypes = {};
   if (dateRequired) {
     requiredSortTypes.add(SortType.date);
@@ -53,6 +49,8 @@ class SortWidget extends StatelessWidget {
     this.performAdditionalOperation,
     this.cancelAdditionalOperation,
     this.isImportFeatureRequired = false,
+    this.initialSortType = SortType.name,
+    this.initialIsAscending = true,
     required this.onSort,
   });
 
@@ -76,15 +74,15 @@ class SortWidget extends StatelessWidget {
   final Function(String?)? onSearchClose;
   final Function(SortType, bool) onSort;
   final bool isImportFeatureRequired;
+  final SortType initialSortType;
+  final bool initialIsAscending;
 
   Future<void> _showImportDialog(BuildContext context) async {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: Text(
           "importPlaylist".tr,
           style: Theme.of(context).textTheme.titleLarge,
@@ -101,9 +99,9 @@ class SortWidget extends StatelessWidget {
             Text(
               "importLargeFileNote".tr,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontStyle: FontStyle.italic,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
+                fontStyle: FontStyle.italic,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
             ),
             const SizedBox(height: 24),
             Center(
@@ -111,8 +109,10 @@ class SortWidget extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.secondary,
                   foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -122,7 +122,7 @@ class SortWidget extends StatelessWidget {
                 onPressed: () async {
                   await Get.find<LibraryPlaylistsController>()
                       .importPlaylistFromJson(context);
-                  if(!context.mounted) return;
+                  if (!context.mounted) return;
                   Navigator.pop(context);
                   Navigator.pop(context);
                 },
@@ -145,7 +145,13 @@ class SortWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(SortWidgetController(), tag: tag);
+    final controller = Get.put(
+      SortWidgetController(
+        initialSortType: initialSortType,
+        initialIsAscending: initialIsAscending,
+      ),
+      tag: tag,
+    );
     final canSaveLibrarySearch = tag == "LibSongSort";
     return Padding(
       padding: const EdgeInsets.only(top: 10.0),
@@ -170,7 +176,7 @@ class SortWidget extends StatelessWidget {
                               Icons.music_note,
                               size: 15,
                               color: Theme.of(context).colorScheme.secondary,
-                            )
+                            ),
                         ],
                       ),
                     ),
@@ -198,15 +204,18 @@ class SortWidget extends StatelessWidget {
                           )
                         : const SizedBox.shrink(),
                     requiredSortTypes.contains(SortType.duration)
-                        ? Obx(() => _customIconButton(
-                              isSelected: controller.sortType.value ==
+                        ? Obx(
+                            () => _customIconButton(
+                              isSelected:
+                                  controller.sortType.value ==
                                   SortType.duration,
                               tooltip: "sortByDuration".tr,
                               icon: Icons.timer,
                               onPressed: () {
                                 controller.onSortByDuration(onSort);
                               },
-                            ))
+                            ),
+                          )
                         : const SizedBox.shrink(),
                     const Expanded(child: SizedBox()),
                     Obx(
@@ -237,19 +246,17 @@ class SortWidget extends StatelessWidget {
                       ),
                     if (isAdditionalOperationRequired)
                       PopupMenuButton(
-                        child: const Icon(
-                          Icons.more_vert,
-                          size: 20,
-                        ),
+                        child: const Icon(Icons.more_vert, size: 20),
                         // Callback that sets the selected popup menu item.
                         onSelected: (mode) async {
                           await showDialog(
-                              context: context,
-                              builder: (context) => AdditionalOperationDialog(
-                                    operationMode: mode,
-                                    screenController: screenController,
-                                    controller: controller,
-                                  ));
+                            context: context,
+                            builder: (context) => AdditionalOperationDialog(
+                              operationMode: mode,
+                              screenController: screenController,
+                              controller: controller,
+                            ),
+                          );
 
                           controller.setActiveMode(mode);
                           startAdditionalOperation!(controller, mode);
@@ -271,9 +278,7 @@ class SortWidget extends StatelessWidget {
                           ),
                         ],
                       ),
-                    const SizedBox(
-                      width: 15,
-                    )
+                    const SizedBox(width: 15),
                   ],
                 ),
               if (controller.isSearchingEnabled.value)
@@ -283,9 +288,9 @@ class SortWidget extends StatelessWidget {
                   // color:
                   //     Theme.of(context).scaffoldBackgroundColor.withAlpha(125),
                   child: ColoredBox(
-                    color: Theme.of(context)
-                        .scaffoldBackgroundColor
-                        .withAlpha(125),
+                    color: Theme.of(
+                      context,
+                    ).scaffoldBackgroundColor.withAlpha(125),
                     child: ModifiedTextField(
                       controller: controller.textEditingController,
                       textAlignVertical: TextAlignVertical.center,
@@ -293,8 +298,9 @@ class SortWidget extends StatelessWidget {
                       onChanged: (value) {
                         onSearch!(value, tag);
                       },
-                      cursorColor:
-                          Theme.of(context).textTheme.titleSmall!.color,
+                      cursorColor: Theme.of(
+                        context,
+                      ).textTheme.titleSmall!.color,
                       decoration: InputDecoration(
                         isDense: true,
                         contentPadding: const EdgeInsets.all(8),
@@ -303,8 +309,9 @@ class SortWidget extends StatelessWidget {
                         hintText: tag.startsWith("Lib")
                             ? "searchHint".tr
                             : "search".tr,
-                        suffixIconColor:
-                            Theme.of(context).colorScheme.secondary,
+                        suffixIconColor: Theme.of(
+                          context,
+                        ).colorScheme.secondary,
                         suffixIcon: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -315,12 +322,14 @@ class SortWidget extends StatelessWidget {
                                 icon: const Icon(Icons.save),
                                 onPressed: () async {
                                   final query = controller
-                                      .textEditingController.text
+                                      .textEditingController
+                                      .text
                                       .trim();
                                   if (query.isEmpty) return;
                                   final isSearchControllerRegistered =
                                       Get.isRegistered<
-                                          LibrarySearchesController>();
+                                        LibrarySearchesController
+                                      >();
                                   if (!isSearchControllerRegistered) {
                                     Get.put(LibrarySearchesController());
                                   }
@@ -373,8 +382,14 @@ class SortWidget extends StatelessWidget {
 }
 
 class SortWidgetController extends GetxController {
-  final Rx<SortType> sortType = SortType.name.obs;
-  final isAscending = true.obs;
+  SortWidgetController({
+    SortType initialSortType = SortType.name,
+    bool initialIsAscending = true,
+  }) : sortType = initialSortType.obs,
+       isAscending = initialIsAscending.obs;
+
+  final Rx<SortType> sortType;
+  final RxBool isAscending;
   final isSearchingEnabled = false.obs;
   final isRearrangingEnabled = false.obs;
   final isDeletionEnabled = false.obs;

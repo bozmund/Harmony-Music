@@ -25,11 +25,16 @@ import '/models/media_Item_builder.dart';
 import '/models/playlist.dart';
 
 class LibrarySongsController extends GetxController {
+  static const sortWidgetTag = "LibSongSort";
+  static const defaultSortType = SortType.date;
+  static const defaultSortAscending = false;
+
   late RxList<MediaItem> librarySongsList = RxList();
   final isSongFetched = false.obs;
   List<MediaItem> tempListContainer = [];
   SortWidgetController? sortWidgetController;
   final additionalOperationMode = OperationMode.none.obs;
+  String _activeSearchQuery = '';
 
   @override
   Future<void> onInit() async {
@@ -74,21 +79,49 @@ class LibrarySongsController extends GetxController {
       }
     }
 
-    librarySongsList.value = box.values
+    final songs = box.values
         .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
         .whereType<MediaItem>()
         .toList();
 
-    librarySongsList.addAll(
+    songs.addAll(
       Hive.box(BoxNames.songDownloads).values
           .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
           .whereType<MediaItem>()
           .toList(),
     );
+    sortSongsNVideos(songs, defaultSortType, defaultSortAscending);
+    librarySongsList.value = songs;
     isSongFetched.value = true;
 
     //Remove deleted songs and expired songUrl from database
     await startHouseKeeping();
+  }
+
+  void addSongToLibraryList(MediaItem song) {
+    final activeSortController =
+        Get.isRegistered<SortWidgetController>(tag: sortWidgetTag)
+        ? Get.find<SortWidgetController>(tag: sortWidgetTag)
+        : sortWidgetController;
+    final isSearching =
+        activeSortController?.isSearchingEnabled.value == true ||
+        tempListContainer.isNotEmpty;
+    final songlist =
+        (isSearching ? tempListContainer : librarySongsList)
+            .where((item) => item.id != song.id)
+            .toList()
+          ..add(song);
+    final activeSortType =
+        activeSortController?.sortType.value ?? defaultSortType;
+    final activeSortAscending =
+        activeSortController?.isAscending.value ?? defaultSortAscending;
+    sortSongsNVideos(songlist, activeSortType, activeSortAscending);
+    if (isSearching) {
+      tempListContainer = songlist;
+      _applyLibrarySongSearch(_activeSearchQuery);
+    } else {
+      librarySongsList.value = songlist;
+    }
   }
 
   void onSort(SortType sortType, bool isAscending) {
@@ -99,9 +132,15 @@ class LibrarySongsController extends GetxController {
 
   void onSearchStart(String? tag) {
     tempListContainer = librarySongsList.toList();
+    _activeSearchQuery = '';
   }
 
   void onSearch(String value, String? tag) {
+    _activeSearchQuery = value;
+    _applyLibrarySongSearch(value);
+  }
+
+  void _applyLibrarySongSearch(String value) {
     librarySongsList.value = tempListContainer.where((song) {
       return SearchFilter.matches({
         'title': song.title,
@@ -121,6 +160,7 @@ class LibrarySongsController extends GetxController {
     // onSearch is called with empty string via widget logic indirectly,
     // but here we ensure internal state is clean
     tempListContainer.clear();
+    _activeSearchQuery = '';
   }
 
   /// remove song from library list and from storage only, not from database

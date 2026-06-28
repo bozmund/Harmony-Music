@@ -37,10 +37,21 @@ void sortSongsNVideos(List songlist, SortType sortType, bool isAscending) {
   switch (sortType) {
     case SortType.date:
       compareFunction = (a, b) {
-        if (a.extras!['date'] == null || b.extras!['date'] == null) {
-          return 0.compareTo(0);
+        final aDate = _numericDate(a.extras?['date']);
+        final bDate = _numericDate(b.extras?['date']);
+        if (aDate == null && bDate == null) {
+          return _titleSort(a, b);
         }
-        return a.extras!['date'].compareTo(b.extras!['date']);
+        if (aDate == null) {
+          return 1;
+        }
+        if (bDate == null) {
+          return -1;
+        }
+        final dateCompare = isAscending
+            ? aDate.compareTo(bDate)
+            : bDate.compareTo(aDate);
+        return dateCompare == 0 ? _titleSort(a, b) : dateCompare;
       };
       break;
     case SortType.duration:
@@ -55,11 +66,21 @@ void sortSongsNVideos(List songlist, SortType sortType, bool isAscending) {
 
   songlist.sort(compareFunction);
 
-  if (!isAscending) {
+  if (!isAscending && sortType != SortType.date) {
     List reversed = songlist.reversed.toList();
     songlist.clear();
     songlist.addAll(reversed);
   }
+}
+
+num? _numericDate(dynamic value) {
+  if (value is num) return value;
+  if (value is String) return num.tryParse(value);
+  return null;
+}
+
+int _titleSort(dynamic a, dynamic b) {
+  return a.title.toLowerCase().compareTo(b.title.toLowerCase());
 }
 
 void sortAlbumNSingles(List albumList, SortType sortType, bool isAscending) {
