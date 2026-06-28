@@ -7,6 +7,7 @@ import 'package:hive/hive.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../services/piped_service.dart';
+import '../../utils/helper.dart';
 import '/models/media_Item_builder.dart';
 import '/ui/widgets/create_playlist_dialog.dart';
 import '../../models/playlist.dart';
@@ -124,6 +125,26 @@ class AddToPlaylist extends StatelessWidget {
                                 final playlist =
                                     addToPlaylistController.playlists[index];
                                 return Obx(() {
+                                  if (addToPlaylistController
+                                              .playlistType
+                                              .value ==
+                                          "piped" &&
+                                      !addToPlaylistController
+                                          .isPlaylistMembershipLoaded(
+                                            playlist.playlistId,
+                                          )) {
+                                    unawaited(
+                                      addToPlaylistController
+                                          .ensurePlaylistMembershipLoaded(
+                                            playlist.playlistId,
+                                          ),
+                                    );
+                                  }
+                                  final isMembershipLoading =
+                                      addToPlaylistController
+                                          .isPlaylistMembershipLoading(
+                                            playlist.playlistId,
+                                          );
                                   final isDisabled = addToPlaylistController
                                       .isPlaylistDisabled(
                                         playlist.playlistId,
@@ -134,8 +155,11 @@ class AddToPlaylist extends StatelessWidget {
                                   return Opacity(
                                     opacity: isDisabled ? 0.55 : 1,
                                     child: ListTile(
-                                      enabled: !isDisabled && !isAdding,
-                                      leading: isAdding
+                                      enabled:
+                                          !isDisabled &&
+                                          !isAdding &&
+                                          !isMembershipLoading,
+                                      leading: isAdding || isMembershipLoading
                                           ? const SizedBox.square(
                                               dimension: 20,
                                               child: CircularProgressIndicator(
@@ -148,7 +172,10 @@ class AddToPlaylist extends StatelessWidget {
                                                   : Icons.add_circle_outline,
                                             ),
                                       title: Text(playlist.title),
-                                      onTap: isDisabled || isAdding
+                                      onTap:
+                                          isDisabled ||
+                                              isAdding ||
+                                              isMembershipLoading
                                           ? null
                                           : () async {
                                               final result =
@@ -220,6 +247,7 @@ class AddToPlaylistController extends GetxController {
   final additionInProgress = false.obs;
   final playlistSongIds = <String, Set<String>>{}.obs;
   final addingPlaylistIds = <String>{}.obs;
+  final loadingMembershipPlaylistIds = <String>{}.obs;
   List<Playlist> localPlaylists = [];
   List<Playlist> pipedPlaylists = [];
   AddToPlaylistController();
@@ -259,13 +287,18 @@ class AddToPlaylistController extends GetxController {
   Future<void> changePlaylistType(String val) async {
     playlistType.value = val;
     playlists.value = val == "piped" ? pipedPlaylists : localPlaylists;
-    if (val == "piped") {
-      await _loadPipedPlaylistMembership(pipedPlaylists);
-    }
   }
 
   bool isPlaylistAdding(String playlistId) {
     return addingPlaylistIds.contains(playlistId);
+  }
+
+  bool isPlaylistMembershipLoading(String playlistId) {
+    return loadingMembershipPlaylistIds.contains(playlistId);
+  }
+
+  bool isPlaylistMembershipLoaded(String playlistId) {
+    return playlistSongIds.containsKey(playlistId);
   }
 
   bool isPlaylistDisabled(String playlistId, List<MediaItem> songs) {
@@ -294,6 +327,7 @@ class AddToPlaylistController extends GetxController {
     List<MediaItem> songs,
     String playlistId,
   ) async {
+    await ensurePlaylistMembershipLoaded(playlistId);
     final missingSongs = missingSongsForPlaylist(songs, playlistId);
     if (missingSongs.isEmpty) {
       return PlaylistAddStatus.skipped;
@@ -303,21 +337,12 @@ class AddToPlaylistController extends GetxController {
     addingPlaylistIds.add(playlistId);
     try {
       if (playlistType.value == "local") {
-        final wasOpen = Hive.isBoxOpen(playlistId);
-        final playlistBox = await Hive.openBox(playlistId);
-        final existingIds = playlistBox.values
-            .map(_songIdFromPlaylistEntry)
-            .whereType<String>()
-            .toSet();
-        for (MediaItem element in missingSongs) {
-          if (existingIds.add(element.id)) {
-            await playlistBox.add(MediaItemBuilder.toJson(element));
-          }
-        }
-        if (!wasOpen) {
-          await playlistBox.close();
-        }
-        markSongsAddedToPlaylist(playlistId, missingSongs);
+        final actuallyAddedSongs = await _addLocalMissingSongs(
+          playlistId,
+          missingSongs,
+        );
+        if (actuallyAddedSongs.isEmpty) return PlaylistAddStatus.skipped;
+        markSongsAddedToPlaylist(playlistId, actuallyAddedSongs);
         return PlaylistAddStatus.added;
       } else {
         final videosId = missingSongs.map((e) => e.id).toList();
@@ -331,9 +356,71 @@ class AddToPlaylistController extends GetxController {
         markSongsAddedToPlaylist(playlistId, missingSongs);
         return PlaylistAddStatus.added;
       }
+    } catch (e) {
+      printWarning(
+        "Failed to add songs to playlist $playlistId: $e",
+        tag: "AddToPlaylist",
+      );
+      return PlaylistAddStatus.failed;
     } finally {
       addingPlaylistIds.remove(playlistId);
       additionInProgress.value = addingPlaylistIds.isNotEmpty;
+    }
+  }
+
+  Future<List<MediaItem>> _addLocalMissingSongs(
+    String playlistId,
+    List<MediaItem> missingSongs,
+  ) async {
+    final actuallyAddedSongs = <MediaItem>[];
+    final wasOpen = Hive.isBoxOpen(playlistId);
+    final playlistBox = await Hive.openBox(playlistId);
+    try {
+      final existingIds = playlistBox.values
+          .map(_songIdFromPlaylistEntry)
+          .whereType<String>()
+          .toSet();
+      for (MediaItem element in missingSongs) {
+        if (existingIds.add(element.id)) {
+          await playlistBox.add(MediaItemBuilder.toJson(element));
+          actuallyAddedSongs.add(element);
+        }
+      }
+    } finally {
+      if (!wasOpen) {
+        await playlistBox.close();
+      }
+    }
+    return actuallyAddedSongs;
+  }
+
+  Future<void> ensurePlaylistMembershipLoaded(String playlistId) async {
+    if (playlistSongIds.containsKey(playlistId) ||
+        loadingMembershipPlaylistIds.contains(playlistId)) {
+      return;
+    }
+    if (playlistType.value == "local") {
+      updatePlaylistMembership(
+        playlistId,
+        await _readLocalPlaylistSongIds(playlistId),
+      );
+      return;
+    }
+
+    loadingMembershipPlaylistIds.add(playlistId);
+    try {
+      final songs = await Get.find<PipedServices>().getPlaylistSongs(
+        playlistId,
+      );
+      updatePlaylistMembership(playlistId, songs.map((song) => song.id));
+    } catch (e) {
+      printWarning(
+        "Failed to load playlist membership for $playlistId: $e",
+        tag: "AddToPlaylist",
+      );
+      updatePlaylistMembership(playlistId, const <String>[]);
+    } finally {
+      loadingMembershipPlaylistIds.remove(playlistId);
     }
   }
 
@@ -357,18 +444,6 @@ class AddToPlaylistController extends GetxController {
       await playlistBox.close();
     }
     return ids;
-  }
-
-  Future<void> _loadPipedPlaylistMembership(List<Playlist> playlists) async {
-    final pipedServices = Get.find<PipedServices>();
-    for (final playlist in playlists) {
-      if (playlistSongIds.containsKey(playlist.playlistId)) continue;
-      final songs = await pipedServices.getPlaylistSongs(playlist.playlistId);
-      updatePlaylistMembership(
-        playlist.playlistId,
-        songs.map((song) => song.id),
-      );
-    }
   }
 
   String? _songIdFromPlaylistEntry(dynamic item) {

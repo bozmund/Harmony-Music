@@ -89,10 +89,66 @@ void main() {
         'lib/ui/widgets/add_to_playlist.dart',
       ).readAsStringSync();
 
-      expect(source, contains('_loadPipedPlaylistMembership'));
+      expect(source, contains('ensurePlaylistMembershipLoaded'));
       expect(source, contains('getPlaylistSongs'));
       expect(source, contains('updatePlaylistMembership'));
       expect(source, contains('markSongsAddedToPlaylist'));
+    });
+
+    test('local add tracks actual inserts before reporting added', () {
+      final source = File(
+        'lib/ui/widgets/add_to_playlist.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('actuallyAddedSongs'));
+      expect(
+        source,
+        contains(
+          'if (actuallyAddedSongs.isEmpty) return PlaylistAddStatus.skipped',
+        ),
+      );
+      expect(
+        source,
+        contains('markSongsAddedToPlaylist(playlistId, actuallyAddedSongs)'),
+      );
+    });
+
+    test('add failures are converted to failed status', () {
+      final source = File(
+        'lib/ui/widgets/add_to_playlist.dart',
+      ).readAsStringSync();
+
+      final addMethodStart = source.indexOf(
+        'Future<PlaylistAddStatus> addSongsToPlaylist',
+      );
+      final addMethodEnd = source.indexOf(
+        'Future<List<MediaItem>> _addLocalMissingSongs',
+      );
+      final addMethod = source.substring(addMethodStart, addMethodEnd);
+
+      expect(addMethod, contains('catch (e)'));
+      expect(addMethod, contains('PlaylistAddStatus.failed'));
+      expect(addMethod, contains('printWarning'));
+      expect(addMethod, contains('finally'));
+      expect(addMethod, contains('addingPlaylistIds.remove(playlistId)'));
+    });
+
+    test('switching to piped does not eagerly load every playlist', () {
+      final source = File(
+        'lib/ui/widgets/add_to_playlist.dart',
+      ).readAsStringSync();
+
+      final changeTypeStart = source.indexOf('Future<void> changePlaylistType');
+      final changeTypeEnd = source.indexOf('bool isPlaylistAdding');
+      final changeTypeMethod = source.substring(changeTypeStart, changeTypeEnd);
+
+      expect(changeTypeMethod, isNot(contains('getPlaylistSongs')));
+      expect(
+        changeTypeMethod,
+        isNot(contains('ensurePlaylistMembershipLoaded')),
+      );
+      expect(source, contains('isPlaylistMembershipLoading'));
+      expect(source, contains('ensurePlaylistMembershipLoaded('));
     });
   });
 }
