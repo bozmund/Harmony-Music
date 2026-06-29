@@ -513,6 +513,36 @@ mixin RemoveSongFromPlaylistMixin {
       return;
     }
 
+    if (playlist.isPipedPlaylist) {
+      try {
+        final playlistController = Get.find<PlaylistScreenController>(
+          tag: Key(playlist.playlistId).hashCode.toString(),
+        );
+        final songs = await Get.find<PipedServices>().getPlaylistSongs(
+          playlist.playlistId,
+        );
+        final songIndex = songs.indexWhere((element) => element.id == item.id);
+        if (songIndex != -1) {
+          final res = await Get.find<PipedServices>().removeFromPlaylist(
+            playlist.playlistId,
+            songIndex,
+          );
+          if (res.code == 1) {
+            await playlistController.addNRemoveItemsInList(
+              item,
+              action: 'remove',
+            );
+            _markAddToPlaylistMembershipRemoved(item, playlist);
+          }
+        }
+      } catch (e) {
+        printERROR(
+          "Some Error in removeSongFromPlaylist (might irrelevant): $e",
+        );
+      }
+      return;
+    }
+
     final box = await Hive.openBox(playlist.playlistId);
     //Library songs case
     if (playlist.playlistId == BoxNames.songsCache) {
@@ -531,7 +561,15 @@ mixin RemoveSongFromPlaylistMixin {
       final index = box.values.toList().indexWhere(
         (ele) => ele['videoId'] == item.id,
       );
-      await box.deleteAt(index);
+      if (index != -1) {
+        await box.deleteAt(index);
+        _markAddToPlaylistMembershipRemoved(item, playlist);
+      } else {
+        printWarning(
+          "Tried to remove missing song ${item.id} from playlist ${playlist.playlistId}",
+          tag: LogTags.library,
+        );
+      }
     }
 
     // this try catch block is to handle the case when song is removed from lib-songs sections
@@ -539,26 +577,6 @@ mixin RemoveSongFromPlaylistMixin {
       final playlistController = Get.find<PlaylistScreenController>(
         tag: Key(playlist.playlistId).hashCode.toString(),
       );
-      if (playlist.isPipedPlaylist) {
-        final res = await Get.find<PipedServices>().getPlaylistSongs(
-          playlist.playlistId,
-        );
-        final songIndex = res.indexWhere((element) => element.id == item.id);
-        if (songIndex != -1) {
-          final res = await Get.find<PipedServices>().removeFromPlaylist(
-            playlist.playlistId,
-            songIndex,
-          );
-          if (res.code == 1) {
-            await playlistController.addNRemoveItemsInList(
-              item,
-              action: 'remove',
-            );
-          }
-        }
-        return;
-      }
-
       try {
         await playlistController.addNRemoveItemsInList(item, action: 'remove');
       } catch (e) {
@@ -573,5 +591,13 @@ mixin RemoveSongFromPlaylistMixin {
       return;
     }
     await box.close();
+  }
+
+  void _markAddToPlaylistMembershipRemoved(MediaItem item, Playlist playlist) {
+    if (!Get.isRegistered<AddToPlaylistController>()) return;
+    Get.find<AddToPlaylistController>().markSongsRemovedFromPlaylist(
+      playlist.playlistId,
+      [item],
+    );
   }
 }

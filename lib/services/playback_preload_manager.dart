@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 
+import '../domain/repositories/song_cache_repository.dart';
 import '/models/hm_streaming_data.dart';
 import '/services/constant.dart';
 import '/services/stream_service.dart';
@@ -50,11 +50,14 @@ class PlaybackPreloadManager {
   PlaybackPreloadManager({
     required Directory preloadDirectory,
     required StreamInfoResolver resolveStreamInfo,
+    SongCacheRepository? songCacheRepository,
   }) : _preloadDirectory = preloadDirectory,
-       _resolveStreamInfo = resolveStreamInfo;
+       _resolveStreamInfo = resolveStreamInfo,
+       _songCacheRepository = songCacheRepository ?? _NoopSongCacheRepository();
 
   final Directory _preloadDirectory;
   final StreamInfoResolver _resolveStreamInfo;
+  final SongCacheRepository _songCacheRepository;
   final Map<String, PreloadedAudioPrefix> _entries = {};
   final Set<String> _queuedIds = {};
   final List<MediaItem> _queue = [];
@@ -183,11 +186,10 @@ class PlaybackPreloadManager {
         return;
       }
 
-      if (Hive.isBoxOpen(BoxNames.songsUrlCache)) {
-        await Hive.box(
-          BoxNames.songsUrlCache,
-        ).put(song.id, streamInfo.toJson());
-      }
+      await _songCacheRepository.saveStreamCacheEntry(
+        song.id,
+        streamInfo.toJson(),
+      );
 
       final prefixFile = _prefixFile(song.id);
       final targetBytes = _targetPrefixBytes(audio.bitrate);
@@ -331,4 +333,48 @@ class PlaybackPreloadManager {
       }
     } catch (_) {}
   }
+}
+
+class _NoopSongCacheRepository implements SongCacheRepository {
+  @override
+  Future<void> clearStreamCache() async {}
+
+  @override
+  Future<bool> containsCachedSong(String songId) async => false;
+
+  @override
+  Future<void> deleteCachedSong(String songId) async {}
+
+  @override
+  Future<void> deleteStreamCacheEntry(String songId) async {}
+
+  @override
+  Future<Map<String, dynamic>> getAllStreamCacheEntries() async => {};
+
+  @override
+  Future<MediaItem?> getCachedSong(String songId) async => null;
+
+  @override
+  Future<dynamic> getCachedSongJson(String songId) async => null;
+
+  @override
+  Future<dynamic> getStreamCacheEntry(String songId) async => null;
+
+  @override
+  Future<HMStreamingData?> getStreamInfo(
+    String songId,
+    int qualityIndex,
+  ) async => null;
+
+  @override
+  Future<void> saveCachedSong(MediaItem song) async {}
+
+  @override
+  Future<void> saveCachedSongJson(
+    String songId,
+    Map<String, dynamic> json,
+  ) async {}
+
+  @override
+  Future<void> saveStreamCacheEntry(String songId, dynamic value) async {}
 }

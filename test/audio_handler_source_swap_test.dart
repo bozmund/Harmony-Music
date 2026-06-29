@@ -69,7 +69,7 @@ void main() {
     test('restores saved repeat mode to the underlying player on init', () {
       final block = _methodBlock(source, '_init');
 
-      expect(block, contains('PrefKeys.isLoopModeEnabled'));
+      expect(block, contains('_settingsRepository.getLoopModeEnabled()'));
       expect(block, contains('await _player.setLoopMode('));
       expect(block, contains('LoopMode.one'));
       expect(block, contains('LoopMode.off'));
@@ -100,6 +100,16 @@ void main() {
       expect(queueEndBlock, isNot(contains('await _player.play();')));
       expect(block, contains('Completion reached queue end'));
     });
+
+    test('downloaded stream lookup falls back when metadata is incomplete', () {
+      final block = _methodBlock(source, 'checkNGetUrl');
+
+      expect(block, contains('song == null'));
+      expect(block, contains('path is! String || path.isEmpty'));
+      expect(block, contains('streamInfoJson is List'));
+      expect(block, contains('Map<String, dynamic>.from'));
+      expect(block, contains('offlineReplacementUrl: true'));
+    });
   });
 }
 
@@ -120,8 +130,11 @@ String _methodBlock(String source, String methodName) {
   if (methodStart == -1) {
     methodStart = source.indexOf('Future<void> $methodName(');
   }
+  if (methodStart == -1) {
+    methodStart = source.indexOf('Future<HMStreamingData> $methodName(');
+  }
   expect(methodStart, isNot(-1), reason: 'Missing $methodName');
-  final bodyStart = source.indexOf('{', methodStart);
+  final bodyStart = _methodBodyStart(source, methodStart);
   expect(bodyStart, isNot(-1), reason: 'Missing body for $methodName');
 
   var depth = 0;
@@ -138,6 +151,27 @@ String _methodBlock(String source, String methodName) {
   }
 
   fail('Could not find end of $methodName');
+}
+
+int _methodBodyStart(String source, int methodStart) {
+  var parenDepth = 0;
+  for (
+    var index = source.indexOf('(', methodStart);
+    index < source.length;
+    index++
+  ) {
+    final char = source[index];
+    if (char == '(') {
+      parenDepth++;
+    } else if (char == ')') {
+      parenDepth--;
+      if (parenDepth == 0) {
+        return source.indexOf('{', index);
+      }
+    }
+  }
+
+  return -1;
 }
 
 bool _usesClassicOneSongSourceFlow(String block) {

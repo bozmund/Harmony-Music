@@ -1,19 +1,16 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 
+import '../domain/repositories/settings_repository.dart';
 import '../utils/helper.dart';
 
 class PipedServices extends GetxService {
-  final Map<String, dynamic> _headers = {};
-  final _dio = Dio();
-  String _insApiUrl = "";
-  bool _isLoggedIn = false;
-
-  PipedServices() {
-    final appPrefsBox = Hive.box('AppPrefs');
-    final piped = appPrefsBox.get('piped') ??
+  PipedServices([SettingsRepository? settingsRepository])
+    : _settingsRepository =
+          settingsRepository ?? Get.find<SettingsRepository>() {
+    final piped =
+        _settingsRepository.getPiped() ??
         {"isLoggedIn": false, "token": "", "instApiUrl": ""};
     _isLoggedIn = piped["isLoggedIn"];
     if (isLoggedIn) {
@@ -22,19 +19,26 @@ class PipedServices extends GetxService {
     }
   }
 
+  final SettingsRepository _settingsRepository;
+  final Map<String, dynamic> _headers = {};
+  final _dio = Dio();
+  String _insApiUrl = "";
+  bool _isLoggedIn = false;
+
   bool get isLoggedIn => _isLoggedIn;
 
   Future<Res> login(String insApiUrl, String userName, String password) async {
     final url = "$insApiUrl/login";
     try {
-      final response = await _dio
-          .post(url, data: {"username": userName, "password": password});
+      final response = await _dio.post(
+        url,
+        data: {"username": userName, "password": password},
+      );
       final data = response.data;
-      final appPrefsBox = Hive.box('AppPrefs');
-      await appPrefsBox.put("piped", {
+      await _settingsRepository.setPiped({
         "isLoggedIn": true,
         "token": data['token'],
-        "instApiUrl": insApiUrl
+        "instApiUrl": insApiUrl,
       });
       _headers["Authorization"] = data['token'];
       _isLoggedIn = true;
@@ -54,19 +58,23 @@ class PipedServices extends GetxService {
   }
 
   Future<void> logout() async {
-    final appPrefsBox = Hive.box('AppPrefs');
-    await appPrefsBox
-        .put("piped", {"isLoggedIn": false, "token": "", "instApiUrl": ""});
+    await _settingsRepository.setPiped({
+      "isLoggedIn": false,
+      "token": "",
+      "instApiUrl": "",
+    });
     _headers["Authorization"] = "";
     _isLoggedIn = false;
     _insApiUrl = "";
   }
 
-  Future<Res> _sendRequest(String endpoint,
-      {dynamic data,
-      String reqType = "post",
-      bool isInstanceListReq = false,
-      bool isSongListReq = false}) async {
+  Future<Res> _sendRequest(
+    String endpoint, {
+    dynamic data,
+    String reqType = "post",
+    bool isInstanceListReq = false,
+    bool isSongListReq = false,
+  }) async {
     final url = isInstanceListReq
         ? "https://piped-instances.kavin.rocks/"
         : "$_insApiUrl$endpoint";
@@ -75,27 +83,27 @@ class PipedServices extends GetxService {
           ? await _dio.post(
               url,
               data: data,
-              options: Options(
-                headers: _headers,
-              ),
+              options: Options(headers: _headers),
             )
           : await _dio.get(
               url,
               options: (isInstanceListReq || isSongListReq)
                   ? null
-                  : Options(
-                      headers: _headers,
-                    ),
+                  : Options(headers: _headers),
             );
 
       printINFO("Successful=> $endpoint");
 
       if (isInstanceListReq) {
-        return Res(1,
-            response: response.data
-                .map((data) =>
-                    PipedInstance(name: data['name'], apiUrl: data['api_url']))
-                .toList());
+        return Res(
+          1,
+          response: response.data
+              .map(
+                (data) =>
+                    PipedInstance(name: data['name'], apiUrl: data['api_url']),
+              )
+              .toList(),
+        );
       } else {
         if (response.data.runtimeType.toString() == "_Map<String, dynamic>" &&
             response.data.containsKey("error")) {
@@ -114,8 +122,10 @@ class PipedServices extends GetxService {
   }
 
   Future<Res> createPlaylist(String playlistName) async {
-    return await _sendRequest("/user/playlists/create",
-        data: {"name": playlistName});
+    return await _sendRequest(
+      "/user/playlists/create",
+      data: {"name": playlistName},
+    );
   }
 
   Future<Res> getAllPlaylists() async {
@@ -123,44 +133,54 @@ class PipedServices extends GetxService {
   }
 
   Future<Res> renamePlaylist(String playlistId, String newName) async {
-    return await _sendRequest("/user/playlists/rename",
-        data: {"playlistId": playlistId, "newName": newName});
+    return await _sendRequest(
+      "/user/playlists/rename",
+      data: {"playlistId": playlistId, "newName": newName},
+    );
   }
 
   Future<Res> deletePlaylist(String playlistId) async {
-    return await _sendRequest("/user/playlists/delete",
-        data: {"playlistId": playlistId});
+    return await _sendRequest(
+      "/user/playlists/delete",
+      data: {"playlistId": playlistId},
+    );
   }
 
   Future<Res> addToPlaylist(String playlistId, List<String> videosId) async {
-    return await _sendRequest("/user/playlists/add",
-        data: {"playlistId": playlistId, "videoIds": videosId});
+    return await _sendRequest(
+      "/user/playlists/add",
+      data: {"playlistId": playlistId, "videoIds": videosId},
+    );
   }
 
   Future<Res> removeFromPlaylist(String playlistId, int index) async {
-    return await _sendRequest("/user/playlists/remove",
-        data: {"playlistId": playlistId, "index": index});
+    return await _sendRequest(
+      "/user/playlists/remove",
+      data: {"playlistId": playlistId, "index": index},
+    );
   }
 
   Future<List<MediaItem>> getPlaylistSongs(String playlistId) async {
-    final res = await _sendRequest("/playlists/$playlistId",
-        reqType: "get", isSongListReq: true);
+    final res = await _sendRequest(
+      "/playlists/$playlistId",
+      reqType: "get",
+      isSongListReq: true,
+    );
     if (res.code == 1) {
       return res.response['relatedStreams']
           .map((item) {
             return MediaItem(
-                id: item['url'].split("?v=")[1],
-                title: item['title'],
-                artist: item['uploaderName'],
-                duration: Duration(seconds: item['duration']),
-                artUri: Uri.tryParse(
-                  item['thumbnail'],
-                ),
-                extras: {
-                  'artists': [
-                    {"name": item['uploaderName']}
-                  ],
-                });
+              id: item['url'].split("?v=")[1],
+              title: item['title'],
+              artist: item['uploaderName'],
+              duration: Duration(seconds: item['duration']),
+              artUri: Uri.tryParse(item['thumbnail']),
+              extras: {
+                'artists': [
+                  {"name": item['uploaderName']},
+                ],
+              },
+            );
           })
           .whereType<MediaItem>()
           .toList();

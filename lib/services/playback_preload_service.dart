@@ -3,9 +3,10 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../domain/repositories/settings_repository.dart';
+import '../domain/repositories/song_cache_repository.dart';
 import '/models/hm_streaming_data.dart';
 import '/services/constant.dart';
 import '/services/playback_preload_manager.dart';
@@ -16,12 +17,17 @@ class PlaybackPreloadService {
   PlaybackPreloadService({
     required Directory preloadDirectory,
     required StreamInfoResolver resolveStreamInfo,
+    required SettingsRepository settingsRepository,
+    required SongCacheRepository songCacheRepository,
   }) : _manager = PlaybackPreloadManager(
          preloadDirectory: preloadDirectory,
          resolveStreamInfo: resolveStreamInfo,
-       );
+         songCacheRepository: songCacheRepository,
+       ),
+       _settingsRepository = settingsRepository;
 
   final PlaybackPreloadManager _manager;
+  final SettingsRepository _settingsRepository;
   Timer? _debounce;
   String? _lastWindowKey;
 
@@ -33,21 +39,16 @@ class PlaybackPreloadService {
   }
 
   int get range {
-    final value =
-        Hive.box(BoxNames.appPrefs).get(PrefKeys.playbackPreloadRange) ?? 0;
-    if (value is int) return value.clamp(0, 5).toInt();
-    return 0;
+    return _settingsRepository.getPlaybackPreloadRange();
   }
 
   Future<void> setMode(PlaybackMode mode) async {
-    await Hive.box(BoxNames.appPrefs).put(PrefKeys.playbackMode, mode.index);
+    await _settingsRepository.setPlaybackMode(mode);
     if (!isEnabled) await clear();
   }
 
   Future<void> setRange(int value) async {
-    await Hive.box(
-      BoxNames.appPrefs,
-    ).put(PrefKeys.playbackPreloadRange, value.clamp(0, 5).toInt());
+    await _settingsRepository.setPlaybackPreloadRange(value);
     if (!isEnabled) await clear();
   }
 
@@ -157,11 +158,6 @@ class PlaybackPreloadService {
   }
 
   PlaybackMode _playbackMode() {
-    final value = Hive.box(BoxNames.appPrefs).get(PrefKeys.playbackMode) ?? 0;
-    if (value is int && value >= 0 && value < PlaybackMode.values.length) {
-      return PlaybackMode.values[value];
-    }
-
-    return PlaybackMode.classic;
+    return _settingsRepository.getPlaybackMode();
   }
 }

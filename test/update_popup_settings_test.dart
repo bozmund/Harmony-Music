@@ -46,7 +46,7 @@ void main() {
         'onChangeVersionVisibility',
       );
 
-      expect(helperBlock, contains('PrefKeys.newVersionVisibility'));
+      expect(helperBlock, contains('setNewVersionVisibility'));
       expect(helperBlock, contains('showVersionDialog.value = enabled'));
       expect(checkboxBlock, contains('setStartupUpdatePopupEnabled(!val)'));
     });

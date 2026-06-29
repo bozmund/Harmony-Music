@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 
+import '../../../domain/repositories/search_history_repository.dart';
 import '/utils/app_link_controller.dart' show ProcessLink;
 import '/services/app_contracts.dart';
 
 class SearchScreenController extends GetxController with ProcessLink {
+  SearchScreenController(this._searchHistoryRepository);
+
+  final SearchHistoryRepository _searchHistoryRepository;
   final textInputController = TextEditingController();
   final musicServices = Get.find<MusicServiceContract>();
   final suggestionList = [].obs;
   final historyQueryList = [].obs;
-  late Box<dynamic> queryBox;
   final urlPasted = false.obs;
 
   // Desktop search bar related
@@ -29,8 +31,9 @@ class SearchScreenController extends GetxController with ProcessLink {
         isSearchBarInFocus.value = focusNode.hasFocus;
       });
     }
-    queryBox = await Hive.openBox("searchQuery");
-    historyQueryList.value = queryBox.values.toList().reversed.toList();
+    historyQueryList.value = (await _searchHistoryRepository.getQueries())
+        .reversed
+        .toList();
   }
 
   Future<void> onChanged(String text) async {
@@ -52,12 +55,11 @@ class SearchScreenController extends GetxController with ProcessLink {
 
   Future<void> addToHistoryQueryList(String txt) async {
     if (historyQueryList.length > 9) {
-      final queryForRemoval = queryBox.getAt(0);
-      await queryBox.deleteAt(0);
+      final queryForRemoval = historyQueryList.last;
       historyQueryList.removeWhere((element) => element == queryForRemoval);
     }
     if (!historyQueryList.contains(txt)) {
-      await queryBox.add(txt);
+      await _searchHistoryRepository.addQuery(txt, maxEntries: 10);
       historyQueryList.insert(0, txt);
     }
 
@@ -72,8 +74,7 @@ class SearchScreenController extends GetxController with ProcessLink {
   }
 
   Future<void> removeQueryFromHistory(String txt) async {
-    final index = queryBox.values.toList().indexOf(txt);
-    await queryBox.deleteAt(index);
+    await _searchHistoryRepository.deleteQuery(txt);
     historyQueryList.remove(txt);
   }
 
@@ -81,7 +82,6 @@ class SearchScreenController extends GetxController with ProcessLink {
   Future<void> dispose() async {
     focusNode.dispose();
     textInputController.dispose();
-    await queryBox.close();
     super.dispose();
   }
 }

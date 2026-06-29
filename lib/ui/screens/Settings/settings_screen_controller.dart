@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:audio_service/audio_service.dart';
+import '../../../domain/repositories/settings_repository.dart';
+import '../../../domain/repositories/storage_admin_repository.dart';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -38,6 +40,16 @@ class DeveloperSettingValue {
 
 class SettingsScreenController extends GetxController
     with WidgetsBindingObserver {
+  SettingsScreenController({
+    required SettingsRepository settingsRepository,
+    required StorageAdminRepository storageAdminRepository,
+  }) : _settingsRepository = settingsRepository,
+       _storageAdminRepository = storageAdminRepository;
+
+  final SettingsRepository _settingsRepository;
+  final StorageAdminRepository _storageAdminRepository;
+  SettingsRepository get settingsRepository => _settingsRepository;
+  StorageAdminRepository get storageAdminRepository => _storageAdminRepository;
   late String _supportDir;
   final cacheSongs = false.obs;
   final setBox = Hive.box(BoxNames.appPrefs);

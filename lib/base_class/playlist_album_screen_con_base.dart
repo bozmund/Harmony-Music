@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 
+import '../domain/repositories/library_repository.dart';
+import '../domain/repositories/playlist_repository.dart';
 import '../models/album.dart';
-import '../models/media_Item_builder.dart';
 import '../models/playlist.dart';
 import '../services/app_contracts.dart';
 import '../ui/widgets/sort_widget.dart';
@@ -15,6 +17,8 @@ import '../ui/widgets/sort_widget.dart';
 abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   /// Instance used to interact with music-related services.
   final MusicServiceContract musicServices = Get.find<MusicServiceContract>();
+  final PlaylistRepository playlistRepository = Get.find<PlaylistRepository>();
+  final LibraryRepository libraryRepository = Get.find<LibraryRepository>();
   int _loadGeneration = 0;
 
   /// Observable boolean indicating whether the album is offline.
@@ -74,12 +78,18 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   ///
   /// [id] - The unique identifier of the album/playlist.
   Future<void> fetchSongsFromDatabase(String id, {int? generation}) async {
-    final box = await Hive.openBox(id);
-    final songs = box.values
-        .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
-        .whereType<MediaItem>()
-        .toList();
-    if (id != "SongDownloads") await box.close();
+    final songs = switch (id) {
+      "SongDownloads" => await libraryRepository.getDownloadedSongs(),
+      "SongsCache" => await libraryRepository.getCachedSongs(),
+      "LIBFAV" => await libraryRepository.getFavoriteSongs(),
+      "LIBRP" => await libraryRepository.getRecentlyPlayedSongs(),
+      "LIBFAV_NOT_DOWNLOADED" =>
+        await libraryRepository.getFavoriteNotDownloadedSongs(),
+      "LIBIMPORT_DUPLICATES" =>
+        await libraryRepository.getImportDuplicateSongs(),
+      "LIBIMPORT_REVIEW" => await libraryRepository.getImportReviewSongs(),
+      _ => await playlistRepository.getPlaylistSongs(id),
+    };
     if (generation != null && !isAsyncLoadActive(generation)) return;
     songList.value = id == "LIBRP" ? songs.reversed.toList() : songs;
     checkDownloadStatus();
@@ -87,9 +97,13 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
 
   /// Checks the download status of the album/playlist.
   void checkDownloadStatus() {
-    bool downloaded = true;
-    for (MediaItem item in songList) {
-      if (!Hive.box("SongDownloads").containsKey(item.id)) {
+    unawaited(_updateDownloadStatus());
+  }
+
+  Future<void> _updateDownloadStatus() async {
+    var downloaded = true;
+    for (final item in songList) {
+      if (!await libraryRepository.isDownloaded(item.id)) {
         downloaded = false;
         break;
       }
