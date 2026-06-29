@@ -5,6 +5,7 @@ import '../../domain/repositories/song_cache_repository.dart';
 import '../../models/hm_streaming_data.dart';
 import '../../models/media_Item_builder.dart';
 import '../../services/constant.dart';
+import '../../services/stream_service.dart' show Audio;
 
 class HiveSongCacheRepository implements SongCacheRepository {
   Box get _songsBox => Hive.box(BoxNames.songsCache);
@@ -46,10 +47,8 @@ class HiveSongCacheRepository implements SongCacheRepository {
     int qualityIndex,
   ) async {
     final entry = _streamsBox.get(songId);
-    if (entry is! List || entry.length <= qualityIndex) return null;
-    final data = entry[qualityIndex];
-    if (data is! Map) return null;
-    return HMStreamingData.fromJson(data)..setQualityIndex(qualityIndex);
+    final streamInfo = _streamInfoFromCacheEntry(entry, qualityIndex);
+    return streamInfo?..setQualityIndex(qualityIndex);
   }
 
   @override
@@ -70,4 +69,55 @@ class HiveSongCacheRepository implements SongCacheRepository {
           (key) => MapEntry(key, _streamsBox.get(key)),
         ),
       );
+}
+
+HMStreamingData? _streamInfoFromCacheEntry(dynamic entry, int qualityIndex) {
+  if (entry is Map) {
+    final playable = entry['playable'] == true;
+    if (!playable) {
+      return HMStreamingData(
+        playable: false,
+        statusMSG: entry['statusMSG']?.toString() ?? '',
+      );
+    }
+
+    final selectedAudioJson = qualityIndex == 0
+        ? entry['lowQualityAudio']
+        : entry['highQualityAudio'];
+    if (selectedAudioJson is! Map) return null;
+
+    final lowQualityAudio = _audioFromJson(entry['lowQualityAudio']);
+    final highQualityAudio = _audioFromJson(entry['highQualityAudio']);
+    if (qualityIndex == 0 && lowQualityAudio == null) return null;
+    if (qualityIndex != 0 && highQualityAudio == null) return null;
+
+    return HMStreamingData(
+      playable: true,
+      statusMSG: entry['statusMSG']?.toString() ?? 'OK',
+      lowQualityAudio: lowQualityAudio,
+      highQualityAudio: highQualityAudio,
+    );
+  }
+
+  if (entry is List && entry.length > qualityIndex) {
+    final audio = _audioFromJson(entry[qualityIndex]);
+    if (audio == null) return null;
+    return HMStreamingData(
+      playable: true,
+      statusMSG: 'OK',
+      lowQualityAudio: qualityIndex == 0 ? audio : null,
+      highQualityAudio: qualityIndex == 0 ? null : audio,
+    );
+  }
+
+  return null;
+}
+
+Audio? _audioFromJson(dynamic value) {
+  if (value is! Map) return null;
+  try {
+    return Audio.fromJson(value);
+  } catch (_) {
+    return null;
+  }
 }

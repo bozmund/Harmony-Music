@@ -2,7 +2,9 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../domain/repositories/app_repositories.dart';
+import '../../domain/repositories/download_repository.dart';
+import '../../domain/repositories/settings_repository.dart';
+import '../../domain/repositories/song_cache_repository.dart';
 import '/ui/widgets/common_dialog_widget.dart';
 
 class SongInfoDialog extends StatelessWidget {
@@ -96,18 +98,19 @@ class SongInfoDialog extends StatelessWidget {
 
     if (await downloadRepository.containsDownload(id)) {
       final song = await downloadRepository.getDownloadJson(id);
-      return song["streamInfo"] == null
-          ? _nullStreamInfo
-          : song["streamInfo"][1];
+      final streamInfo = song is Map ? song["streamInfo"] : null;
+      final audioJson = streamInfo is List && streamInfo.length > 1
+          ? streamInfo[1]
+          : null;
+      return audioJson is Map ? audioJson : _nullStreamInfo;
     }
 
-    final dbStreamData = await songCacheRepository.getStreamCacheEntry(id);
-    return dbStreamData != null &&
-            dbStreamData.runtimeType.toString().contains("Map")
-        ? dbStreamData[settingsRepository.getStreamingQualityIndex() == 0
-              ? 'lowQualityAudio'
-              : "highQualityAudio"]
-        : _nullStreamInfo;
+    final streamInfo = await songCacheRepository.getStreamInfo(
+      id,
+      settingsRepository.getStreamingQualityIndex(),
+    );
+    final audio = streamInfo?.audio;
+    return audio == null ? _nullStreamInfo : audio.toJson();
   }
 }
 

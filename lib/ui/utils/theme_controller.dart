@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import '../../domain/repositories/app_repositories.dart';
+import '../../domain/repositories/settings_repository.dart';
 import '/utils/helper.dart';
 
 class ThemeController extends GetxController {
@@ -16,8 +16,6 @@ class ThemeController extends GetxController {
     primaryColor.value = Color(_settingsRepository.getThemePrimaryColor());
 
     _listenSystemBrightness();
-
-    super.onInit();
   }
 
   final SettingsRepository _settingsRepository;

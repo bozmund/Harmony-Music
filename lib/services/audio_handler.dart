@@ -14,8 +14,13 @@ import 'package:audio_service/audio_service.dart';
 // ignore: depend_on_referenced_packages
 import 'package:rxdart/rxdart.dart';
 
+import '../domain/repositories/download_repository.dart';
+import '../domain/repositories/library_repository.dart';
+import '../domain/repositories/playback_session_repository.dart';
+import '../domain/repositories/playlist_repository.dart';
+import '../domain/repositories/settings_repository.dart';
+import '../domain/repositories/song_cache_repository.dart';
 import '/services/constant.dart';
-import '../domain/repositories/app_repositories.dart';
 import '/services/playback_preload_service.dart';
 import '/services/equalizer.dart';
 import '/services/stream_service.dart';

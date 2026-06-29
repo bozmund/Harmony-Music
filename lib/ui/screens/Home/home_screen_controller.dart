@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../../domain/repositories/app_repositories.dart';
+import '../../../domain/repositories/home_repository.dart';
+import '../../../domain/repositories/settings_repository.dart';
 import '/models/media_Item_builder.dart';
 import '/ui/navigator.dart';
 import '/ui/player/player_controller.dart';

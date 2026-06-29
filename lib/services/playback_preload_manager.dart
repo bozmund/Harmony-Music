@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:get/get.dart';
 
-import '../domain/repositories/app_repositories.dart';
+import '../domain/repositories/song_cache_repository.dart';
 import '/models/hm_streaming_data.dart';
 import '/services/constant.dart';
 import '/services/stream_service.dart';

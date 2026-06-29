@@ -1,6 +1,15 @@
 import 'package:get/get.dart';
 
-import '../../domain/repositories/repositories.dart';
+import '../../domain/repositories/download_repository.dart';
+import '../../domain/repositories/home_repository.dart';
+import '../../domain/repositories/library_repository.dart';
+import '../../domain/repositories/lyrics_repository.dart';
+import '../../domain/repositories/playback_session_repository.dart';
+import '../../domain/repositories/playlist_repository.dart';
+import '../../domain/repositories/search_history_repository.dart';
+import '../../domain/repositories/settings_repository.dart';
+import '../../domain/repositories/song_cache_repository.dart';
+import '../../domain/repositories/storage_admin_repository.dart';
 import 'hive_download_repository.dart';
 import 'hive_home_repository.dart';
 import 'hive_library_repository.dart';

@@ -1,7 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
-import 'package:harmonymusic/data/repositories/hive_app_repositories.dart';
-import 'package:harmonymusic/domain/repositories/repositories.dart';
+import 'package:harmonymusic/data/repositories/hive_repository_registration.dart';
+import 'package:harmonymusic/domain/repositories/download_repository.dart';
+import 'package:harmonymusic/domain/repositories/home_repository.dart';
+import 'package:harmonymusic/domain/repositories/library_repository.dart';
+import 'package:harmonymusic/domain/repositories/lyrics_repository.dart';
+import 'package:harmonymusic/domain/repositories/playback_session_repository.dart';
+import 'package:harmonymusic/domain/repositories/playlist_repository.dart';
+import 'package:harmonymusic/domain/repositories/search_history_repository.dart';
+import 'package:harmonymusic/domain/repositories/settings_repository.dart';
+import 'package:harmonymusic/domain/repositories/song_cache_repository.dart';
+import 'package:harmonymusic/domain/repositories/storage_admin_repository.dart';
 
 void main() {
   tearDown(Get.reset);

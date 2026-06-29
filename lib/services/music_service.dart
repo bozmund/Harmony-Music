@@ -3,7 +3,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart' as getx;
 
-import '../domain/repositories/app_repositories.dart';
+import '../domain/repositories/settings_repository.dart';
 import '/models/album.dart';
 import '/services/app_contracts.dart';
 import '/services/utils.dart';

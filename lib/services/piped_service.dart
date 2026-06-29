@@ -2,7 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 
-import '../domain/repositories/app_repositories.dart';
+import '../domain/repositories/settings_repository.dart';
 import '../utils/helper.dart';
 
 class PipedServices extends GetxService {

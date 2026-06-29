@@ -5,9 +5,11 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:flutter_lyric/flutter_lyric.dart';
 
+import '../../domain/repositories/library_repository.dart';
+import '../../domain/repositories/playback_session_repository.dart';
+import '../../domain/repositories/settings_repository.dart';
 import '../../models/playing_from.dart';
 
-import '../../domain/repositories/app_repositories.dart';
 import '../../services/app_platform_service.dart';
 import '../../services/downloader.dart';
 import '../screens/Playlist/playlist_screen_controller.dart';

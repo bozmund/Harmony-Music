@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
-import '../../domain/repositories/app_repositories.dart';
+import '../../domain/repositories/playlist_repository.dart';
 import '../../services/piped_service.dart';
 import '../../utils/helper.dart';
 import '/ui/widgets/create_playlist_dialog.dart';

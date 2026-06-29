@@ -1,8 +1,9 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
-import 'package:harmonymusic/domain/repositories/app_repositories.dart';
 import 'package:harmonymusic/utils/helper.dart';
+
+import '../domain/repositories/lyrics_repository.dart';
 
 class SyncedLyricsService {
   static Future<Map<String, dynamic>?> getSyncedLyrics(

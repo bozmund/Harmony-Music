@@ -4,7 +4,8 @@ import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
-import '../domain/repositories/app_repositories.dart';
+import '../domain/repositories/library_repository.dart';
+import '../domain/repositories/playlist_repository.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../services/app_contracts.dart';

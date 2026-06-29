@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:get/get.dart';
-import '../domain/repositories/app_repositories.dart';
+import '../domain/repositories/download_repository.dart';
+import '../domain/repositories/library_repository.dart';
+import '../domain/repositories/song_cache_repository.dart';
 import '/ui/screens/Library/library_controller.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/utils.dart';
@@ -17,12 +19,7 @@ Future<void> removeExpiredSongsUrlFromDb() async {
     final entries = await songCacheRepository.getAllStreamCacheEntries();
     for (final entry in entries.entries) {
       final songUrlKey = entry.key;
-      final cacheValue = entry.value;
-      if (cacheValue is! List || cacheValue.isEmpty) continue;
-      final streamData = cacheValue.length > 1 ? cacheValue[1] : null;
-      if (streamData == null ||
-          streamData.runtimeType == String ||
-          (streamData != null && isExpired(url: streamData['url'] as String))) {
+      if (shouldDeleteStreamCacheEntry(entry.value)) {
         await songCacheRepository.deleteStreamCacheEntry(songUrlKey);
       }
     }
@@ -31,6 +28,30 @@ Future<void> removeExpiredSongsUrlFromDb() async {
   } finally {
     await removeDeletedOfflineSongsFromDb();
   }
+}
+
+bool shouldDeleteStreamCacheEntry(dynamic cacheValue) {
+  if (cacheValue is Map) {
+    final audioEntries = [
+      cacheValue['lowQualityAudio'],
+      cacheValue['highQualityAudio'],
+    ];
+    final urls = <String>[];
+    for (final audio in audioEntries) {
+      final url = audio is Map ? audio['url'] : null;
+      if (url is! String) return true;
+      urls.add(url);
+    }
+    return urls.every((url) => isExpired(url: url));
+  }
+
+  if (cacheValue is List && cacheValue.isNotEmpty) {
+    final streamData = cacheValue.length > 1 ? cacheValue[1] : null;
+    final url = streamData is Map ? streamData['url'] : null;
+    return url is! String || isExpired(url: url);
+  }
+
+  return true;
 }
 
 Future<void> removeDeletedOfflineSongsFromDb() async {

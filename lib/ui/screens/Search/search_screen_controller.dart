@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../../domain/repositories/app_repositories.dart';
+import '../../../domain/repositories/search_history_repository.dart';
 import '/utils/app_link_controller.dart' show ProcessLink;
 import '/services/app_contracts.dart';
 
