@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
+import 'package:flutter/material.dart';
 
 import '../domain/repositories/library_repository.dart';
 import '../domain/repositories/playlist_repository.dart';
@@ -10,37 +10,45 @@ import '../models/album.dart';
 import '../models/playlist.dart';
 import '../services/app_contracts.dart';
 import '../ui/widgets/sort_widget.dart';
+import '../utils/observable_state.dart';
 
 /// An abstract base class for managing playlist and album screens in the application.
 /// This class provides a set of methods and properties to handle various operations
 /// such as fetching album/playlist details, managing songs, and performing additional operations.
-abstract class PlaylistAlbumScreenControllerBase extends GetxController {
+abstract class PlaylistAlbumScreenControllerBase extends ChangeNotifier {
+  PlaylistAlbumScreenControllerBase({
+    required this.musicServices,
+    required this.playlistRepository,
+    required this.libraryRepository,
+  });
+
   /// Instance used to interact with music-related services.
-  final MusicServiceContract musicServices = Get.find<MusicServiceContract>();
-  final PlaylistRepository playlistRepository = Get.find<PlaylistRepository>();
-  final LibraryRepository libraryRepository = Get.find<LibraryRepository>();
+  final MusicServiceContract musicServices;
+  final PlaylistRepository playlistRepository;
+  final LibraryRepository libraryRepository;
   int _loadGeneration = 0;
+  bool _closed = false;
 
   /// Observable boolean indicating whether the album is offline.
-  final RxBool isOffline = false.obs;
+  final isOffline = ObservableValue(false);
 
   /// Observable list of songs represented as [MediaItem].
-  final RxList<MediaItem> songList = <MediaItem>[].obs;
+  final songList = ObservableList<MediaItem>();
 
   /// Observable boolean indicating whether the content has been fetched.
-  final RxBool isContentFetched = false.obs;
+  final isContentFetched = ObservableValue(false);
 
   /// Observable boolean indicating whether the album/playlist is added to the library.
-  final RxBool isAddedToLibrary = false.obs;
+  final isAddedToLibrary = ObservableValue(false);
 
   /// Observable double representing the scroll offset.
-  final RxDouble scrollOffset = 0.0.obs;
+  final scrollOffset = ObservableValue(0.0);
 
   /// Observable boolean indicating whether the app bar title is visible.
-  final RxBool appBarTitleVisible = false.obs;
+  final appBarTitleVisible = ObservableValue(false);
 
   /// Observable boolean indicating whether the album/playlist is downloaded.
-  final RxBool isDownloaded = false.obs;
+  final isDownloaded = ObservableValue(false);
 
   /// Checks if the album/playlist is added to the library.
   ///
@@ -55,11 +63,20 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
 
   @protected
   bool isAsyncLoadActive(int generation) =>
-      !isClosed && generation == _loadGeneration;
+      !_closed && generation == _loadGeneration;
 
   @protected
   void cancelAsyncLoads() {
     _loadGeneration++;
+  }
+
+  @protected
+  bool get isClosed => _closed;
+
+  @protected
+  void closeController() {
+    _closed = true;
+    cancelAsyncLoads();
   }
 
   /// Fetches the details of an album.
@@ -92,6 +109,7 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
     };
     if (generation != null && !isAsyncLoadActive(generation)) return;
     songList.value = id == "LIBRP" ? songs.reversed.toList() : songs;
+    notifyListeners();
     checkDownloadStatus();
   }
 
@@ -109,6 +127,7 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
       }
     }
     isDownloaded.value = downloaded;
+    notifyListeners();
   }
 
   /// Adds or removes content from the library.

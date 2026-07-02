@@ -24,6 +24,121 @@ void main() {
       );
     });
 
+    test('source play commands recover from source failures', () {
+      final playByIndex = _caseBlock(source, 'playByIndex');
+      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+
+      for (final block in [playByIndex, setSourceNPlay]) {
+        expect(block, contains('try {'));
+        expect(block, contains('catch (error, stackTrace)'));
+        expect(block, contains('_handleSourcePlaybackFailure('));
+      }
+
+      final failureBlock = _methodBlock(source, '_handleSourcePlaybackFailure');
+      expect(failureBlock, contains('isSongLoading = false;'));
+      expect(failureBlock, contains("'eventType': 'playError'"));
+      expect(failureBlock, contains('AudioProcessingState.error'));
+      expect(failureBlock, contains('errorMessage: message'));
+    });
+
+    test('successful source play emits a non-loading playback snapshot', () {
+      final playByIndex = _caseBlock(source, 'playByIndex');
+      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+      final snapshotBlock = _methodBlock(source, '_emitSourceStartedSnapshot');
+
+      expect(playByIndex, contains('_emitSourceStartedSnapshot();'));
+      expect(setSourceNPlay, contains('_emitSourceStartedSnapshot();'));
+      expect(snapshotBlock, contains('AudioProcessingState.ready'));
+      expect(snapshotBlock, contains('playing: true'));
+    });
+
+    test('source play commands log stream setup milestones', () {
+      final playByIndex = _caseBlock(source, 'playByIndex');
+      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+
+      expect(playByIndex, contains('playByIndex resolving stream info'));
+      expect(playByIndex, contains('playByIndex selected audio url empty='));
+      expect(playByIndex, contains('playByIndex adding audio source'));
+      expect(playByIndex, contains('playByIndex seek and play'));
+      expect(setSourceNPlay, contains('setSourceNPlay resolving stream info'));
+      expect(
+        setSourceNPlay,
+        contains('setSourceNPlay selected audio url empty='),
+      );
+      expect(setSourceNPlay, contains('setSourceNPlay adding audio source'));
+      expect(setSourceNPlay, contains('setSourceNPlay seek and play'));
+    });
+
+    test('source play commands explicitly load the new one-song source', () {
+      final playByIndex = _caseBlock(source, 'playByIndex');
+      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+      final loadStartBlock = _methodBlock(
+        source,
+        '_loadCurrentSourceFromStartAndPlay',
+      );
+
+      expect(playByIndex, contains('_loadCurrentSourceFromStartAndPlay();'));
+      expect(setSourceNPlay, contains('_loadCurrentSourceFromStartAndPlay();'));
+      expect(loadStartBlock, contains('await _player.load();'));
+      expect(
+        loadStartBlock,
+        contains('await _player.seek(Duration.zero, index: 0);'),
+      );
+      expect(loadStartBlock, contains('_startPlayerPlayback();'));
+      expect(loadStartBlock, isNot(contains('await _player.play();')));
+      expect(loadStartBlock, contains('_startCompletionWatchdog();'));
+    });
+
+    test('source start clears loading after requesting playback', () {
+      final playByIndex = _caseBlock(source, 'playByIndex');
+      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+      final startPlaybackBlock = _methodBlock(source, '_startPlayerPlayback');
+
+      expect(startPlaybackBlock, contains('unawaited('));
+      expect(startPlaybackBlock, contains('_player.play().catchError'));
+      expect(startPlaybackBlock, isNot(contains('await _player.play();')));
+      expect(
+        _loadsThenClearsLoadingThenEmitsStarted(playByIndex),
+        isTrue,
+        reason: 'playByIndex must clear loading after source playback starts',
+      );
+      expect(
+        _loadsThenClearsLoadingThenEmitsStarted(setSourceNPlay),
+        isTrue,
+        reason:
+            'setSourceNPlay must clear loading after source playback starts',
+      );
+    });
+
+    test('source load errors retry once with a fresh stream url', () {
+      final playByIndex = _caseBlock(source, 'playByIndex');
+      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+      final freshUrlBlock = _methodBlock(
+        source,
+        '_freshStreamInfoAfterSourceLoadFailure',
+      );
+      final replaceSourceBlock = _methodBlock(
+        source,
+        '_replaceCurrentSourceWithStreamInfo',
+      );
+
+      expect(playByIndex, contains('catch (error, stackTrace)'));
+      expect(playByIndex, contains('if (isNewUrlReq) rethrow;'));
+      expect(playByIndex, contains('_freshStreamInfoAfterSourceLoadFailure'));
+      expect(playByIndex, contains('_replaceCurrentSourceWithStreamInfo'));
+      expect(playByIndex, contains('requestGeneration != _playbackGeneration'));
+      expect(
+        setSourceNPlay,
+        contains('_freshStreamInfoAfterSourceLoadFailure'),
+      );
+      expect(setSourceNPlay, contains('_replaceCurrentSourceWithStreamInfo'));
+      expect(freshUrlBlock, contains('generateNewUrl: true'));
+      expect(freshUrlBlock, contains('source-load-retry'));
+      expect(replaceSourceBlock, contains('await _player.stop();'));
+      expect(replaceSourceBlock, contains('await _playList.clear();'));
+      expect(replaceSourceBlock, contains('await _playList.add'));
+    });
+
     test('repeat mode uses just_audio native loop mode', () {
       final block = _methodBlock(source, 'setRepeatMode');
 
@@ -32,28 +147,118 @@ void main() {
       expect(block, contains('LoopMode.off'));
     });
 
-    test(
-      'auto advance listens for completion instead of end-position polling',
-      () {
-        final block = _methodBlock(source, '_listenToPlaybackForNextSong');
+    test('pause and stop emit immediate non-playing snapshots', () {
+      final pauseBlock = _methodBlock(source, 'pause');
+      final stopBlock = _methodBlock(source, 'stop');
+      final snapshotBlock = _methodBlock(source, '_emitPlaybackSnapshot');
 
-        expect(block, contains('_player.processingStateStream.listen'));
-        expect(block, contains('ProcessingState.completed'));
-        expect(block, contains('loopModeEnabled'));
-        expect(block, contains('_completionInProgress'));
-        expect(block, isNot(contains('_player.positionStream.listen')));
-        expect(block, isNot(contains('_player.duration')));
+      expect(pauseBlock, contains('isSongLoading = false;'));
+      expect(pauseBlock, contains('_emitPlaybackSnapshot('));
+      expect(pauseBlock, contains('playing: false'));
+      expect(pauseBlock, contains('_nonLoadingProcessingState()'));
+      expect(stopBlock, contains('isSongLoading = false;'));
+      expect(stopBlock, contains('AudioProcessingState.idle'));
+      expect(stopBlock, contains('playing: false'));
+      expect(snapshotBlock, contains('updatePosition: _player.position'));
+      expect(
+        snapshotBlock,
+        contains('bufferedPosition: _player.bufferedPosition'),
+      );
+    });
+
+    test(
+      'shuffle mode uses visible queue order and can restore original order',
+      () {
+        final setShuffleBlock = _methodBlock(source, 'setShuffleMode');
+        final shuffleBlock = _methodBlock(
+          source,
+          '_shuffleVisibleQueueFromIndex',
+        );
+        final restoreBlock = _methodBlock(source, '_restoreQueueBeforeShuffle');
+        final nextBlock = _methodBlock(source, '_getNextSongIndex');
+        final previousBlock = _methodBlock(source, '_getPrevSongIndex');
+
+        expect(source, contains('List<MediaItem>? _queueBeforeShuffle;'));
+        expect(source, isNot(contains('List<String> shuffledQueue')));
+        expect(setShuffleBlock, contains('_shuffleVisibleQueueFromIndex'));
+        expect(setShuffleBlock, contains('_restoreQueueBeforeShuffle'));
+        expect(
+          shuffleBlock,
+          contains('PlaybackQueueOrder.shuffledFromCurrent'),
+        );
+        expect(restoreBlock, contains('PlaybackQueueOrder.indexOfSongId'));
+        expect(nextBlock, isNot(contains('shuffleModeEnabled')));
+        expect(previousBlock, isNot(contains('shuffleModeEnabled')));
+        expect(previousBlock, contains('queueLoopModeEnabled'));
+        expect(previousBlock, contains('queue.value.length - 1'));
+      },
+    );
+
+    test(
+      'queue rewrites rebroadcast the live media item for the same song',
+      () {
+        // The queue copy of the current song can still carry duration == null
+        // (the resolved duration is only broadcast, never written back into
+        // the queue). Rebroadcasting that stale copy on shuffle/unshuffle
+        // collapses the progress bar total to zero and pins the bar at 0:00.
+        final block = _methodBlock(source, '_setQueueAndCurrent');
+
+        expect(block, contains('final current = mediaItem.value;'));
+        expect(
+          block,
+          contains('current.id == nextItem.id ? current : nextItem'),
+        );
+        expect(block, isNot(contains('mediaItem.add(nextQueue[clampedIndex])')));
+      },
+    );
+
+    test(
+      'auto advance listens for completed state and final-position fallback',
+      () {
+        final listenerBlock = _methodBlock(
+          source,
+          '_listenToPlaybackForNextSong',
+        );
+        final endPositionBlock = _methodBlock(
+          source,
+          '_listenForEndPositionFallback',
+        );
+        final watchdogBlock = _methodBlock(source, '_checkCompletionWatchdog');
+        final eventBlock = _methodBlock(
+          source,
+          '_notifyAudioHandlerAboutPlaybackEvents',
+        );
+        final handlerBlock = _methodBlock(source, '_handlePlaybackCompleted');
+
+        expect(listenerBlock, contains('_player.processingStateStream.listen'));
+        expect(listenerBlock, contains('ProcessingState.completed'));
+        expect(listenerBlock, contains('_scheduleCompletionHandling'));
+        expect(eventBlock, contains('_player.playbackEventStream.listen'));
+        expect(eventBlock, contains('event.processingState'));
+        expect(eventBlock, contains('_scheduleCompletionHandling'));
+        expect(handlerBlock, contains('loopModeEnabled'));
+        expect(handlerBlock, contains('_completionInProgress'));
+        expect(handlerBlock, contains('_scheduleCompletionRetry'));
+        expect(endPositionBlock, contains('createPositionStream'));
+        expect(endPositionBlock, contains('_prepareNextSourceWhenNearEnd'));
+        expect(endPositionBlock, contains('_isAtEndPosition(position)'));
+        expect(endPositionBlock, contains('allowEndPosition: true'));
+        expect(watchdogBlock, contains('ProcessingState.completed'));
+        expect(watchdogBlock, contains('_shouldHonorCompletedStateNow()'));
+        expect(watchdogBlock, contains('allowEndPosition: true'));
+        final isAtEndBlock = _methodBlock(source, '_isAtEndPosition');
+        expect(isAtEndBlock, contains('_expectedEndDuration()'));
+        expect(isAtEndBlock, contains('return currentPosition >= duration;'));
+        expect(isAtEndBlock, isNot(contains('remaining.inMilliseconds')));
       },
     );
 
     test(
       'repeat completion restarts the current source from the beginning',
       () {
-        final listenerBlock = _methodBlock(
-          source,
-          '_listenToPlaybackForNextSong',
-        );
+        final listenerBlock = _methodBlock(source, '_handlePlaybackCompleted');
         final repeatBlock = _methodBlock(source, '_repeatCurrentSongFromStart');
+        final startPlaybackBlock = _methodBlock(source, '_startPlayerPlayback');
 
         expect(listenerBlock, contains('await _repeatCurrentSongFromStart();'));
         expect(listenerBlock, contains('return;'));
@@ -61,8 +266,9 @@ void main() {
           repeatBlock,
           contains('await _player.seek(Duration.zero, index: 0);'),
         );
-        expect(repeatBlock, contains('unawaited('));
-        expect(repeatBlock, contains('_player.play().catchError'));
+        expect(repeatBlock, contains('_startPlayerPlayback();'));
+        expect(startPlaybackBlock, contains('unawaited('));
+        expect(startPlaybackBlock, contains('_player.play().catchError'));
       },
     );
 
@@ -77,10 +283,229 @@ void main() {
 
     test('completion guard is declared on the audio handler', () {
       expect(source, contains('bool _completionInProgress = false;'));
+      expect(source, contains('bool _completionHandlingScheduled = false;'));
+      expect(
+        source,
+        contains('bool _completionHandlingAllowEndPosition = false;'),
+      );
+      expect(source, contains('bool _completionRetryScheduled = false;'));
+      expect(source, contains('Timer? _completionWatchdogTimer;'));
+      expect(source, contains('DateTime? _earlyCompletionDetectedAt;'));
+      expect(source, contains('Duration? _earlyCompletionDelay;'));
+      expect(source, contains('const _fallbackCompletionGrace'));
+    });
+
+    test('completion watchdog is managed with playback lifecycle', () {
+      final startBlock = _methodBlock(source, '_startCompletionWatchdog');
+      final stopBlock = _methodBlock(source, '_stopCompletionWatchdog');
+      final watchdogBlock = _methodBlock(source, '_checkCompletionWatchdog');
+      final pauseBlock = _methodBlock(source, 'pause');
+      final stopMethodBlock = _methodBlock(source, 'stop');
+      final disposeCase = _caseBlock(source, 'dispose');
+
+      expect(startBlock, contains('Timer.periodic'));
+      expect(startBlock, contains('const Duration(milliseconds: 250)'));
+      expect(startBlock, contains('_checkCompletionWatchdog'));
+      expect(stopBlock, contains('_completionWatchdogTimer?.cancel()'));
+      expect(stopBlock, contains('_completionWatchdogTimer = null'));
+      expect(watchdogBlock, contains('isSongLoading'));
+      expect(watchdogBlock, contains('_completionInProgress'));
+      expect(watchdogBlock, contains('_sourceSwitchInProgress'));
+      expect(watchdogBlock, contains('_player.processingState'));
+      expect(watchdogBlock, contains('ProcessingState.completed'));
+      expect(watchdogBlock, contains('_shouldHonorCompletedStateNow()'));
+      expect(watchdogBlock, contains('_player.playing && _isAtEndPosition()'));
+      expect(pauseBlock, contains('_stopCompletionWatchdog();'));
+      expect(stopMethodBlock, contains('_stopCompletionWatchdog();'));
+      expect(disposeCase, contains('_stopCompletionWatchdog();'));
+    });
+
+    test('watchdog defers early completed state until expected media end', () {
+      final honorBlock = _methodBlock(source, '_shouldHonorCompletedStateNow');
+      final expectedDurationBlock = _methodBlock(
+        source,
+        '_expectedEndDuration',
+      );
+      final resetEarlyBlock = _methodBlock(
+        source,
+        '_resetEarlyCompletionDeferral',
+      );
+      final stopWatchdogBlock = _methodBlock(source, '_stopCompletionWatchdog');
+      final resetPreparedBlock = _methodBlock(
+        source,
+        '_resetPreparedNextSource',
+      );
+
+      expect(honorBlock, contains('_expectedEndDuration()'));
+      expect(honorBlock, contains('position >= expectedDuration'));
+      expect(honorBlock, contains('_earlyCompletionDetectedAt ??='));
+      expect(honorBlock, contains('_earlyCompletionDelay ??='));
+      expect(honorBlock, contains('_fallbackCompletionGrace'));
+      expect(
+        honorBlock,
+        contains('DateTime.now().difference(_earlyCompletionDetectedAt!)'),
+      );
+      expect(expectedDurationBlock, contains('mediaDuration'));
+      expect(expectedDurationBlock, contains('playerDuration > mediaDuration'));
+      expect(resetEarlyBlock, contains('_earlyCompletionDetectedAt = null'));
+      expect(resetEarlyBlock, contains('_earlyCompletionDelay = null'));
+      expect(stopWatchdogBlock, contains('_resetEarlyCompletionDeferral();'));
+      expect(resetPreparedBlock, contains('_resetEarlyCompletionDeferral();'));
+    });
+
+    test('pre-end preparation checks next source without switching early', () {
+      final prepareBlock = _methodBlock(source, '_startPreparingNextSource');
+      final nearEndBlock = _methodBlock(
+        source,
+        '_prepareNextSourceWhenNearEnd',
+      );
+
+      expect(source, contains('HMStreamingData? _preparedNextStreamInfo;'));
+      expect(nearEndBlock, contains('const Duration(seconds: 5)'));
+      expect(nearEndBlock, contains('_resetPreparedNextSource();'));
+      expect(prepareBlock, contains('_sourceInfoForPlayback'));
+      expect(prepareBlock, contains('generation != _playbackGeneration'));
+      expect(prepareBlock, isNot(contains('mediaItem.add')));
+      expect(prepareBlock, isNot(contains('_player.stop')));
+      expect(prepareBlock, isNot(contains('_player.play')));
+    });
+
+    test(
+      'completion handling is deferred out of synchronous player streams',
+      () {
+        final scheduleBlock = _methodBlock(
+          source,
+          '_scheduleCompletionHandling',
+        );
+        final eventBlock = _methodBlock(
+          source,
+          '_notifyAudioHandlerAboutPlaybackEvents',
+        );
+        final listenerBlock = _methodBlock(
+          source,
+          '_listenToPlaybackForNextSong',
+        );
+
+        expect(scheduleBlock, contains('scheduleMicrotask'));
+        expect(
+          scheduleBlock,
+          contains(
+            '_handlePlaybackCompleted(allowEndPosition: allowEndPosition)',
+          ),
+        );
+        expect(
+          eventBlock,
+          isNot(contains('unawaited(_handlePlaybackCompleted())')),
+        );
+        expect(
+          listenerBlock,
+          isNot(contains('await _handlePlaybackCompleted()')),
+        );
+      },
+    );
+
+    test('source switching keeps controls playing while reporting loading', () {
+      final eventBlock = _methodBlock(
+        source,
+        '_notifyAudioHandlerAboutPlaybackEvents',
+      );
+      final playByIndex = _caseBlock(source, 'playByIndex');
+      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+
+      expect(source, contains('bool _sourceSwitchInProgress = false;'));
+      expect(source, contains('bool _sourceSwitchWasPlaying = false;'));
+      expect(eventBlock, contains('_sourceSwitchInProgress'));
+      expect(eventBlock, contains('_sourceSwitchWasPlaying'));
+      expect(eventBlock, contains('isSongLoading'));
+      expect(eventBlock, contains('AudioProcessingState.loading'));
+      expect(eventBlock, contains('AudioProcessingState.ready'));
+      expect(eventBlock, contains('updatePosition = isSongLoading'));
+      expect(eventBlock, contains('bufferedPosition = isSongLoading'));
+      expect(
+        playByIndex,
+        contains('processingState: AudioProcessingState.loading'),
+      );
+      expect(playByIndex, contains('updatePosition: Duration.zero'));
+      expect(playByIndex, contains('bufferedPosition: Duration.zero'));
+      expect(
+        setSourceNPlay,
+        contains('processingState: AudioProcessingState.loading'),
+      );
+      expect(setSourceNPlay, contains('updatePosition: Duration.zero'));
+      expect(setSourceNPlay, contains('bufferedPosition: Duration.zero'));
+      expect(playByIndex, contains('_beginSourceSwitch();'));
+      expect(playByIndex, contains('_endSourceSwitch();'));
+      expect(playByIndex, contains('_endSourceSwitch(defer: true);'));
+      expect(setSourceNPlay, contains('_beginSourceSwitch();'));
+      expect(setSourceNPlay, contains('_endSourceSwitch(defer: true);'));
+      expect(source, contains('Timer(const Duration(milliseconds: 500)'));
+    });
+
+    test('playback checks offline sources before network resolution', () {
+      final sourceInfoBlock = _methodBlock(source, '_sourceInfoForPlayback');
+      final offlineBlock = _methodBlock(source, '_offlineStreamInfoForSong');
+      final playByIndex = _caseBlock(source, 'playByIndex');
+
+      expect(playByIndex, contains('_sourceInfoForPlayback'));
+      expect(sourceInfoBlock, contains('_offlineStreamInfoForSong'));
+      expect(sourceInfoBlock, contains('_streamInfoForSong'));
+      expect(
+        sourceInfoBlock.indexOf('_offlineStreamInfoForSong'),
+        lessThan(sourceInfoBlock.indexOf('_streamInfoForSong')),
+      );
+      expect(offlineBlock, contains('_downloadedStreamInfoForSong'));
+      expect(offlineBlock, contains('_cachedStreamInfoForSong'));
+      expect(offlineBlock, contains('_isLocalSourceUrl'));
+      expect(
+        offlineBlock.indexOf('_downloadedStreamInfoForSong'),
+        lessThan(offlineBlock.indexOf('_cachedStreamInfoForSong')),
+      );
+    });
+
+    test('stale playback requests are ignored after a newer switch', () {
+      final playByIndex = _caseBlock(source, 'playByIndex');
+      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+
+      expect(source, contains('int _playbackGeneration = 0;'));
+      expect(
+        playByIndex,
+        contains('final requestGeneration = ++_playbackGeneration;'),
+      );
+      expect(playByIndex, contains('requestGeneration != _playbackGeneration'));
+      expect(
+        setSourceNPlay,
+        contains('final requestGeneration = ++_playbackGeneration;'),
+      );
+      expect(
+        setSourceNPlay,
+        contains('requestGeneration != _playbackGeneration'),
+      );
+    });
+
+    test('android playback buffering is bounded to avoid heap spikes', () {
+      expect(source, contains('static const _androidTargetBufferBytes'));
+      expect(source, contains('maxBufferDuration: Duration(seconds: 45)'));
+      expect(source, contains('targetBufferBytes: _androidTargetBufferBytes'));
+      expect(
+        source,
+        isNot(contains('maxBufferDuration: Duration(seconds: 120)')),
+      );
+    });
+
+    test('android notification artwork is downscaled before decoding', () {
+      expect(source, contains('const _androidNotificationArtSize = 256;'));
+      expect(
+        source,
+        contains('artDownscaleWidth: _androidNotificationArtSize'),
+      );
+      expect(
+        source,
+        contains('artDownscaleHeight: _androidNotificationArtSize'),
+      );
     });
 
     test('completion delegates queue advancement to skipToNext', () {
-      final block = _methodBlock(source, '_listenToPlaybackForNextSong');
+      final block = _methodBlock(source, '_handlePlaybackCompleted');
 
       expect(block, contains('await skipToNext();'));
       expect(block, isNot(contains('await _player.seek(Duration.zero);')));
@@ -96,7 +521,7 @@ void main() {
       final queueEndBlock = block.substring(queueEndBranch);
 
       expect(queueEndBlock, contains('await _player.seek(Duration.zero);'));
-      expect(queueEndBlock, contains('await _player.pause();'));
+      expect(queueEndBlock, contains('await pause();'));
       expect(queueEndBlock, isNot(contains('await _player.play();')));
       expect(block, contains('Completion reached queue end'));
     });
@@ -132,6 +557,18 @@ String _methodBlock(String source, String methodName) {
   }
   if (methodStart == -1) {
     methodStart = source.indexOf('Future<HMStreamingData> $methodName(');
+  }
+  if (methodStart == -1) {
+    methodStart = source.indexOf('Future<HMStreamingData?> $methodName(');
+  }
+  if (methodStart == -1) {
+    methodStart = source.indexOf('int $methodName(');
+  }
+  if (methodStart == -1) {
+    methodStart = source.indexOf('bool $methodName(');
+  }
+  if (methodStart == -1) {
+    methodStart = source.indexOf('Duration? $methodName(');
   }
   expect(methodStart, isNot(-1), reason: 'Missing $methodName');
   final bodyStart = _methodBodyStart(source, methodStart);
@@ -183,14 +620,30 @@ bool _usesClassicOneSongSourceFlow(String block) {
   final addIndex = block.indexOf('await _playList.add', clearIndex);
   if (addIndex == -1) return false;
 
-  final playIndex = block.indexOf('await _player.play();', addIndex);
-  final seekIndex = block.indexOf(
-    'await _player.seek(Duration.zero, index: 0);',
+  final loadStartIndex = block.indexOf(
+    'await _loadCurrentSourceFromStartAndPlay();',
     addIndex,
   );
 
-  return seekIndex != -1 &&
-      playIndex != -1 &&
-      addIndex < seekIndex &&
-      seekIndex < playIndex;
+  return loadStartIndex != -1 && addIndex < loadStartIndex;
+}
+
+bool _loadsThenClearsLoadingThenEmitsStarted(String block) {
+  final loadStartIndex = block.indexOf(
+    'await _loadCurrentSourceFromStartAndPlay();',
+  );
+  if (loadStartIndex == -1) return false;
+
+  final clearLoadingIndex = block.indexOf(
+    'isSongLoading = false;',
+    loadStartIndex,
+  );
+  if (clearLoadingIndex == -1) return false;
+
+  final emitStartedIndex = block.indexOf(
+    '_emitSourceStartedSnapshot();',
+    clearLoadingIndex,
+  );
+
+  return emitStartedIndex != -1;
 }

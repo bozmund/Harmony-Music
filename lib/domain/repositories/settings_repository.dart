@@ -6,6 +6,11 @@ abstract class SettingsRepository {
   Future<void> setLanguageCode(String value);
   UpdateChannel getUpdateChannel();
   Future<void> setUpdateChannel(UpdateChannel value);
+
+  /// Whether the one-time release prompt with [promptId] was already
+  /// answered by the user (see lib/services/release_prompt.dart).
+  bool isReleasePromptAnswered(String promptId);
+  Future<void> setReleasePromptAnswered(String promptId);
   bool getNewVersionVisibility(bool fallback);
   Future<void> setNewVersionVisibility(bool enabled);
   bool getCacheSongs();
@@ -59,8 +64,16 @@ abstract class SettingsRepository {
   Future<void> setKeepScreenAwake(bool value);
   String? getDownloadLocationPath();
   Future<void> setDownloadLocationPath(String value);
+
+  /// Clears the stored download location so the app's default applies again.
+  /// Used after a restore when the restored value points at a directory this
+  /// install cannot use (e.g. another package's private storage).
+  Future<void> resetDownloadLocationPath();
   String getExportLocationPath();
   Future<void> setExportLocationPath(String value);
+
+  /// Clears the stored export location; see [resetDownloadLocationPath].
+  Future<void> resetExportLocationPath();
   String getDownloadingFormat();
   Future<void> setDownloadingFormat(String value);
   bool getSlidableActionEnabled();
@@ -79,11 +92,13 @@ abstract class SettingsRepository {
   Future<void> setVisitorData(Map<dynamic, dynamic> value);
   String getContentLanguage();
   bool getStopPlaybackOnSwipeAway();
+  Future<void> setStopPlaybackOnSwipeAway(bool value);
   int? getHomeScreenDataTime();
   Future<void> setHomeScreenDataTime(int value);
   Future<void> deleteHomeScreenDataTime();
   String? getRecentSongId();
   Future<void> setRecentSongId(String songId);
   Future<void> seedDefaults(bool updateCheckFlag);
+  Future<void> clearAll();
   Map<String, dynamic> developerValues();
 }

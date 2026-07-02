@@ -44,6 +44,11 @@ A cross platform app for music streaming made with Flutter(Android, Windows, lin
 
 You can also help us in translation, click status image or <a href="https://hosted.weblate.org/projects/harmony-music/project-translations/"> here </a> to go to Weblate.
 
+# Contributing
+Want to build or contribute to the app? See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the full setup steps, including the required `third_party/` packages and
+the repo-local Flutter SDK.
+
 # Troubleshoot
 * if you are facing Notification control issue or music playback stopped by system optimization, please enable ignore battery optimization option from settings
 

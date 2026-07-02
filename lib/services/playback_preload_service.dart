@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../domain/repositories/settings_repository.dart';
@@ -12,6 +11,7 @@ import '/services/constant.dart';
 import '/services/playback_preload_manager.dart';
 import '/services/preloaded_prefix_audio_source.dart';
 import '/utils/helper.dart';
+import '../utils/platform_utils.dart';
 
 class PlaybackPreloadService {
   PlaybackPreloadService({
@@ -34,7 +34,7 @@ class PlaybackPreloadService {
   Future<void> init() => _manager.init();
 
   bool get isEnabled {
-    if (!GetPlatform.isAndroid) return false;
+    if (!isAndroidPlatform) return false;
     return _playbackMode() == PlaybackMode.preloaded && range > 0;
   }
 

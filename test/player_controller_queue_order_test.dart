@@ -24,7 +24,9 @@ void main() {
         final panelCheckIndex = block.indexOf(
           'unawaited(_playerPanelCheck());',
         );
-        final setSourceIndex = block.indexOf('"setSourceNPlay"');
+        final setSourceIndex = block.indexOf(
+          '_playbackCommands.setSourceAndPlay',
+        );
 
         expect(queueUpdateIndex, isNot(-1));
         expect(backgroundUpdateIndex, isNot(-1));
@@ -44,7 +46,7 @@ void main() {
         playlistBranchIndex,
       );
       final playByIndexIndex = block.indexOf(
-        '"playByIndex"',
+        '_playbackCommands.playByIndex',
         awaitQueueUpdateIndex,
       );
 
@@ -57,9 +59,13 @@ void main() {
     test('playlist playback updates queue before playByIndex', () {
       final block = _methodBlock(source, 'playPlayListSong');
       final panelIndex = block.indexOf('await _playerPanelCheck();');
-      final updateQueueIndex = block.indexOf('await _audioHandler.updateQueue');
-      final shuffleIndex = block.indexOf('"shuffleCmd"');
-      final playByIndexIndex = block.indexOf('"playByIndex"');
+      final updateQueueIndex = block.indexOf(
+        'await _playbackCommands.updateQueue',
+      );
+      final shuffleIndex = block.indexOf(
+        'await _playbackCommands.shuffleFromIndex',
+      );
+      final playByIndexIndex = block.indexOf('_playbackCommands.playByIndex');
 
       expect(panelIndex, isNot(-1));
       expect(updateQueueIndex, isNot(-1));
@@ -102,6 +108,21 @@ void main() {
         _methodBlock(source, 'requestSeek'),
         contains('_runPlaybackCommand'),
       );
+    });
+
+    test('playback commands are delegated through command service', () {
+      expect(
+        source,
+        contains('required PlaybackCommandService playbackCommands'),
+      );
+      expect(
+        source,
+        contains('final PlaybackCommandService _playbackCommands;'),
+      );
+      expect(source, contains('_playbackCommands.play()'));
+      expect(source, contains('_playbackCommands.pause()'));
+      expect(source, contains('_playbackCommands.toggleShuffle('));
+      expect(source, contains('_playbackCommands.playByIndex'));
     });
 
     test('playback command runner intentionally discards command futures', () {
@@ -161,6 +182,46 @@ void main() {
       expect(disposeBlock, contains('_setPlaybackWakeLock(false)'));
     });
 
+    test('completion state does not race audio handler queue advancement', () {
+      final listenerBlock = _methodBlock(
+        source,
+        '_listenForChangesInPlayerState',
+      );
+
+      expect(listenerBlock, contains('AudioProcessingState.completed'));
+      expect(listenerBlock, isNot(contains('_playbackCommands.seek')));
+      expect(listenerBlock, isNot(contains('_playbackCommands.pause')));
+    });
+
+    test('source handoff shows loading button until new source starts', () {
+      final playerStateBlock = _methodBlock(
+        source,
+        '_listenForChangesInPlayerState',
+      );
+      final durationBlock = _methodBlock(source, '_listenForChangesInDuration');
+      final bufferedBlock = _methodBlock(
+        source,
+        '_listenForChangesInBufferedPosition',
+      );
+      final readyStartBlock = _methodBlock(source, '_isReadySourceStart');
+
+      expect(playerStateBlock, contains('_isWaitingForCurrentSourceStart'));
+      expect(playerStateBlock, contains('_isReadySourceStart(playerState)'));
+      expect(
+        readyStartBlock,
+        contains('_isSourceStartPosition(playbackState.updatePosition)'),
+      );
+      expect(
+        playerStateBlock,
+        contains('_setButtonState(PlayButtonState.loading)'),
+      );
+      expect(durationBlock, contains('_beginPendingSourceStart(mediaItem.id)'));
+      expect(
+        bufferedBlock,
+        contains('_setButtonState(PlayButtonState.playing)'),
+      );
+    });
+
     test('media item listener only clears lyrics when song changes', () {
       final block = _methodBlock(source, '_listenForChangesInDuration');
 
@@ -171,6 +232,54 @@ void main() {
       );
       expect(block, contains('if (!isSameSong)'));
       expect(block, contains('_clearLyricsForSongChange();'));
+    });
+
+    test(
+      'song changes reset progress without mixing old position and new total',
+      () {
+        final block = _methodBlock(source, '_listenForChangesInDuration');
+
+        expect(source, contains('String? _pendingPlaybackStartSongId;'));
+        expect(block, contains('_beginPendingSourceStart(mediaItem.id);'));
+        expect(block, contains('val.current = isSameSong'));
+        expect(block, contains(': Duration.zero;'));
+        expect(
+          block,
+          contains('_clampProgressPosition(val.current, val.total)'),
+        );
+        expect(block, isNot(contains('val.current = oldState.current;')));
+      },
+    );
+
+    test('stale position ticks are ignored until new source starts', () {
+      final positionBlock = _methodBlock(source, '_listenForChangesInPosition');
+      final bufferedBlock = _methodBlock(
+        source,
+        '_listenForChangesInBufferedPosition',
+      );
+      final readyStartBlock = _methodBlock(source, '_isReadySourceStart');
+      final clampBlock = _methodBlock(source, '_clampProgressPosition');
+
+      expect(positionBlock, contains('if (_isWaitingForCurrentSourceStart)'));
+      expect(positionBlock, contains('_isReadySourceStart(playbackState)'));
+      expect(positionBlock, contains('_isSourceStartPosition(position)'));
+      expect(positionBlock, contains('_clampProgressPosition(position'));
+      expect(readyStartBlock, contains('AudioProcessingState.ready'));
+      expect(readyStartBlock, contains('playbackState.playing'));
+      expect(
+        readyStartBlock,
+        contains('_isSourceStartPosition(playbackState.updatePosition)'),
+      );
+      expect(bufferedBlock, contains('_isReadySourceStart(playbackState)'));
+      expect(
+        bufferedBlock,
+        contains(
+          'if (_isWaitingForCurrentSourceStart && !startedPendingSource) return;',
+        ),
+      );
+      expect(bufferedBlock, isNot(contains('val.current = oldState.current;')));
+      expect(clampBlock, contains('position > total'));
+      expect(clampBlock, contains('return total;'));
     });
 
     test('same-song replay preserves visible lyrics state', () {
@@ -213,6 +322,77 @@ void main() {
       expect(block, contains('showLyricsFlag.value = false;'));
       expect(block, contains('isLyricsLoading.value = false;'));
     });
+
+    test('observable player state bubbles to parent listeners', () {
+      final block = _methodBlock(source, '_bindObservableState');
+
+      expect(block, contains('watchList(currentQueue);'));
+      expect(block, contains('watchValue(currentSong);'));
+      expect(block, contains('watchValue(playerPanelMinHeight);'));
+      expect(block, contains('watchValue(buttonState);'));
+      expect(block, contains('watchMap(lyrics);'));
+      expect(block, contains('_notifyPlayerChanged()'));
+    });
+
+    test('high-frequency progress updates do not repaint whole player', () {
+      final bindingBlock = _methodBlock(source, '_bindObservableState');
+      final positionBlock = _methodBlock(source, '_listenForChangesInPosition');
+      final bufferedBlock = _methodBlock(
+        source,
+        '_listenForChangesInBufferedPosition',
+      );
+
+      expect(bindingBlock, isNot(contains('watchValue(progressBarStatus);')));
+      expect(positionBlock, isNot(contains('notifyListeners();')));
+      expect(bufferedBlock, isNot(contains('notifyListeners();')));
+      expect(positionBlock, contains('progressBarStatus.update'));
+      expect(bufferedBlock, contains('progressBarStatus.update'));
+    });
+
+    test('mini player progress bar clamps progress fraction', () {
+      final miniProgressSource = File(
+        'lib/ui/widgets/mini_player_progress_bar.dart',
+      ).readAsStringSync();
+
+      expect(miniProgressSource, contains('progressFraction'));
+      expect(miniProgressSource, contains('total.inMilliseconds'));
+      expect(miniProgressSource, contains('clamp(0.0, 1.0)'));
+      expect(
+        miniProgressSource,
+        isNot(contains('current.inSeconds / total.inSeconds')),
+      );
+    });
+
+    test('miniplayer height is repaired and announced on first play', () {
+      final block = _methodBlock(source, '_playerPanelCheck');
+
+      expect(
+        block,
+        contains('initFlagForPlayer || playerPanelMinHeight.value == 0'),
+      );
+      expect(block, contains('playerPanelMinHeight.value ='));
+      expect(block, contains('initFlagForPlayer = false;'));
+      expect(block, contains('_notifyPlayerChanged();'));
+    });
+
+    test('miniplayer height is set before auto-opening player panel', () {
+      final block = _methodBlock(source, '_playerPanelCheck');
+      final minHeightIndex = block.indexOf('playerPanelMinHeight.value =');
+      final openIndex = block.indexOf('await playerPanelController.open();');
+
+      expect(minHeightIndex, isNot(-1));
+      expect(openIndex, isNot(-1));
+      expect(minHeightIndex, lessThan(openIndex));
+    });
+
+    test('observable subscriptions are cleaned up with the controller', () {
+      final block = _methodBlock(source, 'dispose');
+
+      expect(block, contains('_disposed = true;'));
+      expect(block, contains('_observableSubscriptions'));
+      expect(block, contains('subscription.cancel()'));
+      expect(block, contains('_observableSubscriptions.clear();'));
+    });
   });
 }
 
@@ -222,6 +402,12 @@ String _methodBlock(String source, String methodName) {
   var methodStart = source.indexOf('Future<void> $methodName(');
   if (methodStart == -1) {
     methodStart = source.indexOf('void $methodName(');
+  }
+  if (methodStart == -1) {
+    methodStart = source.indexOf('Duration $methodName(');
+  }
+  if (methodStart == -1) {
+    methodStart = source.indexOf('bool $methodName(');
   }
   expect(methodStart, isNot(-1), reason: 'Missing $methodName');
   final bodyStart = _methodBodyStart(source, methodStart);

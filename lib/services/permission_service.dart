@@ -1,10 +1,11 @@
-import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
+
 import '/native_bindings/andrid_utils.dart';
+import '../utils/platform_utils.dart';
 
 class PermissionService {
   static Future<bool> getExtStoragePermission() async {
-    if (GetPlatform.isDesktop) {
+    if (isDesktopPlatform) {
       return Future.value(true);
     }
     if (SDKInt.Companion.sDKInt < 30) {

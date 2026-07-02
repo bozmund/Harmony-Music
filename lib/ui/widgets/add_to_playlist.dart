@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
+import '../../app/providers/repository_providers.dart';
+import '../../app/providers/service_providers.dart';
 import '../../domain/repositories/playlist_repository.dart';
 import '../../services/piped_service.dart';
 import '../../utils/helper.dart';
@@ -15,14 +18,38 @@ import 'snackbar.dart';
 
 enum PlaylistAddStatus { added, skipped, failed }
 
-class AddToPlaylist extends StatelessWidget {
+class AddToPlaylist extends ConsumerStatefulWidget {
   const AddToPlaylist(this.songItems, {super.key});
   final List<MediaItem> songItems;
 
   @override
+  ConsumerState<AddToPlaylist> createState() => _AddToPlaylistState();
+}
+
+class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
+  late final AddToPlaylistController addToPlaylistController;
+  late final bool isPipedLinked;
+
+  @override
+  void initState() {
+    super.initState();
+    final pipedServices = ref.read(pipedServicesProvider);
+    isPipedLinked = pipedServices.isLoggedIn;
+    addToPlaylistController = AddToPlaylistController(
+      playlistRepository: ref.read(playlistRepositoryProvider),
+      pipedServices: pipedServices,
+    );
+    unawaited(addToPlaylistController.loadPlaylists());
+  }
+
+  @override
+  void dispose() {
+    addToPlaylistController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final addToPlaylistController = Get.put(AddToPlaylistController());
-    final isPipedLinked = Get.find<PipedServices>().isLoggedIn;
     return CommonDialog(
       child: Container(
         height: isPipedLinked ? 400 : 350,
@@ -64,7 +91,7 @@ class AddToPlaylist extends StatelessWidget {
                             context: context,
                             builder: (context) => CreateNRenamePlaylistPopup(
                               isCreateNAdd: true,
-                              songItems: songItems,
+                              songItems: widget.songItems,
                             ),
                           );
                         },
@@ -78,12 +105,13 @@ class AddToPlaylist extends StatelessWidget {
                   ),
                 ),
                 if (isPipedLinked)
-                  Obx(
-                    () => RadioGroup<String>(
+                  AnimatedBuilder(
+                    animation: addToPlaylistController,
+                    builder: (context, _) => RadioGroup<String>(
                       groupValue: addToPlaylistController.playlistType.value,
                       onChanged: (value) {
                         if (value == null ||
-                            addToPlaylistController.additionInProgress.isTrue) {
+                            addToPlaylistController.additionInProgress.value) {
                           return;
                         }
                         unawaited(
@@ -92,10 +120,10 @@ class AddToPlaylist extends StatelessWidget {
                       },
                       child: IgnorePointer(
                         ignoring:
-                            addToPlaylistController.additionInProgress.isTrue,
+                            addToPlaylistController.additionInProgress.value,
                         child: Opacity(
                           opacity:
-                              addToPlaylistController.additionInProgress.isTrue
+                              addToPlaylistController.additionInProgress.value
                               ? 0.55
                               : 1,
                           child: Row(
@@ -127,8 +155,10 @@ class AddToPlaylist extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     //color: Colors.green,
-                    child: Obx(
-                      () => addToPlaylistController.playlists.isNotEmpty
+                    child: AnimatedBuilder(
+                      animation: addToPlaylistController,
+                      builder: (context, _) =>
+                          addToPlaylistController.playlists.isNotEmpty
                           ? ListView.builder(
                               padding: EdgeInsets.zero,
                               itemCount:
@@ -136,84 +166,80 @@ class AddToPlaylist extends StatelessWidget {
                               itemBuilder: (context, index) {
                                 final playlist =
                                     addToPlaylistController.playlists[index];
-                                return Obx(() {
-                                  final isMembershipLoaded =
-                                      addToPlaylistController
-                                          .isPlaylistMembershipLoaded(
-                                            playlist.playlistId,
-                                          );
-                                  final isMembershipLoading =
-                                      addToPlaylistController
-                                          .isPlaylistMembershipLoading(
-                                            playlist.playlistId,
-                                          );
-                                  final isDisabled =
-                                      isMembershipLoaded &&
-                                      addToPlaylistController
-                                          .isPlaylistDisabled(
-                                            playlist.playlistId,
-                                            songItems,
-                                          );
-                                  final isAdding = addToPlaylistController
-                                      .isPlaylistAdding(playlist.playlistId);
-                                  final canAdd =
-                                      !isDisabled &&
-                                      !isAdding &&
-                                      !isMembershipLoading;
-                                  return Opacity(
-                                    opacity: isDisabled ? 0.55 : 1,
-                                    child: Material(
-                                      type: MaterialType.transparency,
-                                      child: ListTile(
-                                        enabled: canAdd,
-                                        leading: isAdding || isMembershipLoading
-                                            ? const SizedBox.square(
-                                                dimension: 20,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                              )
-                                            : Icon(
-                                                isDisabled
-                                                    ? Icons.check_circle
-                                                    : Icons.add_circle_outline,
+                                final isMembershipLoaded =
+                                    addToPlaylistController
+                                        .isPlaylistMembershipLoaded(
+                                          playlist.playlistId,
+                                        );
+                                final isMembershipLoading =
+                                    addToPlaylistController
+                                        .isPlaylistMembershipLoading(
+                                          playlist.playlistId,
+                                        );
+                                final isDisabled =
+                                    isMembershipLoaded &&
+                                    addToPlaylistController.isPlaylistDisabled(
+                                      playlist.playlistId,
+                                      widget.songItems,
+                                    );
+                                final isAdding = addToPlaylistController
+                                    .isPlaylistAdding(playlist.playlistId);
+                                final canAdd =
+                                    !isDisabled &&
+                                    !isAdding &&
+                                    !isMembershipLoading;
+                                return Opacity(
+                                  opacity: isDisabled ? 0.55 : 1,
+                                  child: Material(
+                                    type: MaterialType.transparency,
+                                    child: ListTile(
+                                      enabled: canAdd,
+                                      leading: isAdding || isMembershipLoading
+                                          ? const SizedBox.square(
+                                              dimension: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
                                               ),
-                                        title: Text(playlist.title),
-                                        onTap: canAdd
-                                            ? () async {
-                                                final result =
-                                                    await addToPlaylistController
-                                                        .addSongsToPlaylist(
-                                                          songItems,
-                                                          playlist.playlistId,
-                                                        );
-                                                if (!context.mounted) return;
-                                                final message =
-                                                    result ==
-                                                        PlaylistAddStatus.added
-                                                    ? "songAddedToPlaylistAlert"
-                                                          .tr
-                                                    : result ==
-                                                          PlaylistAddStatus
-                                                              .skipped
-                                                    ? "songAlreadyExists".tr
-                                                    : "errorOccurredAlert".tr;
-                                                ScaffoldMessenger.of(
+                                            )
+                                          : Icon(
+                                              isDisabled
+                                                  ? Icons.check_circle
+                                                  : Icons.add_circle_outline,
+                                            ),
+                                      title: Text(playlist.title),
+                                      onTap: canAdd
+                                          ? () async {
+                                              final result =
+                                                  await addToPlaylistController
+                                                      .addSongsToPlaylist(
+                                                        widget.songItems,
+                                                        playlist.playlistId,
+                                                      );
+                                              if (!context.mounted) return;
+                                              final message =
+                                                  result ==
+                                                      PlaylistAddStatus.added
+                                                  ? "songAddedToPlaylistAlert"
+                                                        .tr
+                                                  : result ==
+                                                        PlaylistAddStatus
+                                                            .skipped
+                                                  ? "songAlreadyExists".tr
+                                                  : "errorOccurredAlert".tr;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                snackbar(
                                                   context,
-                                                ).showSnackBar(
-                                                  snackbar(
-                                                    context,
-                                                    message,
-                                                    size: SanckBarSize.MEDIUM,
-                                                  ),
-                                                );
-                                              }
-                                            : null,
-                                      ),
+                                                  message,
+                                                  size: SanckBarSize.MEDIUM,
+                                                ),
+                                              );
+                                            }
+                                          : null,
                                     ),
-                                  );
-                                });
+                                  ),
+                                );
                               },
                             )
                           : Center(child: Text("noLibPlaylist".tr)),
@@ -222,9 +248,10 @@ class AddToPlaylist extends StatelessWidget {
                 ),
               ],
             ),
-            Obx(
-              () =>
-                  (addToPlaylistController.additionInProgress.isTrue &&
+            AnimatedBuilder(
+              animation: addToPlaylistController,
+              builder: (context, _) =>
+                  (addToPlaylistController.additionInProgress.value &&
                       isPipedLinked)
                   ? const Positioned(
                       top: 60,
@@ -247,32 +274,35 @@ class AddToPlaylist extends StatelessWidget {
   }
 }
 
-class AddToPlaylistController extends GetxController {
-  AddToPlaylistController({PlaylistRepository? playlistRepository})
-    : _playlistRepository =
-          playlistRepository ?? Get.find<PlaylistRepository>();
+class AddToPlaylistController extends ChangeNotifier {
+  AddToPlaylistController({
+    required PlaylistRepository playlistRepository,
+    required PipedServices pipedServices,
+  }) : _playlistRepository = playlistRepository,
+       _pipedServices = pipedServices;
 
   final PlaylistRepository _playlistRepository;
-  final RxList<Playlist> playlists = RxList();
-  final playlistType = "local".obs;
-  final additionInProgress = false.obs;
-  final playlistSongIds = <String, Set<String>>{}.obs;
-  final addingPlaylistIds = <String>{}.obs;
-  final loadingMembershipPlaylistIds = <String>{}.obs;
+  final PipedServices _pipedServices;
+  final playlists = <Playlist>[];
+  final playlistType = ValueNotifier("local");
+  final additionInProgress = ValueNotifier(false);
+  final playlistSongIds = <String, Set<String>>{};
+  final addingPlaylistIds = <String>{};
+  final loadingMembershipPlaylistIds = <String>{};
   List<Playlist> localPlaylists = [];
   List<Playlist> pipedPlaylists = [];
-  @override
-  Future<void> onInit() async {
-    super.onInit();
-    await _getAllPlaylist();
-  }
 
-  Future<void> _getAllPlaylist() async {
-    playlists.value = (await _playlistRepository.getPlaylists())
-        .where((playlist) => !playlist.isCloudPlaylist)
-        .toList();
+  Future<void> loadPlaylists() async {
+    playlists
+      ..clear()
+      ..addAll(
+        (await _playlistRepository.getPlaylists()).where(
+          (playlist) => !playlist.isCloudPlaylist,
+        ),
+      );
     localPlaylists = playlists.toList();
-    final res = await Get.find<PipedServices>().getAllPlaylists();
+    notifyListeners();
+    final res = await _pipedServices.getAllPlaylists();
     if (res.code == 1) {
       pipedPlaylists = res.response
           .map(
@@ -287,11 +317,15 @@ class AddToPlaylistController extends GetxController {
           .whereType<Playlist>()
           .toList();
     }
+    notifyListeners();
   }
 
   Future<void> changePlaylistType(String val) async {
     playlistType.value = val;
-    playlists.value = val == "piped" ? pipedPlaylists : localPlaylists;
+    playlists
+      ..clear()
+      ..addAll(val == "piped" ? pipedPlaylists : localPlaylists);
+    notifyListeners();
   }
 
   bool isPlaylistAdding(String playlistId) {
@@ -320,12 +354,14 @@ class AddToPlaylistController extends GetxController {
 
   void updatePlaylistMembership(String playlistId, Iterable<String> songIds) {
     playlistSongIds[playlistId] = songIds.toSet();
+    notifyListeners();
   }
 
   void markSongsAddedToPlaylist(String playlistId, Iterable<MediaItem> songs) {
     final ids = {...playlistSongIds[playlistId] ?? <String>{}};
     ids.addAll(songs.map((song) => song.id));
     playlistSongIds[playlistId] = ids;
+    notifyListeners();
   }
 
   void markSongsRemovedFromPlaylist(
@@ -337,6 +373,7 @@ class AddToPlaylistController extends GetxController {
     final updatedIds = {...ids};
     updatedIds.removeAll(songs.map((song) => song.id));
     playlistSongIds[playlistId] = updatedIds;
+    notifyListeners();
   }
 
   Future<PlaylistAddStatus> addSongsToPlaylist(
@@ -358,6 +395,7 @@ class AddToPlaylistController extends GetxController {
 
     additionInProgress.value = true;
     addingPlaylistIds.add(playlistId);
+    notifyListeners();
     try {
       if (selectedPlaylistType == "local") {
         final actuallyAddedSongs = await _addLocalMissingSongs(
@@ -369,10 +407,7 @@ class AddToPlaylistController extends GetxController {
         return PlaylistAddStatus.added;
       } else {
         final videosId = missingSongs.map((e) => e.id).toList();
-        final res = await Get.find<PipedServices>().addToPlaylist(
-          playlistId,
-          videosId,
-        );
+        final res = await _pipedServices.addToPlaylist(playlistId, videosId);
         if (res.code != 1) {
           return PlaylistAddStatus.failed;
         }
@@ -388,6 +423,7 @@ class AddToPlaylistController extends GetxController {
     } finally {
       addingPlaylistIds.remove(playlistId);
       additionInProgress.value = addingPlaylistIds.isNotEmpty;
+      notifyListeners();
     }
   }
 
@@ -426,6 +462,7 @@ class AddToPlaylistController extends GetxController {
       return false;
     }
     loadingMembershipPlaylistIds.add(playlistId);
+    notifyListeners();
     try {
       if ((playlistTypeOverride ?? playlistType.value) == "local") {
         updatePlaylistMembership(
@@ -433,9 +470,7 @@ class AddToPlaylistController extends GetxController {
           await _readLocalPlaylistSongIds(playlistId),
         );
       } else {
-        final songs = await Get.find<PipedServices>().getPlaylistSongs(
-          playlistId,
-        );
+        final songs = await _pipedServices.getPlaylistSongs(playlistId);
         updatePlaylistMembership(playlistId, songs.map((song) => song.id));
       }
       return true;
@@ -447,10 +482,18 @@ class AddToPlaylistController extends GetxController {
       return false;
     } finally {
       loadingMembershipPlaylistIds.remove(playlistId);
+      notifyListeners();
     }
   }
 
   Future<Set<String>> _readLocalPlaylistSongIds(String playlistId) async {
     return _playlistRepository.getPlaylistSongIds(playlistId);
+  }
+
+  @override
+  void dispose() {
+    playlistType.dispose();
+    additionInProgress.dispose();
+    super.dispose();
   }
 }

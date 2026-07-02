@@ -3,19 +3,20 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
+import '../../app/providers/controller_providers.dart';
 import '../../models/playlist.dart';
-import '../player/player_controller.dart';
-import '../screens/Settings/settings_screen_controller.dart';
+import '../../utils/runtime_platform.dart';
 import 'add_to_playlist.dart';
 import 'image_widget.dart';
 import 'snackbar.dart';
 import 'song_info_bottom_sheet.dart';
 
-class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
+class SongListTile extends ConsumerWidget with RemoveSongFromPlaylistMixin {
   const SongListTile({
     super.key,
     this.onTap,
@@ -36,8 +37,9 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
   final int? index;
 
   @override
-  Widget build(BuildContext context) {
-    final playerController = Get.find<PlayerController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerController = ref.read(playerControllerProvider);
+    final settingsController = ref.watch(settingsScreenControllerProvider);
     return Listener(
       onPointerDown: (PointerDownEvent event) async {
         if (event.buttons == kSecondaryMouseButton) {
@@ -51,12 +53,11 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
             context: playerController.homeScaffoldKey.currentState!.context,
             barrierColor: Colors.transparent.withAlpha(100),
             builder: (context) => SongInfoBottomSheet(song, playlist: playlist),
-          ).whenComplete(() => Get.delete<SongInfoController>());
+          );
         }
       },
       child: Slidable(
-        enabled:
-            Get.find<SettingsScreenController>().slidableActionEnabled.isTrue,
+        enabled: settingsController.slidableActionEnabled.value,
         startActionPane: ActionPane(
           motion: const DrawerMotion(),
           children: [
@@ -65,7 +66,7 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
                 await showDialog(
                   context: context,
                   builder: (context) => AddToPlaylist([song]),
-                ).whenComplete(() => Get.delete<AddToPlaylistController>());
+                );
               },
               backgroundColor: Theme.of(context).colorScheme.secondary,
               foregroundColor: Theme.of(context).textTheme.titleMedium!.color,
@@ -137,11 +138,10 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
               ),
               isScrollControlled: true,
               context: playerController.homeScaffoldKey.currentState!.context,
-              //constraints: BoxConstraints(maxHeight:Get.height),
               barrierColor: Colors.transparent.withAlpha(100),
               builder: (context) =>
                   SongInfoBottomSheet(song, playlist: playlist),
-            ).whenComplete(() => Get.delete<SongInfoController>());
+            );
           },
           contentPadding: const EdgeInsets.only(top: 0, left: 5, right: 30),
           leading: thumbReplacementWithIndex
@@ -172,7 +172,7 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
             style: Theme.of(context).textTheme.titleSmall,
           ),
           trailing: SizedBox(
-            width: Get.size.width > 800 ? 80 : 40,
+            width: MediaQuery.sizeOf(context).width > 800 ? 80 : 40,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -180,8 +180,10 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (isPlaylistOrAlbum)
-                      Obx(
-                        () => playerController.currentSong.value?.id == song.id
+                      AnimatedBuilder(
+                        animation: playerController.currentSong,
+                        builder: (context, _) =>
+                            playerController.currentSong.value?.id == song.id
                             ? const Icon(Icons.equalizer)
                             : const SizedBox.shrink(),
                       ),
@@ -191,7 +193,7 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
                     ),
                   ],
                 ),
-                if (GetPlatform.isDesktop)
+                if (RuntimePlatform.isDesktop)
                   IconButton(
                     splashRadius: 20,
                     onPressed: () async {
@@ -207,11 +209,10 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
                             .homeScaffoldKey
                             .currentState!
                             .context,
-                        //constraints: BoxConstraints(maxHeight:Get.height),
                         barrierColor: Colors.transparent.withAlpha(100),
                         builder: (context) =>
                             SongInfoBottomSheet(song, playlist: playlist),
-                      ).whenComplete(() => Get.delete<SongInfoController>());
+                      );
                     },
                     icon: const Icon(Icons.more_vert),
                   ),

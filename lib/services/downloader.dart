@@ -4,26 +4,32 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:path_provider/path_provider.dart';
 
+import '../app/navigation/app_navigator.dart';
 import '../domain/repositories/download_repository.dart';
+import '../domain/repositories/settings_repository.dart';
+import '../utils/runtime_platform.dart';
+import '../utils/observable_state.dart';
 import '/services/constant.dart';
+import '/services/crash_diagnostics_service.dart';
 import '/services/app_contracts.dart';
 import '../ui/screens/Album/album_screen_controller.dart';
 import '../ui/screens/Playlist/playlist_screen_controller.dart';
 import '/services/stream_service.dart';
 import '../ui/widgets/snackbar.dart';
 import '/services/permission_service.dart';
-import '../ui/screens/Settings/settings_screen_controller.dart';
 import '/utils/helper.dart';
 import '/models/media_Item_builder.dart';
 import '../ui/screens/Library/library_controller.dart';
 //import '../models/thumbnail.dart' as th;
 
-class Downloader extends GetxService implements DownloaderContract {
-  Downloader(this._downloadRepository);
+class Downloader extends ChangeNotifier implements DownloaderContract {
+  Downloader(this._downloadRepository, this._settingsRepository);
 
   final DownloadRepository _downloadRepository;
+  final SettingsRepository _settingsRepository;
 
   final _dio = Dio(
     BaseOptions(
@@ -34,15 +40,14 @@ class Downloader extends GetxService implements DownloaderContract {
   );
   @override
   MediaItem? currentSong;
-  RxMap<String, List<MediaItem>> playlistQueue =
-      <String, List<MediaItem>>{}.obs;
-  final currentPlaylistId = "".obs;
-  final songDownloadingProgress = 0.obs;
-  final playlistDownloadingProgress = 0.obs;
-  final isJobRunning = false.obs;
-  final currentDownloadPhase = "".obs;
-  final currentDownloadDebugMessage = "".obs;
-  final lastDownloadError = "".obs;
+  ObservableMap<String, List<MediaItem>> playlistQueue = ObservableMap();
+  final currentPlaylistId = ObservableValue("");
+  final songDownloadingProgress = ObservableValue(0);
+  final playlistDownloadingProgress = ObservableValue(0);
+  final isJobRunning = ObservableValue(false);
+  final currentDownloadPhase = ObservableValue("");
+  final currentDownloadDebugMessage = ObservableValue("");
+  final lastDownloadError = ObservableValue("");
   CancelToken? _activeCancelToken;
 
   static const _streamFetchTimeout = Duration(seconds: 45);
@@ -51,18 +56,20 @@ class Downloader extends GetxService implements DownloaderContract {
   static const _audioDownloadMaxAttempts = 3;
   static const _playlistDownloadDelay = Duration(seconds: 1);
 
-  RxList<MediaItem> songQueue = <MediaItem>[].obs;
+  ObservableList<MediaItem> songQueue = ObservableList();
+
+  void _notifyDownloaderChanged() {
+    notifyListeners();
+  }
 
   Future<bool> checkPermissionNDir() async {
-    final settingsScreenController = Get.find<SettingsScreenController>();
-
-    if (!settingsScreenController.isCurrentPathSupportDownloadDir &&
+    final supportDownloadDir = await _supportDownloadDirPath();
+    final dirPath = await _downloadLocationPath();
+    if (dirPath != supportDownloadDir &&
         !await PermissionService.getExtStoragePermission()) {
       return false;
     }
 
-    final dirPath =
-        Get.find<SettingsScreenController>().downloadLocationPath.string;
     final directory = Directory(dirPath);
     if (!await directory.exists()) {
       await directory.create(recursive: true);
@@ -81,6 +88,7 @@ class Downloader extends GetxService implements DownloaderContract {
     if (playlistQueue.containsKey(playlistId)) {
       songQueue.removeWhere((element) => songList.contains(element));
       playlistQueue.remove(playlistId);
+      _notifyDownloaderChanged();
       if (currentSong != null && songList.contains(currentSong)) {
         _cancelActiveDownload("Playlist download cancelled");
       }
@@ -89,8 +97,9 @@ class Downloader extends GetxService implements DownloaderContract {
 
     playlistQueue[playlistId] = songList;
     songQueue.addAll(songList);
+    _notifyDownloaderChanged();
 
-    if (isJobRunning.isFalse) {
+    if (!isJobRunning.value) {
       await triggerDownloadingJob();
     }
   }
@@ -106,15 +115,17 @@ class Downloader extends GetxService implements DownloaderContract {
     } else {
       songQueue.add(song!);
     }
-    if (isJobRunning.isFalse) {
+    _notifyDownloaderChanged();
+    if (!isJobRunning.value) {
       await triggerDownloadingJob();
     }
   }
 
   Future<void> triggerDownloadingJob() async {
-    if (isJobRunning.isTrue) return;
+    if (isJobRunning.value) return;
 
     isJobRunning.value = true;
+    _notifyDownloaderChanged();
     try {
       while (playlistQueue.isNotEmpty || songQueue.isNotEmpty) {
         //check if playlist download in queue => download playlist/songs else download from general songs queue
@@ -123,31 +134,34 @@ class Downloader extends GetxService implements DownloaderContract {
             //checked in case download cancel request
             if (playlistQueue.containsKey(playlistId)) {
               currentPlaylistId.value = playlistId;
+              _notifyDownloaderChanged();
               await downloadSongList(
                 (playlistQueue[playlistId]!).toList(),
                 isPlaylist: true,
               );
-              if (Get.isRegistered<PlaylistScreenController>(
-                    tag: Key(playlistId).hashCode.toString(),
-                  ) &&
+              final playlistController =
+                  PlaylistScreenControllerRegistry.maybeOf(
+                    Key(playlistId).hashCode.toString(),
+                  );
+              if (playlistController != null &&
                   playlistQueue.containsKey(playlistId)) {
-                Get.find<PlaylistScreenController>(
-                  tag: Key(playlistId).hashCode.toString(),
-                ).isDownloaded.value = true;
+                playlistController.isDownloaded.value = true;
               }
               // in case of album
-              else if (Get.isRegistered<AlbumScreenController>(
-                    tag: Key(playlistId).hashCode.toString(),
-                  ) &&
-                  playlistQueue.containsKey(playlistId)) {
-                Get.find<AlbumScreenController>(
-                  tag: Key(playlistId).hashCode.toString(),
-                ).isDownloaded.value = true;
+              else {
+                final albumController = AlbumScreenControllerRegistry.maybeOf(
+                  Key(playlistId).hashCode.toString(),
+                );
+                if (albumController != null &&
+                    playlistQueue.containsKey(playlistId)) {
+                  albumController.isDownloaded.value = true;
+                }
               }
               playlistQueue.remove(playlistId);
             }
             currentPlaylistId.value = "";
             playlistDownloadingProgress.value = 0;
+            _notifyDownloaderChanged();
           }
         } else {
           await downloadSongList(songQueue.toList());
@@ -164,6 +178,7 @@ class Downloader extends GetxService implements DownloaderContract {
       currentDownloadPhase.value = "";
       currentDownloadDebugMessage.value = "";
       _activeCancelToken = null;
+      _notifyDownloaderChanged();
     }
   }
 
@@ -176,12 +191,14 @@ class Downloader extends GetxService implements DownloaderContract {
       if (isPlaylist && !playlistQueue.containsKey(currentPlaylistId.value)) {
         currentPlaylistId.value = "";
         playlistDownloadingProgress.value = 0;
+        _notifyDownloaderChanged();
         return;
       }
 
       if (!await _downloadRepository.containsDownload(song.id)) {
         currentSong = song;
         songDownloadingProgress.value = 0;
+        _notifyDownloaderChanged();
         try {
           await writeFileStream(song);
         } on DioException catch (e, stackTrace) {
@@ -199,9 +216,11 @@ class Downloader extends GetxService implements DownloaderContract {
         }
       }
       songQueue.remove(song);
+      _notifyDownloaderChanged();
       //for playlist downloading counter update
       if (isPlaylist) {
         playlistDownloadingProgress.value = jobSongList.indexOf(song) + 1;
+        _notifyDownloaderChanged();
       }
       if (isPlaylist &&
           playlistQueue.containsKey(currentPlaylistId.value) &&
@@ -214,8 +233,7 @@ class Downloader extends GetxService implements DownloaderContract {
   Future<void> writeFileStream(MediaItem song) async {
     final traceId = "${song.id}-${DateTime.now().millisecondsSinceEpoch}";
     final stopwatch = Stopwatch()..start();
-    final settingsScreenController = Get.find<SettingsScreenController>();
-    final downloadingFormat = settingsScreenController.downloadingFormat.string;
+    final downloadingFormat = _settingsRepository.getDownloadingFormat();
 
     _setPhase("resolvingStream", "Resolving stream", song, traceId);
     final playerResponse = await StreamProvider.fetch(
@@ -227,6 +245,7 @@ class Downloader extends GetxService implements DownloaderContract {
       currentDownloadDebugMessage.value = "Stream not playable";
       lastDownloadError.value =
           "${song.title}: ${playerResponse.statusMSG == "networkError" ? playerResponse.statusMSG.tr : playerResponse.statusMSG}";
+      _notifyDownloaderChanged();
       _showDownloadError(
         song,
         playerResponse.statusMSG == "networkError"
@@ -250,7 +269,7 @@ class Downloader extends GetxService implements DownloaderContract {
       );
     }
 
-    final dirPath = settingsScreenController.downloadLocationPath.string;
+    final dirPath = await _downloadLocationPath();
     final actualDownFormat = requiredAudioStream.audioCodec.name.contains("mp")
         ? "m4a"
         : "opus";
@@ -274,7 +293,7 @@ class Downloader extends GetxService implements DownloaderContract {
     try {
       _setPhase("savingThumbnail", "Saving thumbnail", song, traceId);
       final thumbnailPath =
-          "${settingsScreenController.supportDirPath}/thumbnails/${song.id}.png";
+          "${(await getApplicationSupportDirectory()).path}/thumbnails/${song.id}.png";
       await _dio
           .downloadUri(song.artUri!, thumbnailPath)
           .timeout(_thumbnailDownloadTimeout);
@@ -304,11 +323,13 @@ class Downloader extends GetxService implements DownloaderContract {
       "[$traceId] Saved download metadata for ${song.id}; streamInfo=${songJson["streamInfo"] != null}",
       tag: LogTags.downloader,
     );
-    Get.find<LibrarySongsController>().addSongToLibraryList(downloadedSong);
+    LibrarySongsControllerRegistry.current?.addSongToLibraryList(
+      downloadedSong,
+    );
     try {
-      await Get.find<PlaylistScreenController>(
-        tag: const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
-      ).addNRemoveItemsInList(song, action: 'remove');
+      await PlaylistScreenControllerRegistry.maybeOf(
+        const Key(BoxNames.libFavNotDownloaded).hashCode.toString(),
+      )?.addNRemoveItemsInList(song, action: 'remove');
       // ignore: empty_catches
     } catch (e) {}
 
@@ -319,6 +340,13 @@ class Downloader extends GetxService implements DownloaderContract {
     );
   }
 
+  Future<String> _supportDownloadDirPath() async =>
+      "${(await getApplicationSupportDirectory()).path}/Music";
+
+  Future<String> _downloadLocationPath() async =>
+      _settingsRepository.getDownloadLocationPath() ??
+      await _supportDownloadDirPath();
+
   @override
   void cancelSongDownload(MediaItem song) {
     songQueue.remove(song);
@@ -328,6 +356,7 @@ class Downloader extends GetxService implements DownloaderContract {
         playlistQueue.remove(playlistId);
       }
     }
+    _notifyDownloaderChanged();
     if (currentSong == song) {
       _cancelActiveDownload("Song download cancelled");
     }
@@ -339,6 +368,7 @@ class Downloader extends GetxService implements DownloaderContract {
     }
     currentDownloadPhase.value = "cancelled";
     currentDownloadDebugMessage.value = reason;
+    _notifyDownloaderChanged();
     printINFO(reason, tag: LogTags.downloader);
   }
 
@@ -389,6 +419,7 @@ class Downloader extends GetxService implements DownloaderContract {
       songDownloadingProgress.value = 0;
       final attemptLabel = "attempt $attempt/$_audioDownloadMaxAttempts";
       currentDownloadDebugMessage.value = "Downloading audio ($attemptLabel)";
+      _notifyDownloaderChanged();
       printINFO(
         "[$traceId] Audio download $attemptLabel",
         tag: LogTags.downloader,
@@ -406,6 +437,7 @@ class Downloader extends GetxService implements DownloaderContract {
             songDownloadingProgress.value = ((count / total) * 100).toInt();
             currentDownloadDebugMessage.value =
                 "Downloading audio ${songDownloadingProgress.value}%";
+            _notifyDownloaderChanged();
           },
         );
         return;
@@ -420,6 +452,7 @@ class Downloader extends GetxService implements DownloaderContract {
         final delay = Duration(seconds: attempt * 2);
         currentDownloadDebugMessage.value =
             "Retrying audio download in ${delay.inSeconds}s";
+        _notifyDownloaderChanged();
         printWarning(
           "[$traceId] Audio download failed on $attemptLabel, retrying in ${delay.inSeconds}s: ${_dioErrorSummary(e)}",
           tag: LogTags.downloader,
@@ -474,9 +507,16 @@ class Downloader extends GetxService implements DownloaderContract {
     }
     currentDownloadPhase.value = phase;
     currentDownloadDebugMessage.value = debugMessage;
+    _notifyDownloaderChanged();
     printINFO(
       "[$traceId] $debugMessage: ${song.title} (${song.id})",
       tag: LogTags.downloader,
+    );
+    CrashDiagnosticsService.instance.record(
+      'download',
+      'phase=$phase trace=$traceId song=${song.id} title=${song.title}',
+      includeMemory: true,
+      flush: phase == 'savingLibraryEntry' || phase == 'completed',
     );
   }
 
@@ -490,18 +530,27 @@ class Downloader extends GetxService implements DownloaderContract {
     currentDownloadPhase.value = "failed";
     lastDownloadError.value = "$message: $error";
     currentDownloadDebugMessage.value = message;
+    _notifyDownloaderChanged();
     printERROR(
       "$message${song == null ? "" : " for ${song.title}"}: $error",
       tag: LogTags.downloader,
     );
     printERROR(stackTrace, tag: LogTags.downloader);
+    CrashDiagnosticsService.instance.record(
+      'download',
+      '$message${song == null ? "" : " song=${song.id}"}',
+      error: error,
+      stackTrace: stackTrace,
+      includeMemory: true,
+      flush: true,
+    );
     if (showSnack && song != null) {
       _showDownloadError(song, "downloadError3".tr);
     }
   }
 
   void _showDownloadError(MediaItem song, String message) {
-    final context = Get.context;
+    final context = AppNavigator.context;
     if (context == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
       snackbar(
@@ -509,7 +558,7 @@ class Downloader extends GetxService implements DownloaderContract {
         "${song.title}: $message",
         size: SanckBarSize.BIG,
         duration: const Duration(seconds: 2),
-        top: !GetPlatform.isDesktop,
+        top: !RuntimePlatform.isDesktop,
       ),
     );
   }

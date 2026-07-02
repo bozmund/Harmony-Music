@@ -1,14 +1,18 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:harmonymusic/ui/widgets/snackbar.dart';
-import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_selector/file_selector.dart';
 import '../../../domain/repositories/library_repository.dart';
+import '../../../app/navigation/app_navigator.dart';
 import '../../../domain/repositories/playlist_repository.dart';
 import '../../../domain/repositories/settings_repository.dart';
+import '../../../domain/repositories/download_repository.dart';
+import '../../../domain/repositories/song_cache_repository.dart';
 import '/services/file_picker_service.dart';
 import 'dart:convert';
 
@@ -17,7 +21,6 @@ import '/services/constant.dart';
 import '../../../utils/house_keeping.dart';
 import '../../widgets/add_to_playlist.dart';
 import '/ui/widgets/sort_widget.dart';
-import '../Settings/settings_screen_controller.dart';
 import '/services/app_contracts.dart';
 import '/services/piped_service.dart';
 import '/services/utils.dart';
@@ -26,33 +29,36 @@ import '/models/album.dart';
 import '/models/artist.dart';
 import '/models/media_Item_builder.dart';
 import '/models/playlist.dart';
+import '../../../utils/observable_state.dart';
 
-class LibrarySongsController extends GetxController {
-  LibrarySongsController({LibraryRepository? libraryRepository})
-    : _libraryRepository = libraryRepository;
+class LibrarySongsController extends ChangeNotifier {
+  LibrarySongsController({
+    required DownloadRepository downloadRepository,
+    required LibraryRepository libraryRepository,
+    required SongCacheRepository songCacheRepository,
+  }) : _downloadRepository = downloadRepository,
+       _songCacheRepository = songCacheRepository,
+       _libraryRepository = libraryRepository;
 
-  final LibraryRepository? _libraryRepository;
-  LibraryRepository get _library =>
-      _libraryRepository ?? Get.find<LibraryRepository>();
+  final DownloadRepository _downloadRepository;
+  final SongCacheRepository _songCacheRepository;
+  final LibraryRepository _libraryRepository;
+  LibraryRepository get _library => _libraryRepository;
 
   static const sortWidgetTag = "LibSongSort";
   static const defaultSortType = SortType.date;
   static const defaultSortAscending = false;
 
-  late RxList<MediaItem> librarySongsList = RxList();
-  final isSongFetched = false.obs;
+  List<MediaItem> librarySongsList = [];
+  bool isSongFetched = false;
   List<MediaItem> tempListContainer = [];
   SortWidgetController? sortWidgetController;
-  final additionalOperationMode = OperationMode.none.obs;
+  OperationMode additionalOperationMode = OperationMode.none;
   String _activeSearchQuery = '';
-
-  @override
-  Future<void> onInit() async {
-    await init();
-    super.onInit();
-  }
+  String _supportDirPath = '';
 
   Future<void> init() async {
+    _supportDirPath = (await getApplicationSupportDirectory()).path;
     // Make sure that song cached in system or not cleared by system
     // if cleared then it will remove from database as well
     List<String> songsList = [];
@@ -91,43 +97,48 @@ class LibrarySongsController extends GetxController {
 
     final songs = await _library.getAllLibrarySongs();
     sortSongsNVideos(songs, defaultSortType, defaultSortAscending);
-    librarySongsList.value = songs;
-    isSongFetched.value = true;
+    librarySongsList = songs;
+    isSongFetched = true;
+    notifyListeners();
 
     //Remove deleted songs and expired songUrl from database
-    await startHouseKeeping();
+    await startHouseKeeping(
+      songCacheRepository: _songCacheRepository,
+      downloadRepository: _downloadRepository,
+      libraryRepository: _library,
+      librarySongsController: this,
+    );
   }
 
   void addSongToLibraryList(MediaItem song) {
     final activeSortController =
-        Get.isRegistered<SortWidgetController>(tag: sortWidgetTag)
-        ? Get.find<SortWidgetController>(tag: sortWidgetTag)
-        : sortWidgetController;
+        SortWidgetRegistry.maybeOf(sortWidgetTag) ?? sortWidgetController;
     final isSearching =
-        activeSortController?.isSearchingEnabled.value == true ||
+        activeSortController?.isSearchingEnabled == true ||
         tempListContainer.isNotEmpty;
     final songlist =
         (isSearching ? tempListContainer : librarySongsList)
             .where((item) => item.id != song.id)
             .toList()
           ..add(song);
-    final activeSortType =
-        activeSortController?.sortType.value ?? defaultSortType;
+    final activeSortType = activeSortController?.sortType ?? defaultSortType;
     final activeSortAscending =
-        activeSortController?.isAscending.value ?? defaultSortAscending;
+        activeSortController?.isAscending ?? defaultSortAscending;
     sortSongsNVideos(songlist, activeSortType, activeSortAscending);
     if (isSearching) {
       tempListContainer = songlist;
       _applyLibrarySongSearch(_activeSearchQuery);
     } else {
-      librarySongsList.value = songlist;
+      librarySongsList = songlist;
+      notifyListeners();
     }
   }
 
   void onSort(SortType sortType, bool isAscending) {
-    final songlist = librarySongsList.toList();
+    final songlist = List<MediaItem>.from(librarySongsList);
     sortSongsNVideos(songlist, sortType, isAscending);
-    librarySongsList.value = songlist;
+    librarySongsList = songlist;
+    notifyListeners();
   }
 
   void onSearchStart(String? tag) {
@@ -140,27 +151,37 @@ class LibrarySongsController extends GetxController {
     _applyLibrarySongSearch(value);
   }
 
+  /// This controller outlives the sort widget holding the search bar, so a
+  /// filter can survive navigation while the search UI comes back empty.
+  /// Called when a fresh sort widget mounts to drop such a stale filter.
+  void clearStaleSearch() {
+    if (tempListContainer.isEmpty) return;
+    librarySongsList = tempListContainer.toList();
+    tempListContainer.clear();
+    _activeSearchQuery = '';
+    notifyListeners();
+  }
+
   void _applyLibrarySongSearch(String value) {
-    librarySongsList.value = tempListContainer.where((song) {
+    librarySongsList = tempListContainer.where((song) {
       return SearchFilter.matches({
         'title': song.title,
         'artist': song.artist,
       }, value);
     }).toList();
+    notifyListeners();
   }
 
   void onSearchClose(String? tag) {
-    librarySongsList.value = tempListContainer.toList();
+    librarySongsList = tempListContainer.toList();
     // Clear search bar text when closing
-    final sortWidgetController =
-        Get.isRegistered<SortWidgetController>(tag: tag)
-        ? Get.find<SortWidgetController>(tag: tag)
-        : null;
+    final sortWidgetController = SortWidgetRegistry.maybeOf(tag);
     sortWidgetController?.textEditingController.clear();
     // onSearch is called with empty string via widget logic indirectly,
     // but here we ensure internal state is clean
     tempListContainer.clear();
     _activeSearchQuery = '';
+    notifyListeners();
   }
 
   /// remove song from library list and from storage only, not from database
@@ -172,69 +193,77 @@ class LibrarySongsController extends GetxController {
     if (tempListContainer.isNotEmpty) {
       tempListContainer.remove(item);
     }
-    librarySongsList.remove(item);
+    librarySongsList = librarySongsList
+        .where((song) => song.id != item.id)
+        .toList();
     String filePath = "";
     if (isDownloaded) {
-      filePath = item.extras!['url'] ?? url;
+      // Restored downloads may carry no local path at all (file missing on
+      // this install); there is nothing on disk to delete for them.
+      filePath = item.extras!['url'] ?? url ?? "";
     } else {
       final cacheDir = (await getTemporaryDirectory()).path;
       filePath = "$cacheDir/cachedSongs/${item.id}.mp3";
     }
 
-    if (await File(filePath).exists()) {
+    if (filePath.isNotEmpty && await File(filePath).exists()) {
       await File(filePath).delete();
     }
 
-    final thumbFile = File(
-      "${Get.find<SettingsScreenController>().supportDirPath}/thumbnails/${item.id}.png",
-    );
+    final thumbFile = File("$_supportDirPath/thumbnails/${item.id}.png");
     if (await thumbFile.exists()) {
       await thumbFile.delete();
     }
+    notifyListeners();
   }
 
   //Additional operations
-  final additionalOperationTempList = [].obs;
-  final additionalOperationTempMap = <int, bool>{}.obs;
+  List<MediaItem> additionalOperationTempList = <MediaItem>[];
+  final additionalOperationTempMap = <int, bool>{};
 
   void startAdditionalOperation(
     SortWidgetController sortWidgetController_,
     OperationMode mode,
   ) {
     sortWidgetController = sortWidgetController_;
-    additionalOperationTempList.value = librarySongsList.toList();
+    additionalOperationTempList = List<MediaItem>.from(librarySongsList);
     if (mode == OperationMode.addToPlaylist || mode == OperationMode.delete) {
       for (int i = 0; i < additionalOperationTempList.length; i++) {
         additionalOperationTempMap[i] = false;
       }
     }
-    additionalOperationMode.value = mode;
+    additionalOperationMode = mode;
+    notifyListeners();
   }
 
   void checkIfAllSelected() {
-    sortWidgetController!.isAllSelected.value = !additionalOperationTempMap
-        .containsValue(false);
+    sortWidgetController!.toggleSelectAll(
+      !additionalOperationTempMap.containsValue(false),
+    );
+    notifyListeners();
   }
 
   void selectAll(bool selected) {
     for (int i = 0; i < additionalOperationTempList.length; i++) {
       additionalOperationTempMap[i] = selected;
     }
+    notifyListeners();
   }
 
   Future<void> performAdditionalOperation() async {
-    final currMode = additionalOperationMode.value;
+    final currMode = additionalOperationMode;
     if (currMode == OperationMode.delete) {
       await deleteMultipleSongs(selectedSongs()).then((value) {
         sortWidgetController?.setActiveMode(OperationMode.none);
         cancelAdditionalOperation();
       });
     } else if (currMode == OperationMode.addToPlaylist) {
+      final context = AppNavigator.context;
+      if (context == null) return;
       await showDialog(
-        context: Get.context!,
+        context: context,
         builder: (context) => AddToPlaylist(selectedSongs()),
       ).whenComplete(() async {
-        await Get.delete<AddToPlaylistController>();
         sortWidgetController?.setActiveMode(OperationMode.none);
         cancelAdditionalOperation();
       });
@@ -242,14 +271,12 @@ class LibrarySongsController extends GetxController {
   }
 
   Future<void> deleteMultipleSongs(List<MediaItem> songs) async {
-    final downloadsBox = await Hive.openBox(BoxNames.songDownloads);
-    final cacheBox = await Hive.openBox(BoxNames.songsCache);
     for (MediaItem element in songs) {
-      if (downloadsBox.containsKey(element.id)) {
-        await downloadsBox.delete(element.id);
+      if (await _library.isDownloaded(element.id)) {
+        await _library.deleteDownloadedSong(element.id);
         await removeSong(element, true);
       } else {
-        await cacheBox.delete(element.id);
+        await _library.deleteCachedSong(element.id);
         await removeSong(element, false);
       }
     }
@@ -267,11 +294,24 @@ class LibrarySongsController extends GetxController {
   }
 
   void cancelAdditionalOperation() {
-    sortWidgetController!.isAllSelected.value = false;
+    sortWidgetController!.toggleSelectAll(false);
     sortWidgetController = null;
-    additionalOperationMode.value = OperationMode.none;
-    additionalOperationTempList.clear();
+    additionalOperationMode = OperationMode.none;
+    additionalOperationTempList = <MediaItem>[];
     additionalOperationTempMap.clear();
+    notifyListeners();
+  }
+}
+
+class LibrarySongsControllerRegistry {
+  LibrarySongsControllerRegistry._();
+
+  static LibrarySongsController? _controller;
+
+  static LibrarySongsController? get current => _controller;
+
+  static void register(LibrarySongsController controller) {
+    _controller = controller;
   }
 }
 
@@ -356,20 +396,29 @@ class _SpotifyTrackMatch {
   final bool isConfident;
 }
 
-class LibraryPlaylistsController extends GetxController
-    with GetTickerProviderStateMixin {
+class LibraryPlaylistsController extends ChangeNotifier
+    implements TickerProvider {
   LibraryPlaylistsController({
     required PlaylistRepository playlistRepository,
+    required LibraryRepository libraryRepository,
+    required MusicServiceContract musicService,
     required SettingsRepository settingsRepository,
+    required PipedServices pipedServices,
   }) : _playlistRepository = playlistRepository,
-       _settingsRepository = settingsRepository;
+       _libraryRepository = libraryRepository,
+       _musicService = musicService,
+       _settingsRepository = settingsRepository,
+       _pipedServices = pipedServices;
 
   final PlaylistRepository _playlistRepository;
+  final LibraryRepository _libraryRepository;
+  final MusicServiceContract _musicService;
   final SettingsRepository _settingsRepository;
+  final PipedServices _pipedServices;
 
   late AnimationController controller;
 
-  final playlistCreationMode = "local".obs;
+  String playlistCreationMode = "local";
   static final initialPlaylists = [
     Playlist(
       title: "recentlyPlayed".tr,
@@ -430,24 +479,26 @@ class LibraryPlaylistsController extends GetxController
     ];
   }
 
-  late RxList<Playlist> libraryPlaylists = RxList(initialPlaylists);
-  final isContentFetched = false.obs;
-  final creationInProgress = false.obs;
+  late ObservableList<Playlist> libraryPlaylists = ObservableList(initialPlaylists);
+  final isContentFetched = ObservableValue(false);
+  bool creationInProgress = false;
   final textInputController = TextEditingController();
   List<Playlist> tempListContainer = [];
 
-  // Add these RxBool to track import progress
-  final isImporting = false.obs;
-  final importProgress = 0.0.obs;
+  bool isImporting = false;
+  double importProgress = 0.0;
 
-  @override
-  Future<void> onInit() async {
+  Future<void> init() async {
     controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
     );
     await refreshLib();
-    super.onInit();
+  }
+
+  @override
+  Ticker createTicker(TickerCallback onTick) {
+    return Ticker(onTick, debugLabel: 'LibraryPlaylistsController');
   }
 
   Future<void> refreshLib() async {
@@ -459,11 +510,11 @@ class LibraryPlaylistsController extends GetxController
     }
 
     isContentFetched.value = true;
+    notifyListeners();
   }
 
   Future<void> updatePlaylistIntoDb(Playlist playlist) async {
-    final box = await Hive.openBox(BoxNames.libraryPlaylists);
-    await box.put(playlist.playlistId, playlist.toJson());
+    await _playlistRepository.updatePlaylist(playlist);
     await refreshLib();
   }
 
@@ -473,12 +524,13 @@ class LibraryPlaylistsController extends GetxController
         libraryPlaylists.remove(playlist);
       }
     }
+    notifyListeners();
   }
 
   Future<void> syncPipedPlaylist() async {
-    final res = await Get.find<PipedServices>().getAllPlaylists();
-    final box = await Hive.openBox('blacklistedPlaylist');
-    final blacklistedPlaylist = box.values.whereType<String>().toList();
+    final res = await _pipedServices.getAllPlaylists();
+    final blacklistedPlaylist = await _playlistRepository
+        .getBlacklistedPlaylistIds();
     final libPipedPlaylistsId =
         libraryPlaylists
             .toList()
@@ -522,25 +574,24 @@ class LibraryPlaylistsController extends GetxController
           );
         }
       }
+      notifyListeners();
     }
-    await box.close();
   }
 
   Future<bool> renamePlaylist(Playlist playlist) async {
     String title = textInputController.text;
     if (title.trim().isNotEmpty) {
       if (playlist.isPipedPlaylist) {
-        final res = await Get.find<PipedServices>().renamePlaylist(
+        final res = await _pipedServices.renamePlaylist(
           playlist.playlistId,
           title,
         );
         if (res.code == 0) return false;
         playlist.newTitle = title;
       } else {
-        final box = await Hive.openBox(BoxNames.libraryPlaylists);
         title = "${title[0].toUpperCase()}${title.substring(1).toLowerCase()}";
         playlist.newTitle = title;
-        await box.put(playlist.playlistId, playlist.toJson());
+        await _playlistRepository.updatePlaylist(playlist);
       }
       await refreshLib();
       return true;
@@ -549,7 +600,8 @@ class LibraryPlaylistsController extends GetxController
   }
 
   void changeCreationMode(String? val) {
-    playlistCreationMode.value = val!;
+    playlistCreationMode = val!;
+    notifyListeners();
   }
 
   Future<bool> createNewPlaylist({
@@ -560,9 +612,10 @@ class LibraryPlaylistsController extends GetxController
     if (title.trim().isNotEmpty) {
       dynamic newPlaylist;
 
-      if (playlistCreationMode.value == "piped") {
-        creationInProgress.value = true;
-        final res = await Get.find<PipedServices>().createPlaylist(title);
+      if (playlistCreationMode == "piped") {
+        creationInProgress = true;
+        notifyListeners();
+        final res = await _pipedServices.createPlaylist(title);
         if (res.code == 1) {
           newPlaylist = Playlist(
             title: title,
@@ -575,7 +628,8 @@ class LibraryPlaylistsController extends GetxController
             isPipedPlaylist: true,
           );
         } else {
-          creationInProgress.value = false;
+          creationInProgress = false;
+          notifyListeners();
           return false;
         }
       } else {
@@ -588,44 +642,37 @@ class LibraryPlaylistsController extends GetxController
           description: "Library Playlist",
           isCloudPlaylist: false,
         );
-        final box = await Hive.openBox(BoxNames.libraryPlaylists);
-        await box.put(newPlaylist.playlistId, newPlaylist.toJson());
-        await box.close();
+        await _playlistRepository.savePlaylist(newPlaylist);
       }
 
       libraryPlaylists.insert(0, newPlaylist);
 
-      if (createPlaylistNAddSong && playlistCreationMode.value == "local") {
-        final playlistBox = await Hive.openBox(newPlaylist.playlistId);
-        for (MediaItem item in songItems!) {
-          await playlistBox.add(MediaItemBuilder.toJson(item));
-        }
-        await playlistBox.close();
-      } else if (createPlaylistNAddSong &&
-          playlistCreationMode.value == "piped") {
-        final songIds = songItems!.map((e) => e.id).toList();
-        await Get.find<PipedServices>().addToPlaylist(
+      if (createPlaylistNAddSong && playlistCreationMode == "local") {
+        await _playlistRepository.addSongsToPlaylist(
           newPlaylist.playlistId,
-          songIds,
+          songItems!,
         );
+      } else if (createPlaylistNAddSong && playlistCreationMode == "piped") {
+        final songIds = songItems!.map((e) => e.id).toList();
+        await _pipedServices.addToPlaylist(newPlaylist.playlistId, songIds);
       }
-      creationInProgress.value = false;
+      creationInProgress = false;
+      notifyListeners();
       return true;
     }
     return false;
   }
 
   Future<void> blacklistPipedPlaylist(Playlist playlist) async {
-    final box = await Hive.openBox('blacklistedPlaylist');
-    await box.add(playlist.playlistId);
+    await _playlistRepository.addBlacklistedPlaylistId(playlist.playlistId);
     libraryPlaylists.remove(playlist);
-    await box.close();
+    notifyListeners();
   }
 
   Future<void> resetBlacklistedPlaylist() async {
-    final box = await Hive.openBox('blacklistedPlaylist');
-    await box.clear();
+    await _playlistRepository.clearBlacklistedPlaylistIds();
     await syncPipedPlaylist();
+    notifyListeners();
   }
 
   void onSort(SortType sortType, bool isAscending) {
@@ -634,6 +681,7 @@ class LibraryPlaylistsController extends GetxController
         .toList();
     sortPlayLists(playlists, sortType, isAscending);
     libraryPlaylists.value = withInitialPlaylistsTail(playlists);
+    notifyListeners();
   }
 
   void _insertBeforeInitialPlaylists(Playlist playlist) {
@@ -646,6 +694,7 @@ class LibraryPlaylistsController extends GetxController
           : firstInitialPlaylistIndex,
       playlist,
     );
+    notifyListeners();
   }
 
   Future<YouTubePlaylistImportResult> importPlaylistFromYouTubeMusic(
@@ -661,7 +710,7 @@ class LibraryPlaylistsController extends GetxController
     onStatus?.call("Fetching playlist");
     late Map<String, dynamic> content;
     try {
-      content = await Get.find<MusicServiceContract>().getPlaylistOrAlbumSongs(
+      content = await _musicService.getPlaylistOrAlbumSongs(
         playlistId: playlistId,
       );
     } catch (e) {
@@ -771,7 +820,7 @@ class LibraryPlaylistsController extends GetxController
   Future<_SpotifyTrackMatch?> _matchSpotifyTrack(
     SpotifyImportTrack track,
   ) async {
-    final results = await Get.find<MusicServiceContract>().search(
+    final results = await _musicService.search(
       track.query,
       filter: 'songs',
       limit: 5,
@@ -843,21 +892,15 @@ class LibraryPlaylistsController extends GetxController
     required String thumbnailUrl,
     required List<MediaItem> tracks,
   }) async {
-    final libraryBoxWasOpen = Hive.isBoxOpen(BoxNames.libraryPlaylists);
-    final libraryBox = libraryBoxWasOpen
-        ? Hive.box(BoxNames.libraryPlaylists)
-        : await Hive.openBox(BoxNames.libraryPlaylists);
-
     final existingTitles = [
       ...initialPlaylists.map((playlist) => playlist.title),
-      ...libraryBox.values
-          .map<Playlist?>((item) => Playlist.fromJson(item))
-          .whereType<Playlist>()
-          .map((playlist) => playlist.title),
+      ...(await _playlistRepository.getPlaylists()).map(
+        (playlist) => playlist.title,
+      ),
     ];
 
     var newPlaylistId = "LIB${DateTime.now().microsecondsSinceEpoch}";
-    while (libraryBox.containsKey(newPlaylistId)) {
+    while (await _playlistRepository.getPlaylist(newPlaylistId) != null) {
       newPlaylistId = "LIB${DateTime.now().microsecondsSinceEpoch}";
     }
     final newPlaylist = Playlist(
@@ -869,63 +912,50 @@ class LibraryPlaylistsController extends GetxController
       isCloudPlaylist: false,
     );
 
-    await libraryBox.put(newPlaylistId, newPlaylist.toJson());
-    final songsBox = await Hive.openBox(newPlaylistId);
-    await songsBox.clear();
-    for (int i = 0; i < tracks.length; i++) {
-      await songsBox.put(i, MediaItemBuilder.toJson(tracks[i]));
-    }
-    await songsBox.close();
-
-    if (!libraryBoxWasOpen) await libraryBox.close();
+    await _playlistRepository.savePlaylist(newPlaylist);
+    await _playlistRepository.replacePlaylistSongs(newPlaylistId, tracks);
     return newPlaylist;
   }
 
   Future<int> _addImportedConflicts(List<MediaItem> tracks) async {
-    final favBoxWasOpen = Hive.isBoxOpen(BoxNames.libFav);
-    final downloadsBoxWasOpen = Hive.isBoxOpen(BoxNames.songDownloads);
-    final conflictsBoxWasOpen = Hive.isBoxOpen(BoxNames.libImportDuplicates);
-    final favBox = favBoxWasOpen
-        ? Hive.box(BoxNames.libFav)
-        : await Hive.openBox(BoxNames.libFav);
-    final downloadsBox = downloadsBoxWasOpen
-        ? Hive.box(BoxNames.songDownloads)
-        : await Hive.openBox(BoxNames.songDownloads);
-    final conflictsBox = conflictsBoxWasOpen
-        ? Hive.box(BoxNames.libImportDuplicates)
-        : await Hive.openBox(BoxNames.libImportDuplicates);
+    final favoriteIds = (await _libraryRepository.getFavoriteSongs())
+        .map((song) => song.id)
+        .toSet();
+    final downloadedIds = (await _libraryRepository.getDownloadedSongs())
+        .map((song) => song.id)
+        .toSet();
+    final conflictIds = (await _libraryRepository.getImportDuplicateSongs())
+        .map((song) => song.id)
+        .toSet();
 
     var conflictAddedCount = 0;
     for (final song in tracks) {
       final alreadyKnown =
-          favBox.containsKey(song.id) || downloadsBox.containsKey(song.id);
-      if (alreadyKnown && !conflictsBox.containsKey(song.id)) {
-        await conflictsBox.put(song.id, MediaItemBuilder.toJson(song));
+          favoriteIds.contains(song.id) || downloadedIds.contains(song.id);
+      if (alreadyKnown && !conflictIds.contains(song.id)) {
+        await _libraryRepository.addImportDuplicate(song);
+        conflictIds.add(song.id);
         conflictAddedCount++;
       }
     }
 
-    if (!conflictsBoxWasOpen) await conflictsBox.close();
-    if (!downloadsBoxWasOpen) await downloadsBox.close();
-    if (!favBoxWasOpen) await favBox.close();
     return conflictAddedCount;
   }
 
   Future<int> _addImportReviewCandidates(List<MediaItem> tracks) async {
-    final reviewBoxWasOpen = Hive.isBoxOpen(BoxNames.libImportReview);
-    final reviewBox = reviewBoxWasOpen
-        ? Hive.box(BoxNames.libImportReview)
-        : await Hive.openBox(BoxNames.libImportReview);
+    final reviewIds = (await _libraryRepository.getImportReviewSongs())
+        .map((song) => song.id)
+        .toSet();
 
     var reviewAddedCount = 0;
     for (final song in tracks) {
-      if (!reviewBox.containsKey(song.id)) {
-        await reviewBox.put(song.id, MediaItemBuilder.toJson(song));
+      if (!reviewIds.contains(song.id)) {
+        await _libraryRepository.addImportReview(song);
+        reviewIds.add(song.id);
         reviewAddedCount++;
       }
     }
 
-    if (!reviewBoxWasOpen) await reviewBox.close();
     return reviewAddedCount;
   }
 
@@ -997,11 +1027,15 @@ class LibraryPlaylistsController extends GetxController
   void onSearchClose(String? tag) {
     libraryPlaylists.value = tempListContainer.toList();
     // Clear search bar text when closing
-    final sortWidgetController =
-        Get.isRegistered<SortWidgetController>(tag: tag)
-        ? Get.find<SortWidgetController>(tag: tag)
-        : null;
+    final sortWidgetController = SortWidgetRegistry.maybeOf(tag);
     sortWidgetController?.textEditingController.clear();
+    tempListContainer.clear();
+  }
+
+  /// See [LibrarySongsController.clearStaleSearch].
+  void clearStaleSearch() {
+    if (tempListContainer.isEmpty) return;
+    libraryPlaylists.value = tempListContainer.toList();
     tempListContainer.clear();
   }
 
@@ -1014,8 +1048,7 @@ class LibraryPlaylistsController extends GetxController
 
   Future<void> importPlaylistFromJson(BuildContext context) async {
     try {
-      isImporting.value = true;
-      importProgress.value = 0.1;
+      _setImportState(isImporting: true, importProgress: 0.1);
 
       // Show progress dialog
       if (context.mounted) {
@@ -1031,15 +1064,12 @@ class LibraryPlaylistsController extends GetxController
 
       if (result == null) {
         // User cancelled the picker
-        if (Get.isDialogOpen ?? false) {
-          Get.back();
-        }
-        isImporting.value = false;
-        importProgress.value = 0.0;
+        _closeImportProgressDialog(context);
+        _setImportState(isImporting: false, importProgress: 0.0);
         return;
       }
 
-      importProgress.value = 0.2;
+      _setImportProgress(0.2);
 
       final file = File(result.path);
       if (!await file.exists()) {
@@ -1047,10 +1077,10 @@ class LibraryPlaylistsController extends GetxController
       }
 
       final jsonString = await file.readAsString();
-      importProgress.value = 0.3;
+      _setImportProgress(0.3);
 
       final jsonData = jsonDecode(jsonString);
-      importProgress.value = 0.4;
+      _setImportProgress(0.4);
 
       // Validate JSON structure
       if (!jsonData.containsKey('playlistInfo') ||
@@ -1061,7 +1091,7 @@ class LibraryPlaylistsController extends GetxController
       // Create new playlist ID
       final playlistInfo = jsonData['playlistInfo'];
       final newPlaylistId = "LIB${DateTime.now().millisecondsSinceEpoch}";
-      importProgress.value = 0.5;
+      _setImportProgress(0.5);
 
       // Create playlist object
       final newPlaylist = Playlist(
@@ -1076,33 +1106,32 @@ class LibraryPlaylistsController extends GetxController
         description: playlistInfo['description'] ?? "importedPlaylist".tr,
         isCloudPlaylist: false,
       );
-      importProgress.value = 0.6;
+      _setImportProgress(0.6);
 
       // Save playlist to database
-      final box = await Hive.openBox(BoxNames.libraryPlaylists);
-      await box.put(newPlaylistId, newPlaylist.toJson());
-      importProgress.value = 0.7;
+      await _playlistRepository.savePlaylist(newPlaylist);
+      _setImportProgress(0.7);
 
       // Save songs to playlist
-      final songsBox = await Hive.openBox(newPlaylistId);
       final songsList = jsonData['songs'] as List;
 
       // Update progress as songs are added
       final totalSongs = songsList.length;
+      final importedSongs = <MediaItem>[];
       for (int i = 0; i < totalSongs; i++) {
-        await songsBox.put(i, songsList[i]);
+        importedSongs.add(MediaItemBuilder.fromJson(songsList[i]));
         // Update progress from 70% to 95% based on song import progress
-        importProgress.value = 0.7 + (0.25 * (i + 1) / totalSongs);
+        _setImportProgress(0.7 + (0.25 * (i + 1) / totalSongs));
       }
 
-      await songsBox.close();
-      await box.close();
-      importProgress.value = 1.0;
+      await _playlistRepository.replacePlaylistSongs(
+        newPlaylistId,
+        importedSongs,
+      );
+      _setImportProgress(1.0);
 
       // Close progress dialog if it's still open
-      if (Get.isDialogOpen ?? false) {
-        Get.back();
-      }
+      _closeImportProgressDialog(context);
 
       // Refresh library to show the new playlist
       await refreshLib();
@@ -1119,9 +1148,7 @@ class LibraryPlaylistsController extends GetxController
       }
     } catch (e) {
       // Close progress dialog if it's still open
-      if (Get.isDialogOpen ?? false) {
-        Get.back();
-      }
+      _closeImportProgressDialog(context);
 
       printERROR("Error importing playlist: $e");
 
@@ -1132,8 +1159,6 @@ class LibraryPlaylistsController extends GetxController
         errorMsg = "importErrorFormat".tr;
       } else if (e.toString().contains("invalidPlaylistFile")) {
         errorMsg = "invalidPlaylistFile".tr;
-      } else if (e is HiveError) {
-        errorMsg = "importErrorDatabase".tr;
       }
 
       if (context.mounted) {
@@ -1142,75 +1167,113 @@ class LibraryPlaylistsController extends GetxController
         ).showSnackBar(snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
       }
     } finally {
-      isImporting.value = false;
-      importProgress.value = 0.0;
+      _setImportState(isImporting: false, importProgress: 0.0);
     }
+  }
+
+  void _setImportState({
+    required bool isImporting,
+    required double importProgress,
+  }) {
+    this.isImporting = isImporting;
+    this.importProgress = importProgress;
+    notifyListeners();
+  }
+
+  void _setImportProgress(double value) {
+    importProgress = value;
+    notifyListeners();
   }
 
   // Helper method to show import progress dialog
   Future<void> _showImportProgressDialog(BuildContext context) async {
-    await Get.dialog(
-      AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Text(
-          "importingPlaylist".tr,
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        content: Obx(
-          () => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: Get.isRegistered<LibraryPlaylistsController>()
-                    ? importProgress.value
-                    : 0,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Theme.of(context).colorScheme.secondary,
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: Theme.of(dialogContext).cardColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Text(
+            "importingPlaylist".tr,
+            style: Theme.of(dialogContext).textTheme.titleLarge,
+          ),
+          content: AnimatedBuilder(
+            animation: this,
+            builder: (context, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(
+                  value: importProgress,
+                  backgroundColor: Theme.of(
+                    dialogContext,
+                  ).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(dialogContext).colorScheme.secondary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                "${(Get.isRegistered<LibraryPlaylistsController>() ? importProgress.value * 100 : 0).toInt()}%",
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  "${(importProgress * 100).toInt()}%",
+                  style: Theme.of(dialogContext).textTheme.bodyMedium,
+                ),
+              ],
+            ),
           ),
         ),
       ),
-      barrierDismissible: false,
     );
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  void _closeImportProgressDialog(BuildContext context) {
+    if (!context.mounted) return;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
   }
 }
 
-class LibraryAlbumsController extends GetxController {
-  LibraryAlbumsController({LibraryRepository? libraryRepository})
-    : _libraryRepository = libraryRepository ?? Get.find<LibraryRepository>();
+class LibraryPlaylistsControllerRegistry {
+  LibraryPlaylistsControllerRegistry._();
+
+  static LibraryPlaylistsController? _controller;
+
+  static LibraryPlaylistsController? get current => _controller;
+
+  static void register(LibraryPlaylistsController controller) {
+    _controller = controller;
+  }
+}
+
+class LibraryAlbumsController extends ChangeNotifier {
+  LibraryAlbumsController({required LibraryRepository libraryRepository})
+    : _libraryRepository = libraryRepository;
 
   final LibraryRepository _libraryRepository;
 
-  late RxList<Album> libraryAlbums = RxList();
-  final isContentFetched = false.obs;
+  List<Album> libraryAlbums = [];
+  bool isContentFetched = false;
   List<Album> tempListContainer = [];
 
-  @override
-  Future<void> onInit() async {
+  Future<void> init() async {
     await refreshLib();
-    super.onInit();
   }
 
   Future<void> refreshLib() async {
-    libraryAlbums.value = await _libraryRepository.getAlbums();
-    isContentFetched.value = true;
+    libraryAlbums = await _libraryRepository.getAlbums();
+    isContentFetched = true;
+    notifyListeners();
   }
 
   void onSort(SortType sortType, bool isAscending) {
-    final albumList = libraryAlbums.toList();
+    final albumList = List<Album>.from(libraryAlbums);
     sortAlbumNSingles(albumList, sortType, isAscending);
-    libraryAlbums.value = albumList;
+    libraryAlbums = albumList;
+    notifyListeners();
   }
 
   void onSearchStart(String? tag) {
@@ -1218,50 +1281,57 @@ class LibraryAlbumsController extends GetxController {
   }
 
   void onSearch(String value, String? tag) {
-    libraryAlbums.value = tempListContainer
+    libraryAlbums = tempListContainer
         .where(
           (element) => SearchFilter.matches({'title': element.title}, value),
         )
         .toList();
+    notifyListeners();
   }
 
   void onSearchClose(String? tag) {
-    libraryAlbums.value = tempListContainer.toList();
+    libraryAlbums = tempListContainer.toList();
     // Clear search bar text when closing
-    final sortWidgetController =
-        Get.isRegistered<SortWidgetController>(tag: tag)
-        ? Get.find<SortWidgetController>(tag: tag)
-        : null;
+    final sortWidgetController = SortWidgetRegistry.maybeOf(tag);
     sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
+    notifyListeners();
+  }
+
+  /// See [LibrarySongsController.clearStaleSearch].
+  void clearStaleSearch() {
+    if (tempListContainer.isEmpty) return;
+    libraryAlbums = tempListContainer.toList();
+    tempListContainer.clear();
+    notifyListeners();
   }
 }
 
-class LibraryArtistsController extends GetxController {
-  LibraryArtistsController({LibraryRepository? libraryRepository})
-    : _libraryRepository = libraryRepository ?? Get.find<LibraryRepository>();
+class LibraryArtistsController extends ChangeNotifier {
+  LibraryArtistsController({required LibraryRepository libraryRepository})
+    : _libraryRepository = libraryRepository;
 
   final LibraryRepository _libraryRepository;
 
-  RxList<Artist> libraryArtists = RxList();
-  final isContentFetched = false.obs;
+  List<Artist> libraryArtists = [];
+  bool isContentFetched = false;
   List<Artist> tempListContainer = [];
 
-  @override
-  Future<void> onInit() async {
+  Future<void> init() async {
     await refreshLib();
-    super.onInit();
   }
 
   Future<void> refreshLib() async {
-    libraryArtists.value = await _libraryRepository.getArtists();
-    isContentFetched.value = true;
+    libraryArtists = await _libraryRepository.getArtists();
+    isContentFetched = true;
+    notifyListeners();
   }
 
   void onSort(SortType sortType, bool isAscending) {
-    final artistList = libraryArtists.toList();
+    final artistList = List<Artist>.from(libraryArtists);
     sortArtist(artistList, sortType, isAscending);
-    libraryArtists.value = artistList;
+    libraryArtists = artistList;
+    notifyListeners();
   }
 
   void onSearchStart(String? tag) {
@@ -1269,60 +1339,86 @@ class LibraryArtistsController extends GetxController {
   }
 
   void onSearch(String value, String? tag) {
-    libraryArtists.value = tempListContainer
+    libraryArtists = tempListContainer
         .where(
           (element) => SearchFilter.matches({'title': element.name}, value),
         )
         .toList();
+    notifyListeners();
   }
 
   void onSearchClose(String? tag) {
-    libraryArtists.value = tempListContainer.toList();
+    libraryArtists = tempListContainer.toList();
     // Clear search bar text when closing
-    final sortWidgetController =
-        Get.isRegistered<SortWidgetController>(tag: tag)
-        ? Get.find<SortWidgetController>(tag: tag)
-        : null;
+    final sortWidgetController = SortWidgetRegistry.maybeOf(tag);
     sortWidgetController?.textEditingController.clear();
     tempListContainer.clear();
+    notifyListeners();
+  }
+
+  /// See [LibrarySongsController.clearStaleSearch].
+  void clearStaleSearch() {
+    if (tempListContainer.isEmpty) return;
+    libraryArtists = tempListContainer.toList();
+    tempListContainer.clear();
+    notifyListeners();
   }
 }
 
-class LibrarySearchesController extends GetxController {
-  final RxList<String> savedSearches = RxList();
-  final isContentFetched = false.obs;
+class LibraryAlbumsControllerRegistry {
+  LibraryAlbumsControllerRegistry._();
 
-  @override
-  Future<void> onInit() async {
+  static LibraryAlbumsController? _controller;
+
+  static LibraryAlbumsController? get current => _controller;
+
+  static void register(LibraryAlbumsController controller) {
+    _controller = controller;
+  }
+}
+
+class LibraryArtistsControllerRegistry {
+  LibraryArtistsControllerRegistry._();
+
+  static LibraryArtistsController? _controller;
+
+  static LibraryArtistsController? get current => _controller;
+
+  static void register(LibraryArtistsController controller) {
+    _controller = controller;
+  }
+}
+
+class LibrarySearchesController extends ChangeNotifier {
+  LibrarySearchesController({required LibraryRepository libraryRepository})
+    : _libraryRepository = libraryRepository;
+
+  final LibraryRepository _libraryRepository;
+  final savedSearches = <String>[];
+  var isContentFetched = false;
+
+  Future<void> init() async {
     await refreshLib();
-    super.onInit();
   }
 
   Future<void> refreshLib() async {
-    final box = await Hive.openBox(BoxNames.librarySearches);
-    savedSearches.value = box.values.whereType<String>().toList();
-    isContentFetched.value = true;
-    await box.close();
+    savedSearches
+      ..clear()
+      ..addAll(await _libraryRepository.getSearches());
+    isContentFetched = true;
+    notifyListeners();
   }
 
   Future<void> saveSearch(String query) async {
     if (query.trim().isEmpty || savedSearches.contains(query)) return;
-    final box = await Hive.openBox(BoxNames.librarySearches);
-    await box.add(query);
+    await _libraryRepository.addSearch(query);
     savedSearches.add(query);
-    await box.close();
+    notifyListeners();
   }
 
   Future<void> deleteSearch(String query) async {
-    final box = await Hive.openBox(BoxNames.librarySearches);
-    final key = box.keys.firstWhere(
-      (k) => box.get(k) == query,
-      orElse: () => null,
-    );
-    if (key != null) {
-      await box.delete(key);
-      savedSearches.remove(query);
-    }
-    await box.close();
+    await _libraryRepository.deleteSearch(query);
+    savedSearches.remove(query);
+    notifyListeners();
   }
 }

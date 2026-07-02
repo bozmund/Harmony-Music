@@ -1,0 +1,14 @@
+{
+  "@@locale": "ur",
+  "album": "البم",
+  "albums": "البم",
+  "artists": "فنکار",
+  "home": "هوم",
+  "keepScreenOnWhilePlaying": "پلے ہوتے وقت اسکرین کو روشن رکھیں",
+  "keepScreenOnWhilePlayingDes": "اگر فعال ہو تو، جب موسیقی چل رہی ہوگی تو ڈیوائس کی اسکرین روشن رہے گی",
+  "libSongs": "لائبریری کے گانے",
+  "playlists": "پلے لسٹ",
+  "settings": "ترتیبات",
+  "singles": "سنگلز",
+  "songs": "گانے"
+}

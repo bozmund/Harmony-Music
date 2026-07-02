@@ -107,6 +107,14 @@ class HiveLibraryRepository implements LibraryRepository {
   )).put(song.id, MediaItemBuilder.toJson(song));
 
   @override
+  Future<void> deleteImportDuplicate(String songId) async =>
+      (await _open(BoxNames.libImportDuplicates)).delete(songId);
+
+  @override
+  Future<void> deleteImportReview(String songId) async =>
+      (await _open(BoxNames.libImportReview)).delete(songId);
+
+  @override
   Future<void> clearImportReview() async =>
       (await _open(BoxNames.libImportReview)).clear();
 
@@ -161,5 +169,28 @@ class HiveLibraryRepository implements LibraryRepository {
     final box = await _open(BoxNames.librarySearches);
     final key = box.keys.firstWhereOrNull((key) => box.get(key) == query);
     if (key != null) await box.delete(key);
+  }
+
+  @override
+  Future<void> rewriteSongEntries(
+    Map<dynamic, dynamic>? Function(Map<dynamic, dynamic> song) transform,
+  ) async {
+    const songBoxNames = [
+      BoxNames.libFav,
+      BoxNames.libRP,
+      BoxNames.libImportDuplicates,
+      BoxNames.libImportReview,
+    ];
+    for (final boxName in songBoxNames) {
+      final box = await _open(boxName);
+      for (final key in box.keys.toList()) {
+        final value = box.get(key);
+        if (value is! Map) continue;
+        final rewritten = transform(value);
+        if (rewritten != null) {
+          await box.put(key, rewritten);
+        }
+      }
+    }
   }
 }

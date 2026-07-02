@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:get/get.dart';
 
 import '../domain/repositories/song_cache_repository.dart';
+import '../utils/platform_utils.dart';
 import '/models/hm_streaming_data.dart';
 import '/services/constant.dart';
+import '/services/crash_diagnostics_service.dart';
 import '/services/stream_service.dart';
 import '/utils/helper.dart';
 
@@ -95,7 +96,7 @@ class PlaybackPreloadManager {
     required bool isPlaying,
     required int? currentIndex,
   }) async {
-    if (!GetPlatform.isAndroid || range <= 0 || !isPlaying) {
+    if (!isAndroidPlatform || range <= 0 || !isPlaying) {
       await clear();
       return;
     }
@@ -216,9 +217,22 @@ class PlaybackPreloadManager {
         "Preloaded ${song.id} (${await prefixFile.length()} bytes)",
         tag: LogTags.preload,
       );
+      CrashDiagnosticsService.instance.record(
+        'preload',
+        'ready song=${song.id} bytes=${await prefixFile.length()} entries=${_entries.length}',
+        includeMemory: true,
+      );
     } catch (error, stackTrace) {
       printERROR("Failed to preload ${song.id}: $error", tag: LogTags.preload);
       printERROR(stackTrace, tag: LogTags.preload);
+      CrashDiagnosticsService.instance.record(
+        'preload',
+        'failed song=${song.id}',
+        error: error,
+        stackTrace: stackTrace,
+        includeMemory: true,
+        flush: true,
+      );
     }
   }
 

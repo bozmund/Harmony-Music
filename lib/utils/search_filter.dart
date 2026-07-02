@@ -63,6 +63,8 @@ class SearchFilter {
     }
 
     // Default: check all fields
-    return fields.values.any((value) => (value?.toLowerCase() ?? '').contains(actualTerm));
+    return fields.values.any(
+      (value) => (value?.toLowerCase() ?? '').contains(actualTerm),
+    );
   }
 }

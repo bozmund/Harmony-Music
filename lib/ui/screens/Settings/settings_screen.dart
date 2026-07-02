@@ -2,11 +2,14 @@ import 'dart:async';
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:harmonymusic/services/app_platform_service.dart';
 import 'package:harmonymusic/utils/helper.dart';
 import 'package:harmonymusic/utils/lang_mapping.dart';
 
+import '../../../app/providers/controller_providers.dart';
+import '../../../utils/runtime_platform.dart';
 import '../../widgets/common_dialog_widget.dart';
 import '../../widgets/custom_switch.dart';
 import '../../widgets/export_file_dialog.dart';
@@ -19,49 +22,62 @@ import '../Library/library_controller.dart';
 import '../../widgets/snackbar.dart';
 import '/ui/widgets/link_piped.dart';
 import '/services/music_service.dart';
-import '/ui/player/player_controller.dart';
 import '/ui/utils/theme_controller.dart';
 import 'components/custom_expansion_tile.dart';
 import 'settings_screen_controller.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key, this.isBottomNavActive = false});
 
   final bool isBottomNavActive;
 
   @override
-  Widget build(BuildContext context) {
-    final settingsController = Get.find<SettingsScreenController>();
-    final topPadding = context.isLandscape ? 50.0 : 90.0;
-    final isDesktop = GetPlatform.isDesktop;
-    return Padding(
-      padding: isBottomNavActive
-          ? EdgeInsets.only(left: 20, top: topPadding, right: 15)
-          : EdgeInsets.only(top: topPadding, left: 5, right: 5),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              "settings".tr,
-              style: Theme.of(context).textTheme.titleLarge,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsController = ref.watch(settingsScreenControllerProvider);
+    final playerController = ref.read(playerControllerProvider);
+    // One-shot: set when the release prompt sends the user here to see
+    // where the update channel lives; opens the App Info section.
+    final revealUpdateChannel = settingsController.consumeUpdateChannelReveal();
+    final topPadding =
+        MediaQuery.orientationOf(context) == Orientation.landscape
+        ? 50.0
+        : 90.0;
+    final isDesktop = RuntimePlatform.isDesktop;
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        settingsController,
+        playerController.playerPanelMinHeight,
+      ]),
+      builder: (context, _) => Padding(
+        padding: isBottomNavActive
+            ? EdgeInsets.only(left: 20, top: topPadding, right: 15)
+            : EdgeInsets.only(top: topPadding, left: 5, right: 5),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "settings".tr,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
             ),
-          ),
-          Expanded(
-            child: ListView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: 200, top: 20),
-              children: [
-                CustomExpansionTile(
-                  title: "personalisation".tr,
-                  icon: Icons.palette,
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("themeMode".tr),
-                      subtitle: Obx(
-                        () => Text(
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 200, top: 20),
+                children: [
+                  CustomExpansionTile(
+                    title: "personalisation".tr,
+                    icon: Icons.palette,
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("themeMode".tr),
+                        subtitle: Text(
                           settingsController.themeModeType.value ==
                                   ThemeType.dynamic
                               ? "dynamic".tr
@@ -74,22 +90,24 @@ class SettingsScreen extends StatelessWidget {
                               : "light".tr,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (context) => const ThemeSelectorDialog(),
+                        ),
                       ),
-                      onTap: () => showDialog(
-                        context: context,
-                        builder: (context) => const ThemeSelectorDialog(),
-                      ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("language".tr),
-                      subtitle: Text(
-                        "languageDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => DropdownButton(
-                          menuMaxHeight: Get.height - 250,
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("language".tr),
+                        subtitle: Text(
+                          "languageDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: DropdownButton(
+                          menuMaxHeight:
+                              MediaQuery.sizeOf(context).height - 250,
                           dropdownColor: Theme.of(context).cardColor,
                           underline: const SizedBox.shrink(),
                           style: Theme.of(context).textTheme.titleSmall,
@@ -117,20 +135,18 @@ class SettingsScreen extends StatelessWidget {
                           onChanged: settingsController.setAppLanguage,
                         ),
                       ),
-                    ),
-                    if (!isDesktop)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: Text("playerUi".tr),
-                        subtitle: Text(
-                          "playerUiDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        trailing: Obx(
-                          () => DropdownButton(
+                      if (!isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("playerUi".tr),
+                          subtitle: Text(
+                            "playerUiDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: DropdownButton(
                             dropdownColor: Theme.of(context).cardColor,
                             underline: const SizedBox.shrink(),
                             value: settingsController.playerUi.value,
@@ -147,20 +163,18 @@ class SettingsScreen extends StatelessWidget {
                             onChanged: settingsController.setPlayerUi,
                           ),
                         ),
-                      ),
-                    if (!isDesktop)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: Text("firstLibraryTab".tr),
-                        subtitle: Text(
-                          "firstLibraryTabDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        trailing: Obx(
-                          () => DropdownButton(
+                      if (!isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("firstLibraryTab".tr),
+                          subtitle: Text(
+                            "firstLibraryTabDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: DropdownButton(
                             dropdownColor: Theme.of(context).cardColor,
                             underline: const SizedBox.shrink(),
                             value: settingsController.libraryFirstTab.value,
@@ -180,69 +194,69 @@ class SettingsScreen extends StatelessWidget {
                             },
                           ),
                         ),
-                      ),
-                    if (!isDesktop)
+                      if (!isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("enableBottomNav".tr),
+                          subtitle: Text(
+                            "enableBottomNavDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: CustomSwitch(
+                            value:
+                                settingsController.isBottomNavBarEnabled.value,
+                            onChanged: settingsController.enableBottomNavBar,
+                          ),
+                        ),
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
                           right: 10,
                         ),
-                        title: Text("enableBottomNav".tr),
+                        title: Text("disableTransitionAnimation".tr),
                         subtitle: Text(
-                          "enableBottomNavDes".tr,
+                          "disableTransitionAnimationDes".tr,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        trailing: Obx(
-                          () => CustomSwitch(
-                            value:
-                                settingsController.isBottomNavBarEnabled.isTrue,
-                            onChanged: settingsController.enableBottomNavBar,
-                          ),
-                        ),
-                      ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("disableTransitionAnimation".tr),
-                      subtitle: Text(
-                        "disableTransitionAnimationDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => CustomSwitch(
+                        trailing: CustomSwitch(
                           value: settingsController
                               .isTransitionAnimationDisabled
-                              .isTrue,
+                              .value,
                           onChanged:
                               settingsController.disableTransitionAnimation,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("enableSlidableAction".tr),
-                      subtitle: Text(
-                        "enableSlidableActionDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => CustomSwitch(
-                          value:
-                              settingsController.slidableActionEnabled.isTrue,
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("enableSlidableAction".tr),
+                        subtitle: Text(
+                          "enableSlidableActionDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: CustomSwitch(
+                          value: settingsController.slidableActionEnabled.value,
                           onChanged: settingsController.toggleSlidableAction,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                CustomExpansionTile(
-                  title: "content".tr,
-                  icon: Icons.music_video,
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("setDiscoverContent".tr),
-                      subtitle: Obx(
-                        () => Text(
+                    ],
+                  ),
+                  CustomExpansionTile(
+                    title: "content".tr,
+                    icon: Icons.music_video,
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("setDiscoverContent".tr),
+                        subtitle: Text(
                           settingsController.discoverContentType.value == "QP"
                               ? "quickpicks".tr
                               : settingsController.discoverContentType.value ==
@@ -254,22 +268,23 @@ class SettingsScreen extends StatelessWidget {
                               : "basedOnLast".tr,
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (context) =>
+                              const DiscoverContentSelectorDialog(),
+                        ),
                       ),
-                      onTap: () => showDialog(
-                        context: context,
-                        builder: (context) =>
-                            const DiscoverContentSelectorDialog(),
-                      ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("homeContentCount".tr),
-                      subtitle: Text(
-                        "homeContentCountDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => DropdownButton(
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("homeContentCount".tr),
+                        subtitle: Text(
+                          "homeContentCountDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: DropdownButton(
                           dropdownColor: Theme.of(context).cardColor,
                           underline: const SizedBox.shrink(),
                           value: settingsController.noOfHomeScreenContent.value,
@@ -284,63 +299,65 @@ class SettingsScreen extends StatelessWidget {
                           onChanged: settingsController.setContentNumber,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("cacheHomeScreenData".tr),
-                      subtitle: Text(
-                        "cacheHomeScreenDataDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => CustomSwitch(
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("cacheHomeScreenData".tr),
+                        subtitle: Text(
+                          "cacheHomeScreenDataDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: CustomSwitch(
                           value: settingsController.cacheHomeScreenData.value,
                           onChanged:
                               settingsController.toggleCacheHomeScreenData,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: const Text("Reset app state"),
-                      subtitle: Text(
-                        "Clears cached home content, saved playback session, temporary stream URLs, and returns navigation to Home.",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: TextButton(
-                        child: Text(
-                          "reset".tr,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.titleMedium!.copyWith(fontSize: 15),
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
                         ),
-                        onPressed: () async {
-                          await settingsController.resetRecoverableAppState();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            snackbar(
+                        title: const Text("Reset app state"),
+                        subtitle: Text(
+                          "Clears cached home content, saved playback session, temporary stream URLs, and returns navigation to Home.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: TextButton(
+                          child: Text(
+                            "reset".tr,
+                            style: Theme.of(
                               context,
-                              "App state reset",
-                              size: SanckBarSize.MEDIUM,
-                            ),
-                          );
-                        },
+                            ).textTheme.titleMedium!.copyWith(fontSize: 15),
+                          ),
+                          onPressed: () async {
+                            await settingsController.resetRecoverableAppState();
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              snackbar(
+                                context,
+                                "App state reset",
+                                size: SanckBarSize.MEDIUM,
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(
-                        left: 5,
-                        right: 10,
-                        top: 0,
-                      ),
-                      title: Text("Piped".tr),
-                      subtitle: Text(
-                        "linkPipedDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: TextButton(
-                        child: Obx(
-                          () => Text(
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                          top: 0,
+                        ),
+                        title: Text("Piped".tr),
+                        subtitle: Text(
+                          "linkPipedDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: TextButton(
+                          child: Text(
                             settingsController.isLinkedWithPiped.value
                                 ? "unLink".tr
                                 : "link".tr,
@@ -348,25 +365,21 @@ class SettingsScreen extends StatelessWidget {
                               context,
                             ).textTheme.titleMedium!.copyWith(fontSize: 15),
                           ),
+                          onPressed: () {
+                            if (!settingsController.isLinkedWithPiped.value) {
+                              unawaited(
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => const LinkPiped(),
+                                ),
+                              );
+                            } else {
+                              unawaited(settingsController.unlinkPiped());
+                            }
+                          },
                         ),
-                        onPressed: () {
-                          if (settingsController.isLinkedWithPiped.isFalse) {
-                            unawaited(
-                              showDialog(
-                                context: context,
-                                builder: (context) => const LinkPiped(),
-                              ).whenComplete(
-                                () => Get.delete<PipedLinkedController>(),
-                              ),
-                            );
-                          } else {
-                            unawaited(settingsController.unlinkPiped());
-                          }
-                        },
                       ),
-                    ),
-                    Obx(
-                      () => (settingsController.isLinkedWithPiped.isTrue)
+                      settingsController.isLinkedWithPiped.value
                           ? ListTile(
                               contentPadding: const EdgeInsets.only(
                                 left: 5,
@@ -387,13 +400,13 @@ class SettingsScreen extends StatelessWidget {
                                       .copyWith(fontSize: 15),
                                 ),
                                 onPressed: () async {
-                                  await Get.find<LibraryPlaylistsController>()
-                                      .resetBlacklistedPlaylist();
-                                  ScaffoldMessenger.of(
-                                    Get.context!,
-                                  ).showSnackBar(
+                                  await LibraryPlaylistsControllerRegistry
+                                      .current
+                                      ?.resetBlacklistedPlaylist();
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
                                     snackbar(
-                                      Get.context!,
+                                      context,
                                       "blacklistPlaylistResetAlert".tr,
                                       size: SanckBarSize.MEDIUM,
                                     ),
@@ -402,45 +415,49 @@ class SettingsScreen extends StatelessWidget {
                               ),
                             )
                           : const SizedBox.shrink(),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("clearImgCache".tr),
-                      subtitle: Text(
-                        "clearImgCacheDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      isThreeLine: true,
-                      onTap: () {
-                        unawaited(
-                          settingsController.clearImagesCache().then(
-                            (value) =>
-                                ScaffoldMessenger.of(Get.context!).showSnackBar(
-                                  snackbar(
-                                    Get.context!,
-                                    "clearImgCacheAlert".tr,
-                                    size: SanckBarSize.BIG,
-                                  ),
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("clearImgCache".tr),
+                        subtitle: Text(
+                          "clearImgCacheDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: () {
+                          unawaited(
+                            settingsController.clearImagesCache().then((value) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                snackbar(
+                                  context,
+                                  "clearImgCacheAlert".tr,
+                                  size: SanckBarSize.BIG,
                                 ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                CustomExpansionTile(
-                  title: "music&Playback".tr,
-                  icon: Icons.music_note,
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("streamingQuality".tr),
-                      subtitle: Text(
-                        "streamingQualityDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                              );
+                            }),
+                          );
+                        },
                       ),
-                      trailing: Obx(
-                        () => DropdownButton(
+                    ],
+                  ),
+                  CustomExpansionTile(
+                    title: "music&Playback".tr,
+                    icon: Icons.music_note,
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("streamingQuality".tr),
+                        subtitle: Text(
+                          "streamingQualityDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: DropdownButton(
                           dropdownColor: Theme.of(context).cardColor,
                           underline: const SizedBox.shrink(),
                           value: settingsController.streamingQuality.value,
@@ -457,20 +474,18 @@ class SettingsScreen extends StatelessWidget {
                           onChanged: settingsController.setStreamingQuality,
                         ),
                       ),
-                    ),
-                    if (GetPlatform.isAndroid)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: const Text("Playback mode"),
-                        subtitle: Text(
-                          "Classic uses the stable one-song player. Preloaded is experimental.",
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        trailing: Obx(
-                          () => DropdownButton<PlaybackMode>(
+                      if (RuntimePlatform.isAndroid)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: const Text("Playback mode"),
+                          subtitle: Text(
+                            "Classic uses the stable one-song player. Preloaded is experimental.",
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: DropdownButton<PlaybackMode>(
                             dropdownColor: Theme.of(context).cardColor,
                             underline: const SizedBox.shrink(),
                             value: settingsController.playbackMode.value,
@@ -487,11 +502,8 @@ class SettingsScreen extends StatelessWidget {
                             onChanged: settingsController.setPlaybackMode,
                           ),
                         ),
-                      ),
-                    if (GetPlatform.isAndroid)
-                      Obx(
-                        () =>
-                            settingsController.playbackMode.value ==
+                      if (RuntimePlatform.isAndroid)
+                        settingsController.playbackMode.value ==
                                 PlaybackMode.preloaded
                             ? ListTile(
                                 contentPadding: const EdgeInsets.only(
@@ -521,20 +533,18 @@ class SettingsScreen extends StatelessWidget {
                                 ),
                               )
                             : const SizedBox.shrink(),
-                      ),
-                    if (GetPlatform.isAndroid)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: Text("loudnessNormalization".tr),
-                        subtitle: Text(
-                          "loudnessNormalizationDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        trailing: Obx(
-                          () => CustomSwitch(
+                      if (RuntimePlatform.isAndroid)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("loudnessNormalization".tr),
+                          subtitle: Text(
+                            "loudnessNormalizationDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: CustomSwitch(
                             value: settingsController
                                 .loudnessNormalizationEnabled
                                 .value,
@@ -542,140 +552,135 @@ class SettingsScreen extends StatelessWidget {
                                 settingsController.toggleLoudnessNormalization,
                           ),
                         ),
-                      ),
-                    if (!isDesktop)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: Text("cacheSongs".tr),
-                        subtitle: Text(
-                          "cacheSongsDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        trailing: Obx(
-                          () => CustomSwitch(
+                      if (!isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("cacheSongs".tr),
+                          subtitle: Text(
+                            "cacheSongsDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: CustomSwitch(
                             value: settingsController.cacheSongs.value,
                             onChanged:
                                 settingsController.toggleCachingSongsValue,
                           ),
                         ),
-                      ),
-                    if (!isDesktop)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: Text("skipSilence".tr),
-                        subtitle: Text(
-                          "skipSilenceDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        trailing: Obx(
-                          () => CustomSwitch(
+                      if (!isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("skipSilence".tr),
+                          subtitle: Text(
+                            "skipSilenceDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: CustomSwitch(
                             value: settingsController.skipSilenceEnabled.value,
                             onChanged: settingsController.toggleSkipSilence,
                           ),
                         ),
-                      ),
-                    if (isDesktop)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: Text("backgroundPlay".tr),
-                        subtitle: Text(
-                          "backgroundPlayDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        trailing: Obx(
-                          () => CustomSwitch(
+                      if (isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("backgroundPlay".tr),
+                          subtitle: Text(
+                            "backgroundPlayDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: CustomSwitch(
                             value:
                                 settingsController.backgroundPlayEnabled.value,
                             onChanged: settingsController.toggleBackgroundPlay,
                           ),
                         ),
-                      ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("keepScreenOnWhilePlaying".tr),
-                      subtitle: Text(
-                        "keepScreenOnWhilePlayingDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => CustomSwitch(
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("keepScreenOnWhilePlaying".tr),
+                        subtitle: Text(
+                          "keepScreenOnWhilePlayingDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: CustomSwitch(
                           value: settingsController.keepScreenAwake.value,
                           onChanged: settingsController.toggleKeepScreenAwake,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("restoreLastPlaybackSession".tr),
-                      subtitle: Text(
-                        "restoreLastPlaybackSessionDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => CustomSwitch(
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("restoreLastPlaybackSession".tr),
+                        subtitle: Text(
+                          "restoreLastPlaybackSessionDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: CustomSwitch(
                           value:
                               settingsController.restorePlaybackSession.value,
                           onChanged:
                               settingsController.toggleRestorePlaybackSession,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("autoOpenPlayer".tr),
-                      subtitle: Text(
-                        "autoOpenPlayerDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => CustomSwitch(
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("autoOpenPlayer".tr),
+                        subtitle: Text(
+                          "autoOpenPlayerDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: CustomSwitch(
                           value: settingsController.autoOpenPlayer.value,
                           onChanged: settingsController.toggleAutoOpenPlayer,
                         ),
                       ),
-                    ),
-                    if (!isDesktop)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                          top: 0,
+                      if (!isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                            top: 0,
+                          ),
+                          title: Text("equalizer".tr),
+                          subtitle: Text(
+                            "equalizerDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          onTap: () async {
+                            try {
+                              await playerController.openEqualizer();
+                            } catch (e) {
+                              printERROR(e);
+                            }
+                          },
                         ),
-                        title: Text("equalizer".tr),
-                        subtitle: Text(
-                          "equalizerDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        onTap: () async {
-                          try {
-                            await Get.find<PlayerController>().openEqualizer();
-                          } catch (e) {
-                            printERROR(e);
-                          }
-                        },
-                      ),
-                    if (!isDesktop)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: Text("stopMusicOnTaskClear".tr),
-                        subtitle: Text(
-                          "stopMusicOnTaskClearDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        trailing: Obx(
-                          () => CustomSwitch(
+                      if (!isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("stopMusicOnTaskClear".tr),
+                          subtitle: Text(
+                            "stopMusicOnTaskClearDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: CustomSwitch(
                             value: settingsController
                                 .stopPlaybackOnSwipeAway
                                 .value,
@@ -683,21 +688,19 @@ class SettingsScreen extends StatelessWidget {
                                 .toggleStopPlaybackOnSwipeAway,
                           ),
                         ),
-                      ),
-                    if (GetPlatform.isAndroid)
-                      ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
-                        ),
-                        title: Text("ignoreBatOpt".tr),
-                        onTap:
-                            settingsController.openBatteryOptimizationSettings,
-                        subtitle: Obx(
-                          () => RichText(
+                      if (RuntimePlatform.isAndroid)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("ignoreBatOpt".tr),
+                          onTap: settingsController
+                              .openBatteryOptimizationSettings,
+                          subtitle: RichText(
                             text: TextSpan(
                               text:
-                                  "${"status".tr}: ${settingsController.isIgnoringBatteryOptimizations.isTrue ? "enabled".tr : "disabled".tr}\n",
+                                  "${"status".tr}: ${settingsController.isIgnoringBatteryOptimizations.value ? "enabled".tr : "disabled".tr}\n",
                               style: Theme.of(context).textTheme.bodyMedium!
                                   .copyWith(fontWeight: FontWeight.bold),
                               children: <TextSpan>[
@@ -709,22 +712,23 @@ class SettingsScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-                CustomExpansionTile(
-                  title: "download".tr,
-                  icon: Icons.download,
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("autoDownFavSong".tr),
-                      subtitle: Text(
-                        "autoDownFavSongDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => CustomSwitch(
+                    ],
+                  ),
+                  CustomExpansionTile(
+                    title: "download".tr,
+                    icon: Icons.download,
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("autoDownFavSong".tr),
+                        subtitle: Text(
+                          "autoDownFavSongDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: CustomSwitch(
                           value: settingsController
                               .autoDownloadFavoriteSongEnabled
                               .value,
@@ -732,16 +736,17 @@ class SettingsScreen extends StatelessWidget {
                               settingsController.toggleAutoDownloadFavoriteSong,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("downloadingFormat".tr),
-                      subtitle: Text(
-                        "downloadingFormatDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => DropdownButton(
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("downloadingFormat".tr),
+                        subtitle: Text(
+                          "downloadingFormatDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: DropdownButton(
                           dropdownColor: Theme.of(context).cardColor,
                           underline: const SizedBox.shrink(),
                           value: settingsController.downloadingFormat.value,
@@ -755,258 +760,257 @@ class SettingsScreen extends StatelessWidget {
                           onChanged: settingsController.changeDownloadingFormat,
                         ),
                       ),
-                    ),
-                    ListTile(
-                      trailing: TextButton(
-                        child: Text(
-                          "reset".tr,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.titleMedium!.copyWith(fontSize: 15),
-                        ),
-                        onPressed: () async {
-                          await settingsController.resetDownloadLocation();
-                        },
-                      ),
-                      contentPadding: const EdgeInsets.only(
-                        left: 5,
-                        right: 10,
-                        top: 0,
-                      ),
-                      title: Text("downloadLocation".tr),
-                      subtitle: Obx(
-                        () => Text(
-                          settingsController.isCurrentPathSupportDownloadDir
-                              ? "In App storage directory"
-                              : settingsController.downloadLocationPath.value,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                      onTap: () async {
-                        unawaited(settingsController.setDownloadLocation());
-                      },
-                    ),
-                    if (GetPlatform.isAndroid)
                       ListTile(
-                        contentPadding: const EdgeInsets.only(
-                          left: 5,
-                          right: 10,
+                        trailing: TextButton(
+                          child: Text(
+                            "reset".tr,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleMedium!.copyWith(fontSize: 15),
+                          ),
+                          onPressed: () async {
+                            await settingsController.resetDownloadLocation();
+                          },
                         ),
-                        title: Text("exportDownloadedFiles".tr),
-                        subtitle: Text(
-                          "exportDownloadedFilesDes".tr,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        isThreeLine: true,
-                        onTap: () =>
-                            showDialog(
-                              context: context,
-                              builder: (context) => const ExportFileDialog(),
-                            ).whenComplete(
-                              () => Get.delete<ExportFileDialogController>(),
-                            ),
-                      ),
-                    if (GetPlatform.isAndroid)
-                      ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
                           right: 10,
                           top: 0,
                         ),
-                        title: Text("exportedFileLocation".tr),
-                        subtitle: Obx(
-                          () => Text(
+                        title: Text("downloadLocation".tr),
+                        subtitle: Text(
+                          settingsController.isCurrentPathSupportDownloadDir
+                              ? "In App storage directory"
+                              : settingsController.downloadLocationPath.value,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        onTap: () async {
+                          unawaited(settingsController.setDownloadLocation());
+                        },
+                      ),
+                      if (RuntimePlatform.isAndroid)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text("exportDownloadedFiles".tr),
+                          subtitle: Text(
+                            "exportDownloadedFilesDes".tr,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          isThreeLine: true,
+                          onTap: () => showDialog(
+                            context: context,
+                            builder: (context) => const ExportFileDialog(),
+                          ),
+                        ),
+                      if (RuntimePlatform.isAndroid)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                            top: 0,
+                          ),
+                          title: Text("exportedFileLocation".tr),
+                          subtitle: Text(
                             settingsController.exportLocationPath.value,
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
+                          onTap: () async {
+                            unawaited(settingsController.setExportedLocation());
+                          },
                         ),
-                        onTap: () async {
-                          unawaited(settingsController.setExportedLocation());
+                    ],
+                  ),
+                  CustomExpansionTile(
+                    title: "${"backup".tr} & ${"restore".tr}",
+                    icon: Icons.restore,
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("backupAppData".tr),
+                        subtitle: Text(
+                          "backupSettingsAndPlaylistsDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (context) => const BackupDialog(),
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("restoreAppData".tr),
+                        subtitle: Text(
+                          "restoreSettingsAndPlaylistsDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (context) => const RestoreDialog(),
+                        ),
+                      ),
+                      if (RuntimePlatform.isAndroid) const Divider(),
+                      if (RuntimePlatform.isAndroid)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: const Text("Export clone package"),
+                          subtitle: Text(
+                            "Copies this app's DB, downloads, and thumbnails to a shared folder.",
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          isThreeLine: true,
+                          onTap: settingsController.exportDeveloperClonePackage,
+                        ),
+                      if (RuntimePlatform.isAndroid)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: const Text("Import clone package"),
+                          subtitle: Text(
+                            "Overwrites this app sandbox with a clone export and rewrites download paths.",
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          isThreeLine: true,
+                          onTap: settingsController.importDeveloperClonePackage,
+                        ),
+                    ],
+                  ),
+                  CustomExpansionTile(
+                    title: "Import",
+                    icon: Icons.playlist_add,
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: const Text("Import YouTube Music playlist"),
+                        subtitle: Text(
+                          "Creates a local playlist from a public YouTube Music or YouTube playlist URL.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (context) =>
+                              const ImportYtMusicPlaylistDialog(),
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: const Text("Import Spotify export"),
+                        subtitle: Text(
+                          "Creates local playlists from Spotify account-data playlist and library JSON or ZIP exports.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        isThreeLine: true,
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (context) =>
+                              const ImportSpotifyPlaylistDialog(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  CustomExpansionTile(
+                    icon: Icons.miscellaneous_services,
+                    title: "misc".tr,
+                    children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text("resetToDefault".tr),
+                        subtitle: Text(
+                          "resetToDefaultDes".tr,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        onTap: () {
+                          unawaited(
+                            settingsController.resetAppSettingsToDefault().then(
+                              (_) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  snackbar(
+                                    context,
+                                    "resetToDefaultMsg".tr,
+                                    size: SanckBarSize.BIG,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
                         },
                       ),
-                  ],
-                ),
-                CustomExpansionTile(
-                  title: "${"backup".tr} & ${"restore".tr}",
-                  icon: Icons.restore,
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("backupAppData".tr),
-                      subtitle: Text(
-                        "backupSettingsAndPlaylistsDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      isThreeLine: true,
-                      onTap: () =>
-                          showDialog(
-                            context: context,
-                            builder: (context) => const BackupDialog(),
-                          ).whenComplete(
-                            () => Get.delete<BackupDialogController>(),
-                          ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("restoreAppData".tr),
-                      subtitle: Text(
-                        "restoreSettingsAndPlaylistsDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      isThreeLine: true,
-                      onTap: () =>
-                          showDialog(
-                            context: context,
-                            builder: (context) => const RestoreDialog(),
-                          ).whenComplete(
-                            () => Get.delete<RestoreDialogController>(),
-                          ),
-                    ),
-                    if (GetPlatform.isAndroid) const Divider(),
-                    if (GetPlatform.isAndroid)
+                    ],
+                  ),
+                  CustomExpansionTile(
+                    icon: Icons.info,
+                    title: "appInfo".tr,
+                    initiallyExpanded: revealUpdateChannel,
+                    children: [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
                           right: 10,
                         ),
-                        title: const Text("Export clone package"),
+                        title: Text("github".tr),
                         subtitle: Text(
-                          "Copies this app's DB, downloads, and thumbnails to a shared folder.",
+                          "${"githubDes".tr}${((playerController.playerPanelMinHeight.value) == 0 || !isBottomNavActive) ? "" : "\n\n${settingsController.currentVersion} ${"by".tr} bozmund"}",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         isThreeLine: true,
-                        onTap: settingsController.exportDeveloperClonePackage,
+                        onTap: () {
+                          unawaited(
+                            AppPlatformService.openUrl(
+                              'https://github.com/bozmund/Harmony-Music',
+                            ),
+                          );
+                        },
                       ),
-                    if (GetPlatform.isAndroid)
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
                           right: 10,
                         ),
-                        title: const Text("Import clone package"),
+                        title: Text("checkUpdate".tr),
                         subtitle: Text(
-                          "Overwrites this app sandbox with a clone export and rewrites download paths.",
+                          "Click here to check for updates manually",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        isThreeLine: true,
-                        onTap: settingsController.importDeveloperClonePackage,
+                        onTap: () => settingsController.checkUpdate(context),
                       ),
-                  ],
-                ),
-                CustomExpansionTile(
-                  title: "Import",
-                  icon: Icons.playlist_add,
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: const Text("Import YouTube Music playlist"),
-                      subtitle: Text(
-                        "Creates a local playlist from a public YouTube Music or YouTube playlist URL.",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      isThreeLine: true,
-                      onTap: () =>
-                          showDialog(
-                            context: context,
-                            builder: (context) =>
-                                const ImportYtMusicPlaylistDialog(),
-                          ).whenComplete(
-                            () =>
-                                Get.delete<
-                                  ImportYtMusicPlaylistDialogController
-                                >(),
-                          ),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: const Text("Import Spotify export"),
-                      subtitle: Text(
-                        "Creates local playlists from Spotify account-data playlist and library JSON or ZIP exports.",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      isThreeLine: true,
-                      onTap: () =>
-                          showDialog(
-                            context: context,
-                            builder: (context) =>
-                                const ImportSpotifyPlaylistDialog(),
-                          ).whenComplete(
-                            () =>
-                                Get.delete<
-                                  ImportSpotifyPlaylistDialogController
-                                >(),
-                          ),
-                    ),
-                  ],
-                ),
-                CustomExpansionTile(
-                  icon: Icons.miscellaneous_services,
-                  title: "misc".tr,
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("resetToDefault".tr),
-                      subtitle: Text(
-                        "resetToDefaultDes".tr,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      onTap: () {
-                        unawaited(
-                          settingsController.resetAppSettingsToDefault().then((
-                            _,
-                          ) {
-                            ScaffoldMessenger.of(Get.context!).showSnackBar(
-                              snackbar(
-                                Get.context!,
-                                "resetToDefaultMsg".tr,
-                                size: SanckBarSize.BIG,
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          }),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                CustomExpansionTile(
-                  icon: Icons.info,
-                  title: "appInfo".tr,
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("github".tr),
-                      subtitle: Text(
-                        "${"githubDes".tr}${((Get.find<PlayerController>().playerPanelMinHeight.value) == 0 || !isBottomNavActive) ? "" : "\n\n${settingsController.currentVersion} ${"by".tr} bozmund"}",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      isThreeLine: true,
-                      onTap: () {
-                        unawaited(
-                          AppPlatformService.openUrl(
-                            'https://github.com/bozmund/Harmony-Music',
-                          ),
-                        );
-                      },
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: Text("checkUpdate".tr),
-                      subtitle: Text(
-                        "Click here to check for updates manually",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      onTap: () => settingsController.checkUpdate(context),
-                    ),
-                    ListTile(
-                      contentPadding: const EdgeInsets.only(left: 5, right: 10),
-                      title: const Text("Update channel"),
-                      subtitle: Text(
-                        "Stable follows production releases. Rolling follows main-latest candidate builds.",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      trailing: Obx(
-                        () => DropdownButton<String>(
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: const Text("Update channel"),
+                        subtitle: Text(
+                          "Stable follows production releases. Rolling follows main-latest candidate builds.",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: DropdownButton<String>(
                           dropdownColor: Theme.of(context).cardColor,
                           underline: const SizedBox.shrink(),
                           value: settingsController.updateChannel.value.name,
@@ -1023,62 +1027,61 @@ class SettingsScreen extends StatelessWidget {
                           onChanged: settingsController.changeUpdateChannel,
                         ),
                       ),
-                    ),
-                    const Divider(),
-                    SizedBox(
-                      child: Column(
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              unawaited(
-                                settingsController.setDeveloperSettingsEnabled(
-                                  !settingsController
-                                      .developerSettingsEnabled
-                                      .value,
-                                ),
-                              );
-                            },
-                            child: Text(
-                              "Harmony Music",
-                              style: Theme.of(context).textTheme.titleLarge,
+                      const Divider(),
+                      SizedBox(
+                        child: Column(
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                unawaited(
+                                  settingsController
+                                      .setDeveloperSettingsEnabled(
+                                        !settingsController
+                                            .developerSettingsEnabled
+                                            .value,
+                                      ),
+                                );
+                              },
+                              child: Text(
+                                "Harmony Music",
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
                             ),
-                          ),
-                          Text(
-                            settingsController.currentVersion,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ],
+                            Text(
+                              settingsController.currentVersion,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                Obx(
-                  () => settingsController.developerSettingsEnabled.isTrue
+                    ],
+                  ),
+                  settingsController.developerSettingsEnabled.value
                       ? const _DeveloperSettingsInspector()
                       : const SizedBox.shrink(),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: Text(
-              "${settingsController.currentVersion} ${"by".tr} bozmund",
-              style: Theme.of(context).textTheme.bodySmall,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20.0),
+              child: Text(
+                "${settingsController.currentVersion} ${"by".tr} bozmund",
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _DeveloperSettingsInspector extends StatelessWidget {
+class _DeveloperSettingsInspector extends ConsumerWidget {
   const _DeveloperSettingsInspector();
 
   @override
-  Widget build(BuildContext context) {
-    final settingsController = Get.find<SettingsScreenController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsController = ref.watch(settingsScreenControllerProvider);
     return CustomExpansionTile(
       icon: Icons.developer_mode,
       title: "Developer settings",
@@ -1097,8 +1100,9 @@ class _DeveloperSettingsInspector extends StatelessWidget {
           ),
         ),
         const Divider(),
-        Obx(
-          () => Column(
+        AnimatedBuilder(
+          animation: settingsController,
+          builder: (context, _) => Column(
             children: settingsController.developerSettingValues
                 .map(
                   (entry) => ListTile(
@@ -1122,12 +1126,12 @@ class _DeveloperSettingsInspector extends StatelessWidget {
   }
 }
 
-class ThemeSelectorDialog extends StatelessWidget {
+class ThemeSelectorDialog extends ConsumerWidget {
   const ThemeSelectorDialog({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final settingsController = Get.find<SettingsScreenController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsController = ref.watch(settingsScreenControllerProvider);
     return CommonDialog(
       child: Container(
         height: 300,
@@ -1146,21 +1150,25 @@ class ThemeSelectorDialog extends StatelessWidget {
               ),
             ),
             radioWidget(
+              context: context,
               label: "dynamic".tr,
               controller: settingsController,
               value: ThemeType.dynamic,
             ),
             radioWidget(
+              context: context,
               label: "systemDefault".tr,
               controller: settingsController,
               value: ThemeType.system,
             ),
             radioWidget(
+              context: context,
               label: "dark".tr,
               controller: settingsController,
               value: ThemeType.dark,
             ),
             radioWidget(
+              context: context,
               label: "light".tr,
               controller: settingsController,
               value: ThemeType.light,
@@ -1182,12 +1190,12 @@ class ThemeSelectorDialog extends StatelessWidget {
   }
 }
 
-class DiscoverContentSelectorDialog extends StatelessWidget {
+class DiscoverContentSelectorDialog extends ConsumerWidget {
   const DiscoverContentSelectorDialog({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final settingsController = Get.find<SettingsScreenController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsController = ref.watch(settingsScreenControllerProvider);
     return CommonDialog(
       child: Container(
         height: 300,
@@ -1211,21 +1219,25 @@ class DiscoverContentSelectorDialog extends StatelessWidget {
                 child: Column(
                   children: [
                     radioWidget(
+                      context: context,
                       label: "quickpicks".tr,
                       controller: settingsController,
                       value: "QP",
                     ),
                     radioWidget(
+                      context: context,
                       label: "topmusicvideos".tr,
                       controller: settingsController,
                       value: "TMV",
                     ),
                     radioWidget(
+                      context: context,
                       label: "trending".tr,
                       controller: settingsController,
                       value: "TR",
                     ),
                     radioWidget(
+                      context: context,
                       label: "basedOnLast".tr,
                       controller: settingsController,
                       value: "BOLI",
@@ -1253,19 +1265,23 @@ class DiscoverContentSelectorDialog extends StatelessWidget {
 }
 
 Widget radioWidget({
+  required BuildContext context,
   required String label,
   required SettingsScreenController controller,
   required value,
 }) {
-  return Obx(
-    () => ListTile(
+  return AnimatedBuilder(
+    animation: controller,
+    builder: (context, _) => ListTile(
       visualDensity: const VisualDensity(vertical: -4),
       onTap: () async {
         if (value.runtimeType == ThemeType) {
           await controller.onThemeChange(value);
         } else {
           await controller.onContentChange(value);
-          Navigator.of(Get.context!).pop();
+          if (context.mounted) {
+            Navigator.of(context).pop();
+          }
         }
       },
       leading: Radio(

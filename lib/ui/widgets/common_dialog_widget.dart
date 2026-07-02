@@ -9,12 +9,14 @@ class CommonDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            child: child,
-          )),
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }

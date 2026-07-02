@@ -1,6 +1,6 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
 import '../screens/Search/search_result_screen_controller.dart';
 import '/models/album.dart';
@@ -10,44 +10,54 @@ import '/ui/widgets/content_list_widget.dart';
 import 'separate_tab_item_widget.dart';
 
 class ResultWidget extends StatelessWidget {
-  const ResultWidget({super.key, this.isv2Used = false});
+  const ResultWidget({
+    super.key,
+    this.isv2Used = false,
+    required this.searchResScrController,
+  });
+
   final bool isv2Used;
+  final SearchResultScreenController searchResScrController;
 
   @override
   Widget build(BuildContext context) {
-    final SearchResultScreenController searchResScrController =
-        Get.find<SearchResultScreenController>();
-    final topPadding = context.isLandscape ? 50.0 : 80.0;
-    return Obx(
-      () => Center(
+    final topPadding =
+        MediaQuery.orientationOf(context) == Orientation.landscape
+        ? 50.0
+        : 80.0;
+    return AnimatedBuilder(
+      animation: searchResScrController,
+      builder: (context, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(0.0),
           child: SingleChildScrollView(
-            padding:
-                EdgeInsets.only(bottom: 200, top: isv2Used ? 0 : topPadding),
-            child: searchResScrController.isResultContentFetched.value
-                ? Column(children: [
-                    if (!isv2Used)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "searchRes".tr,
-                          style: Theme.of(context).textTheme.titleLarge,
+            padding: EdgeInsets.only(
+              bottom: 200,
+              top: isv2Used ? 0 : topPadding,
+            ),
+            child: searchResScrController.isResultContentFetched
+                ? Column(
+                    children: [
+                      if (!isv2Used)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "searchRes".tr,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
                         ),
-                      ),
-                    if (!isv2Used)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "${"for1".tr} \"${searchResScrController.queryString.value}\"",
-                          style: Theme.of(context).textTheme.titleMedium,
+                      if (!isv2Used)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "${"for1".tr} \"${searchResScrController.queryString}\"",
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                         ),
-                      ),
-                    const SizedBox(
-                      height: 10,
-                    ),
-                    ...generateWidgetList(searchResScrController),
-                  ])
+                      const SizedBox(height: 10),
+                      ...generateWidgetList(searchResScrController),
+                    ],
+                  )
                 : const SizedBox.shrink(),
           ),
         ),
@@ -56,31 +66,34 @@ class ResultWidget extends StatelessWidget {
   }
 
   List<Widget> generateWidgetList(
-      SearchResultScreenController searchResScrController) {
+    SearchResultScreenController searchResScrController,
+  ) {
     List<Widget> list = [];
-    const resultOrder = [
-      "Songs",
-      "Videos",
-      "Albums",
-      "Artists",
-    ];
+    const resultOrder = ["Songs", "Videos", "Albums", "Artists"];
     for (final key in resultOrder) {
       final value = searchResScrController.resultContent[key];
       if (value is! List || value.isEmpty) continue;
 
       if (key == "Songs" || key == "Videos") {
-        list.add(SeparateTabItemWidget(
-          items: List<MediaItem>.from(value),
-          title: key,
-          isCompleteList: false,
-        ));
+        list.add(
+          SeparateTabItemWidget(
+            items: List<MediaItem>.from(value),
+            title: key,
+            isCompleteList: false,
+          ),
+        );
       } else if (key == "Albums") {
-        list.add(ContentListWidget(
-          content: AlbumContent(
-              title: key, albumList: List<Album>.from(value)),
-          isHomeContent: false,
-        ));
-      } 
+        list.add(
+          ContentListWidget(
+            content: AlbumContent(
+              title: key,
+              albumList: List<Album>.from(value),
+            ),
+            isHomeContent: false,
+            searchResultScreenController: searchResScrController,
+          ),
+        );
+      }
       // else if (item.key.contains("playlist")) {
       //   list.add(ContentListWidget(
       //     content: PlaylistContent(
@@ -89,13 +102,15 @@ class ResultWidget extends StatelessWidget {
       //     ),
       //     isHomeContent: false,
       //   ));
-      // } 
+      // }
       else if (key == "Artists") {
-        list.add(SeparateTabItemWidget(
-          items: List<Artist>.from(value),
-          title: key,
-          isCompleteList: false,
-        ));
+        list.add(
+          SeparateTabItemWidget(
+            items: List<Artist>.from(value),
+            title: key,
+            isCompleteList: false,
+          ),
+        );
       }
     }
 

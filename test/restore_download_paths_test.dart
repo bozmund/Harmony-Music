@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:harmonymusic/ui/widgets/restore_dialog.dart';
+import 'package:harmonymusic/services/backup/restore_path_rewriter.dart';
 
 void main() {
   group('rewriteRestoredDownloadSong', () {
@@ -63,8 +63,27 @@ void main() {
       expect(rewritten['streamInfo'][1]['url'], '/home/me/Music/song.opus');
     });
 
-    test('returns null when neither restored nor original file exists', () {
+    test(
+        'keeps entry but strips dead path when neither restored nor original '
+        'file exists', () {
       final song = _song('/home/me/Music/song.opus');
+
+      final rewritten = rewriteRestoredDownloadSong(
+        song,
+        supportDirPath,
+        fileExists: (_) => false,
+      );
+
+      expect(rewritten, isNotNull);
+      expect(rewritten!.containsKey('url'), isFalse);
+      expect(rewritten.containsKey('streamInfo'), isFalse);
+      expect(rewritten['videoId'], 'video-id');
+    });
+
+    test('leaves already-stripped entries unchanged', () {
+      final song = _song('/home/me/Music/song.opus')
+        ..remove('url')
+        ..remove('streamInfo');
 
       final rewritten = rewriteRestoredDownloadSong(
         song,

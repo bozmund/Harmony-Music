@@ -16,6 +16,10 @@ class HiveDownloadRepository implements DownloadRepository {
   Future<dynamic> getDownloadJson(String songId) async => _box.get(songId);
 
   @override
+  Future<Map<dynamic, dynamic>> getAllDownloadJsonEntries() async =>
+      Map<dynamic, dynamic>.from(_box.toMap());
+
+  @override
   Future<MediaItem?> getDownloadedSong(String songId) async {
     final value = _box.get(songId);
     return value == null ? null : MediaItemBuilder.fromJson(value);

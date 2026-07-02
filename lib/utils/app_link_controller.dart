@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
+import '../app/navigation/app_navigator.dart';
 import '../models/playing_from.dart';
 
 import '/ui/widgets/song_info_bottom_sheet.dart';
@@ -14,15 +15,24 @@ import '/ui/player/player_controller.dart';
 import '../ui/navigator.dart';
 import '../ui/widgets/snackbar.dart';
 
-class AppLinksController extends GetxController with ProcessLink {
-  late AppLinks _appLinks;
-  StreamSubscription<Uri>? _linkSubscription;
-
-  @override
-  void onInit() {
-    super.onInit();
+class AppLinksController with ProcessLink {
+  AppLinksController({
+    required MusicServiceContract musicService,
+    required PlayerController playerController,
+  }) : _musicService = musicService,
+       _playerController = playerController {
     unawaited(initDeepLinks());
   }
+
+  final MusicServiceContract _musicService;
+  final PlayerController _playerController;
+  @override
+  MusicServiceContract get musicService => _musicService;
+  @override
+  PlayerController get playerController => _playerController;
+
+  late AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSubscription;
 
   Future<void> initDeepLinks() async {
     _appLinks = AppLinks();
@@ -39,22 +49,25 @@ class AppLinksController extends GetxController with ProcessLink {
     });
   }
 
-  @override
   void dispose() {
     unawaited(_linkSubscription?.cancel());
-    super.dispose();
   }
 }
 
 mixin ProcessLink {
+  MusicServiceContract get musicService;
+  PlayerController get playerController;
+
   Future<void> filterLinks(Uri uri) async {
-    final playerController = Get.find<PlayerController>();
     if (playerController.playerPanelController.isPanelOpen) {
       await playerController.playerPanelController.close();
     }
 
-    if (Get.isRegistered<SongInfoController>()) {
-      Navigator.of(Get.context!).pop();
+    if (SongInfoControllerRegistry.isOpen) {
+      final context = AppNavigator.context;
+      if (context != null) {
+        Navigator.of(context).pop();
+      }
     }
 
     if (uri.host == "youtube.com" ||
@@ -70,9 +83,7 @@ mixin ProcessLink {
         final browseId = uri.queryParameters['list'];
         await openPlaylistOrAlbum(browseId!);
       } else if (uri.pathSegments[0] == "shorts") {
-        ScaffoldMessenger.of(Get.context!).showSnackBar(
-          snackbar(Get.context!, "notaSongVideo".tr, size: SanckBarSize.MEDIUM),
-        );
+        _showSnackBar("notaSongVideo".tr);
       } else if (uri.pathSegments[0] == "watch") {
         final songId = uri.queryParameters['v'];
         await playSong(songId!);
@@ -85,55 +96,64 @@ mixin ProcessLink {
         await playSong(songId);
       }
     } else {
-      ScaffoldMessenger.of(Get.context!).showSnackBar(
-        snackbar(Get.context!, "notaValidLink".tr, size: SanckBarSize.MEDIUM),
-      );
+      _showSnackBar("notaValidLink".tr);
     }
   }
 
   Future<void> openPlaylistOrAlbum(String browseId) async {
+    final navigator = ScreenNavigationSetup.navigatorKey.currentState;
+    if (navigator == null) return;
     if (browseId.contains("OLAK5uy")) {
-      await Get.toNamed(
+      await navigator.pushNamed(
         ScreenNavigationSetup.albumScreen,
-        id: ScreenNavigationSetup.id,
         arguments: (null, browseId),
       );
     } else {
-      await Get.toNamed(
+      await navigator.pushNamed(
         ScreenNavigationSetup.playlistScreen,
-        id: ScreenNavigationSetup.id,
         arguments: [null, browseId],
       );
     }
   }
 
   Future<void> openArtist(String channelId) async {
-    await Get.toNamed(
+    final navigator = ScreenNavigationSetup.navigatorKey.currentState;
+    if (navigator == null) return;
+    await navigator.pushNamed(
       ScreenNavigationSetup.artistScreen,
-      id: ScreenNavigationSetup.id,
       arguments: [true, channelId],
     );
   }
 
   Future<void> playSong(String songId) async {
+    final context = AppNavigator.context;
+    if (context == null) return;
     await showDialog(
-      context: Get.context!,
+      context: context,
       builder: (context) =>
           const Center(child: LoadingIndicator(strokeWidth: 5)),
       barrierDismissible: false,
     );
-    final result = await Get.find<MusicServiceContract>().getSongWithId(songId);
-    Navigator.of(Get.context!).pop();
+    final result = await musicService.getSongWithId(songId);
+    if (context.mounted) {
+      Navigator.of(context).pop();
+    }
     if (result[0]) {
-      await Get.find<PlayerController>().playPlayListSong(
+      await playerController.playPlayListSong(
         List.from(result[1]),
         0,
         playFrom: PlayingFrom(type: PlayingFromType.SELECTION),
       );
     } else {
-      ScaffoldMessenger.of(Get.context!).showSnackBar(
-        snackbar(Get.context!, "notaSongVideo".tr, size: SanckBarSize.MEDIUM),
-      );
+      _showSnackBar("notaSongVideo".tr);
     }
+  }
+
+  void _showSnackBar(String message) {
+    final context = AppNavigator.context;
+    if (context == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(snackbar(context, message, size: SanckBarSize.MEDIUM));
   }
 }

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart';
 
 import '../../../utils/helper.dart';
@@ -9,17 +8,26 @@ import '../Home/home_screen_controller.dart';
 import '/services/app_contracts.dart';
 import '/ui/widgets/sort_widget.dart';
 
-class SearchResultScreenController extends GetxController
-    with GetTickerProviderStateMixin {
-  final navigationRailCurrentIndex = 0.obs;
-  final isResultContentFetched = false.obs;
-  final isSeparatedResultContentFetched = false.obs;
-  final resultContent = <String, dynamic>{}.obs;
-  final separatedResultContent = <String, dynamic>{}.obs;
-  final musicServices = Get.find<MusicServiceContract>();
-  final queryString = ''.obs;
-  final railItems = <String>[].obs;
-  final railItemHeight = Get.size.height.obs;
+class SearchResultScreenController extends ChangeNotifier {
+  SearchResultScreenController({
+    required MusicServiceContract musicService,
+    required HomeScreenController homeScreenController,
+    required SettingsScreenController settingsScreenController,
+  }) : musicServices = musicService,
+       _homeScreenController = homeScreenController,
+       _settingsScreenController = settingsScreenController;
+
+  int navigationRailCurrentIndex = 0;
+  bool isResultContentFetched = false;
+  bool isSeparatedResultContentFetched = false;
+  Map<String, dynamic> resultContent = <String, dynamic>{};
+  final Map<String, dynamic> separatedResultContent = <String, dynamic>{};
+  final MusicServiceContract musicServices;
+  final HomeScreenController _homeScreenController;
+  final SettingsScreenController _settingsScreenController;
+  String queryString = '';
+  List<String> railItems = <String>[];
+  double railItemHeight = 0;
   final additionalParamNext = {};
   bool continuationInProgress = false;
   TabController? tabController;
@@ -36,18 +44,26 @@ class SearchResultScreenController extends GetxController
     "Artists",
   ];
 
-  @override
-  void onReady() {
-    unawaited(_initializeOnReady());
-    super.onReady();
+  Future<void> initialize({
+    required String? query,
+    required double screenHeight,
+    required bool isDesktopLayout,
+    required TickerProvider vsync,
+  }) async {
+    railItemHeight = screenHeight;
+    await _initializeSearchResult(
+      query: query,
+      isDesktopLayout: isDesktopLayout,
+      vsync: vsync,
+    );
+    _homeScreenController.whenHomeScreenOnTop();
   }
 
-  Future<void> _initializeOnReady() async {
-    await _getInitSearchResult();
-    Get.find<HomeScreenController>().whenHomeScreenOnTop();
+  void onDestinationSelected(int value, {bool ignoreTabCommand = false}) {
+    unawaited(_selectDestination(value, ignoreTabCommand: ignoreTabCommand));
   }
 
-  Future<void> onDestinationSelected(
+  Future<void> _selectDestination(
     int value, {
     bool ignoreTabCommand = false,
   }) async {
@@ -55,10 +71,11 @@ class SearchResultScreenController extends GetxController
       return;
     }
 
-    isTabTransitionReversed = value > navigationRailCurrentIndex.value;
+    isTabTransitionReversed = value > navigationRailCurrentIndex;
 
-    isSeparatedResultContentFetched.value = false;
-    navigationRailCurrentIndex.value = value;
+    isSeparatedResultContentFetched = false;
+    navigationRailCurrentIndex = value;
+    notifyListeners();
 
     if (tabController != null && !ignoreTabCommand) {
       tabController?.animateTo(value);
@@ -71,14 +88,13 @@ class SearchResultScreenController extends GetxController
       final itemCount = (tabName == 'Songs' || tabName == 'Videos') ? 25 : 10;
       final filterParams = _filterParamsFor(tabName);
       final x = await musicServices.search(
-        queryString.value,
+        queryString,
         filter: tabName.replaceAll(" ", "_").toLowerCase(),
         limit: itemCount,
         filterParams: filterParams,
       );
       separatedResultContent[tabName] = x[tabName] ?? [];
       additionalParamNext[tabName] = x['params'];
-      isSeparatedResultContentFetched.value = true;
       final scrollController = scrollControllers[tabName];
       if (scrollController != null &&
           !_scrollListenersAttached.contains(tabName) &&
@@ -97,16 +113,17 @@ class SearchResultScreenController extends GetxController
         });
       }
     }
-    isSeparatedResultContentFetched.value = true;
+    isSeparatedResultContentFetched = true;
+    notifyListeners();
   }
 
   Future<void> getContinuationContents() async {
-    if (navigationRailCurrentIndex.value <= 0 ||
-        navigationRailCurrentIndex.value > railItems.length) {
+    if (navigationRailCurrentIndex <= 0 ||
+        navigationRailCurrentIndex > railItems.length) {
       continuationInProgress = false;
       return;
     }
-    final tabName = railItems[navigationRailCurrentIndex.value - 1];
+    final tabName = railItems[navigationRailCurrentIndex - 1];
     final params = additionalParamNext[tabName];
     if (!_hasValidContinuationParams(params)) {
       continuationInProgress = false;
@@ -117,34 +134,36 @@ class SearchResultScreenController extends GetxController
       final x = await musicServices.getSearchContinuation(params);
       (separatedResultContent[tabName] ?? []).addAll(x[tabName] ?? []);
       additionalParamNext[tabName] = x['params'];
-      separatedResultContent.refresh();
+      notifyListeners();
     } finally {
       continuationInProgress = false;
     }
   }
 
   Future<void> viewAllCallback(String text) async {
-    await onDestinationSelected(railItems.indexOf(text) + 1);
+    await _selectDestination(railItems.indexOf(text) + 1);
   }
 
-  Future<void> _getInitSearchResult() async {
-    isResultContentFetched.value = false;
-    final args = Get.arguments;
-    if (args != null) {
-      queryString.value = args;
-      resultContent.value = await musicServices.search(args);
+  Future<void> _initializeSearchResult({
+    required String? query,
+    required bool isDesktopLayout,
+    required TickerProvider vsync,
+  }) async {
+    isResultContentFetched = false;
+    notifyListeners();
+    if (query != null) {
+      queryString = query;
+      resultContent = await musicServices.search(query);
       final allKeys = _searchRailItems.where(
         (element) =>
             _hasInitialContent(element) || _canLoadFilteredTab(element),
       );
-      railItems.value = List<String>.from(allKeys);
+      railItems = List<String>.from(allKeys);
       final len = railItems
           .where((element) => element.contains("playlists"))
           .length;
       final calH = 30 + (railItems.length + 1 - len) * 123 + len * 150.0;
-      railItemHeight.value = calH >= railItemHeight.value
-          ? calH
-          : railItemHeight.value;
+      railItemHeight = calH >= railItemHeight ? calH : railItemHeight;
 
       //ScrollControllers for list Continuation callback implementation
       for (String item in railItems) {
@@ -152,8 +171,8 @@ class SearchResultScreenController extends GetxController
       }
 
       //Case if bottom nav used
-      if (GetPlatform.isDesktop ||
-          Get.find<SettingsScreenController>().isBottomNavBarEnabled.isTrue) {
+      if (isDesktopLayout ||
+          _settingsScreenController.isBottomNavBarEnabled.value) {
         // assigning init val
         for (var element in railItems) {
           separatedResultContent[element] = [];
@@ -162,19 +181,20 @@ class SearchResultScreenController extends GetxController
         //tab controller for v2
         tabController = TabController(
           length: railItems.length + 1,
-          vsync: this,
+          vsync: vsync,
         );
 
         tabController?.animation?.addListener(() async {
           int indexChange = tabController!.offset.round();
           int index = tabController!.index + indexChange;
 
-          if (index != navigationRailCurrentIndex.value) {
-            await onDestinationSelected(index, ignoreTabCommand: true);
+          if (index != navigationRailCurrentIndex) {
+            await _selectDestination(index, ignoreTabCommand: true);
           }
         });
       }
-      isResultContentFetched.value = true;
+      isResultContentFetched = true;
+      notifyListeners();
     }
   }
 
@@ -196,6 +216,7 @@ class SearchResultScreenController extends GetxController
       sortAlbumNSingles(albumList, sortType, isAscending);
       separatedResultContent[title] = albumList;
     }
+    notifyListeners();
   }
 
   bool _hasInitialContent(String tabName) {
@@ -224,12 +245,30 @@ class SearchResultScreenController extends GetxController
   }
 
   @override
-  void onClose() {
+  void dispose() {
     for (String item in railItems) {
       scrollControllers[item]?.dispose();
     }
-    Get.find<HomeScreenController>().whenHomeScreenOnTop();
+    _homeScreenController.whenHomeScreenOnTop();
     tabController?.dispose();
-    super.onClose();
+    super.dispose();
+  }
+}
+
+class SearchResultScreenControllerRegistry {
+  SearchResultScreenControllerRegistry._();
+
+  static SearchResultScreenController? _controller;
+
+  static SearchResultScreenController? get current => _controller;
+
+  static void register(SearchResultScreenController controller) {
+    _controller = controller;
+  }
+
+  static void unregister(SearchResultScreenController controller) {
+    if (identical(_controller, controller)) {
+      _controller = null;
+    }
   }
 }

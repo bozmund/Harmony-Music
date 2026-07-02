@@ -1,17 +1,16 @@
 import 'dart:async';
 
-import 'package:harmonymusic/services/app_contracts.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:harmonymusic/models/thumbnail.dart';
 import 'package:harmonymusic/services/permission_service.dart';
 import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart';
 import 'package:harmonymusic/ui/widgets/snackbar.dart';
 import 'package:harmonymusic/utils/helper.dart';
-import 'package:hive/hive.dart';
+import 'package:harmonymusic/utils/observable_state.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 
 import '../../../mixins/additional_operation_mixin.dart';
@@ -24,22 +23,52 @@ import '../../../services/piped_service.dart';
 import '../Home/home_screen_controller.dart';
 import '../Library/library_controller.dart';
 
+class PlaylistScreenControllerRegistry {
+  static final _controllers = <String, PlaylistScreenController>{};
+
+  static void register(String tag, PlaylistScreenController controller) {
+    _controllers[tag] = controller;
+  }
+
+  static void unregister(String tag, PlaylistScreenController controller) {
+    if (_controllers[tag] == controller) {
+      _controllers.remove(tag);
+    }
+  }
+
+  static PlaylistScreenController? maybeOf(String? tag) =>
+      tag == null ? null : _controllers[tag];
+}
+
 ///PlaylistScreenController handles playlist screen
 ///
 ///Playlist title,image,songs
 class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
-    with AdditionalOperationMixin, GetSingleTickerProviderStateMixin {
-  final MusicServiceContract _musicServices = Get.find<MusicServiceContract>();
-  final playlist = Playlist(
+    with AdditionalOperationMixin {
+  PlaylistScreenController({
+    required super.musicServices,
+    required super.playlistRepository,
+    required super.libraryRepository,
+    required HomeScreenController homeScreenController,
+    required SettingsScreenController settingsScreenController,
+    required PipedServices pipedServices,
+  }) : _homeScreenController = homeScreenController,
+       _settingsScreenController = settingsScreenController,
+       _pipedServices = pipedServices;
+
+  final HomeScreenController _homeScreenController;
+  final SettingsScreenController _settingsScreenController;
+  final PipedServices _pipedServices;
+
+  final playlist = ObservableValue(Playlist(
     title: "",
     playlistId: "",
     thumbnailUrl: Playlist.thumbPlaceholderUrl,
-  ).obs;
-  final isDefaultPlaylist = false.obs;
+  ));
+  final isDefaultPlaylist = ObservableValue(false);
 
-  // Add this RxBool to track export progress
-  final isExporting = false.obs;
-  final exportProgress = 0.0.obs;
+  bool isExporting = false;
+  double exportProgress = 0.0;
 
   String generatedYtmPlaylistUrl = '';
 
@@ -52,11 +81,9 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
   Animation<double> get scaleAnimation => _scaleAnimation;
 
-  @override
-  void onInit() {
-    super.onInit();
+  void initialize({required List args, required TickerProvider vsync}) {
     _animationController = AnimationController(
-      vsync: this,
+      vsync: vsync,
       duration: const Duration(milliseconds: 400),
     );
 
@@ -65,21 +92,23 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       end: 1.0,
     ).animate(animationController);
 
-    final args = Get.arguments as List;
     final Playlist? playlist = args[0];
     final playlistId = args[1];
     unawaited(fetchPlaylistDetails(playlist, playlistId));
     unawaited(
       Future.delayed(const Duration(milliseconds: 200), () {
         if (isClosed) return;
-        Get.find<HomeScreenController>().whenHomeScreenOnTop();
+        _homeScreenController.whenHomeScreenOnTop();
       }),
     );
   }
 
   ///Fetches playlist details from the service
   @override
-  Future<void> fetchPlaylistDetails(Playlist? playlist_, String playlistId) async {
+  Future<void> fetchPlaylistDetails(
+    Playlist? playlist_,
+    String playlistId,
+  ) async {
     final generation = beginAsyncLoad();
     final isIdOnly = playlist_ == null;
     final isPipedPlaylist = playlist_?.isPipedPlaylist ?? false;
@@ -91,9 +120,11 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         playlistId == BoxNames.libFavNotDownloaded ||
         playlistId == BoxNames.libImportDuplicates ||
         playlistId == BoxNames.libImportReview;
+    notifyListeners();
 
     if (!isIdOnly && !playlist_.isCloudPlaylist) {
       playlist.value = playlist_;
+      notifyListeners();
       await _animationController.forward();
       if (!isAsyncLoadActive(generation)) return;
       if (playlistId == BoxNames.libFavNotDownloaded) {
@@ -103,6 +134,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       }
       if (!isAsyncLoadActive(generation)) return;
       isContentFetched.value = true;
+      notifyListeners();
 
       unawaited(
         Future.delayed(const Duration(seconds: 1), () {
@@ -116,6 +148,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     if (!isIdOnly) {
       playlist.value = playlist_;
+      notifyListeners();
       await _animationController.forward();
       if (!isAsyncLoadActive(generation)) return;
     }
@@ -124,12 +157,11 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       // Check if the playlist is offline
       if (await checkIfAddedToLibrary(playlistId)) {
         if (!isAsyncLoadActive(generation)) return;
-        final songsBox = await Hive.openBox(playlistId);
-        if (!isAsyncLoadActive(generation)) {
-          await songsBox.close();
-          return;
-        }
-        if (songsBox.values.isEmpty) {
+        final localSongs = await playlistRepository.getPlaylistSongs(
+          playlistId,
+        );
+        if (!isAsyncLoadActive(generation)) return;
+        if (localSongs.isEmpty) {
           await _fetchSongOnline(
             playlistId,
             isIdOnly,
@@ -154,6 +186,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       }
       if (!isAsyncLoadActive(generation)) return;
       isContentFetched.value = true;
+      notifyListeners();
     } catch (e) {
       // Handle any errors that occur during the fetch
       printERROR("Error fetching playlist details: $e");
@@ -161,13 +194,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   }
 
   Future<void> fetchLikedNotDownloadedSongs({int? generation}) async {
-    final favBox = await Hive.openBox(BoxNames.libFav);
-    final downloadsBox = await Hive.openBox(BoxNames.songDownloads);
+    final songs = await libraryRepository.getFavoriteNotDownloadedSongs();
     if (generation != null && !isAsyncLoadActive(generation)) return;
-    songList.value = favBox.values
-        .where((item) => !downloadsBox.containsKey(item['videoId']))
-        .map((item) => MediaItemBuilder.fromJson(item))
-        .toList();
+    songList.value = songs;
+    notifyListeners();
     checkDownloadStatus();
   }
 
@@ -176,52 +206,53 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     bool isIdOnly,
     bool isPipedPlaylist, {
     int? generation,
-  }
-  ) async {
+  }) async {
     isContentFetched.value = false;
+    notifyListeners();
 
     if (isPipedPlaylist) {
-      final songs = await Get.find<PipedServices>().getPlaylistSongs(id);
+      final songs = await _pipedServices.getPlaylistSongs(id);
       if (generation != null && !isAsyncLoadActive(generation)) return;
       songList.value = songs;
       isContentFetched.value = true;
+      notifyListeners();
       checkDownloadStatus();
       return;
     }
 
-    final content = await _musicServices.getPlaylistOrAlbumSongs(
-      playlistId: id,
-    );
+    final content = await musicServices.getPlaylistOrAlbumSongs(playlistId: id);
     if (generation != null && !isAsyncLoadActive(generation)) return;
 
     if (isIdOnly) {
       content['playlistId'] = id;
       playlist.value = Playlist.fromJson(content);
+      notifyListeners();
       await _animationController.forward();
       if (generation != null && !isAsyncLoadActive(generation)) return;
     }
     songList.value = List<MediaItem>.from(content['tracks']);
+    notifyListeners();
     checkDownloadStatus();
   }
 
   @override
   Future<void> syncPlaylistSongs() async {
-    await _fetchSongOnline(playlist.value.playlistId, false, false).then((value) async {
+    await _fetchSongOnline(playlist.value.playlistId, false, false).then((
+      value,
+    ) async {
       await updateSongsIntoDb();
       isContentFetched.value = true;
+      notifyListeners();
     });
   }
 
   @override
   Future<bool> checkIfAddedToLibrary(String id) async {
-    final box = await Hive.openBox(BoxNames.libraryPlaylists);
-    if (isClosed) {
-      await box.close();
-      return false;
-    }
-    isAddedToLibrary.value = box.containsKey(id);
-    if (isAddedToLibrary.value) playlist.value = Playlist.fromJson(box.get(id));
-    await box.close();
+    final localPlaylist = await playlistRepository.getPlaylist(id);
+    if (isClosed) return false;
+    isAddedToLibrary.value = localPlaylist != null;
+    if (localPlaylist != null) playlist.value = localPlaylist;
+    notifyListeners();
     return isAddedToLibrary.value;
   }
 
@@ -230,29 +261,24 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     try {
       if (content.isPipedPlaylist && !add) {
         //remove piped playlist from lib
-        final res = await Get.find<PipedServices>().deletePlaylist(
-          content.playlistId,
-        );
-        await Get.find<LibraryPlaylistsController>().syncPipedPlaylist();
+        final res = await _pipedServices.deletePlaylist(content.playlistId);
+        await LibraryPlaylistsControllerRegistry.current?.syncPipedPlaylist();
         return (res.code == 1);
       } else {
-        final box = await Hive.openBox(BoxNames.libraryPlaylists);
         final id = content.playlistId;
         if (add) {
-          await box.put(id, content.toJson());
+          await playlistRepository.savePlaylist(content);
           await updateSongsIntoDb();
         } else {
-          await box.delete(id);
-          final songsBox = await Hive.openBox(id);
-          await songsBox.deleteFromDisk();
+          await playlistRepository.deletePlaylist(id);
         }
         isAddedToLibrary.value = add;
+        notifyListeners();
       }
       //Update frontend
-      await Get.find<LibraryPlaylistsController>().refreshLib();
+      await LibraryPlaylistsControllerRegistry.current?.refreshLib();
       if (!content.isCloudPlaylist && !add) {
-        final playlistBox = await Hive.openBox(content.playlistId);
-        await playlistBox.deleteFromDisk();
+        await playlistRepository.deletePlaylistSongBox(content.playlistId);
       }
       return true;
     } catch (e) {
@@ -262,15 +288,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
   @override
   Future<void> updateSongsIntoDb() async {
-    final songsBox = await Hive.openBox(playlist.value.playlistId);
-    await songsBox.clear();
-    final songListCopy = songList.toList();
-    for (int i = 0; i < songListCopy.length; i++) {
-      await songsBox.put(i, MediaItemBuilder.toJson(songListCopy[i]));
-    }
-    if (playlist.value.playlistId != BoxNames.songDownloads) {
-      await songsBox.close();
-    }
+    await playlistRepository.replacePlaylistSongs(
+      playlist.value.playlistId,
+      songList.toList(),
+    );
 
     // Update the playlist thumbnail based on the first song's thumbnail
     await _updatePlaylistThumbSongBased();
@@ -280,43 +301,44 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   Future<void> deleteMultipleSongs(List<MediaItem> songs) async {
     final id = playlist.value.playlistId;
     if (id == BoxNames.libFavNotDownloaded) {
-      final favBox = await Hive.openBox(BoxNames.libFav);
       for (MediaItem element in songs) {
-        await favBox.delete(element.id);
+        await libraryRepository.setFavorite(element, false);
         songList.removeWhere((song) => song.id == element.id);
       }
       await _updatePlaylistThumbSongBased();
       return;
     }
     if (id == BoxNames.libImportDuplicates || id == BoxNames.libImportReview) {
-      final conflictsBox = await Hive.openBox(id);
       for (MediaItem element in songs) {
-        await conflictsBox.delete(element.id);
+        if (id == BoxNames.libImportDuplicates) {
+          await libraryRepository.deleteImportDuplicate(element.id);
+        } else {
+          await libraryRepository.deleteImportReview(element.id);
+        }
         songList.removeWhere((song) => song.id == element.id);
       }
-      await conflictsBox.close();
       await _updatePlaylistThumbSongBased();
       return;
     }
     final offline = id == BoxNames.songsCache || id == BoxNames.songDownloads;
 
-    final box_ = await Hive.openBox(id);
     for (MediaItem element in songs) {
-      final index = box_.values.toList().indexWhere(
-        (ele) => ele['videoId'] == element.id,
-      );
-      await box_.deleteAt(index);
-
       if (offline) {
-        await Get.find<LibrarySongsController>().removeSong(
+        if (id == BoxNames.songDownloads) {
+          await libraryRepository.deleteDownloadedSong(element.id);
+        } else {
+          await libraryRepository.deleteCachedSong(element.id);
+        }
+        await LibrarySongsControllerRegistry.current?.removeSong(
           element,
           id == BoxNames.songDownloads,
         );
+      } else {
+        await playlistRepository.removeSongsFromPlaylist(id, [element]);
       }
 
       songList.removeWhere((song) => song.id == element.id);
     }
-    if (!offline) await box_.close();
 
     // Update the playlist thumbnail based on the first song's thumbnail
     await _updatePlaylistThumbSongBased();
@@ -355,7 +377,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   Future<void> _updatePlaylistThumbSongBased() async {
     final currentPlaylist = playlist.value;
 
-    if (isDefaultPlaylist.isTrue || currentPlaylist.isCloudPlaylist) {
+    if (isDefaultPlaylist.value || currentPlaylist.isCloudPlaylist) {
       return;
     }
 
@@ -379,18 +401,17 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     // Update the playlist thumbnail URL
     playlist.value = updatedPlaylist;
-    await Get.find<LibraryPlaylistsController>().updatePlaylistIntoDb(
+    notifyListeners();
+    await LibraryPlaylistsControllerRegistry.current?.updatePlaylistIntoDb(
       updatedPlaylist,
     );
   }
 
-  @override
-  void onClose() {
-    cancelAsyncLoads();
+  void close() {
+    closeController();
     tempListContainer.clear();
     _animationController.dispose();
-    Get.find<HomeScreenController>().whenHomeScreenOnTop();
-    super.onClose();
+    _homeScreenController.whenHomeScreenOnTop();
   }
 
   Future<void> exportPlaylistToJson(BuildContext context) async {
@@ -404,8 +425,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     }
 
     try {
-      isExporting.value = true;
-      exportProgress.value = 0.1;
+      _setExportState(isExporting: true, exportProgress: 0.1);
 
       // Show progress dialog
       if (context.mounted) {
@@ -414,16 +434,16 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
       // Get appropriate directory based on platform
       final Directory exportDir = await _getExportDirectory();
-      exportProgress.value = 0.2;
+      _setExportProgress(0.2);
 
       // Create playlist data map
       final playlistData = {
         "playlistInfo": playlist.value.toJson(),
         "songs": songList.map((song) => MediaItemBuilder.toJson(song)).toList(),
         "exportDate": DateTime.now().toIso8601String(),
-        "appVersion": Get.find<SettingsScreenController>().currentVersion,
+        "appVersion": _settingsScreenController.currentVersion,
       };
-      exportProgress.value = 0.5;
+      _setExportProgress(0.5);
 
       // Generate filename with playlist name
       final sanitizedName = playlist.value.title.replaceAll(
@@ -444,16 +464,14 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         counter++;
       }
 
-      exportProgress.value = 0.7;
+      _setExportProgress(0.7);
 
       // Write JSON to file
       await file.writeAsString(jsonEncode(playlistData));
-      exportProgress.value = 1.0;
+      _setExportProgress(1.0);
 
       // Close progress dialog if it's still open
-      if (Get.isDialogOpen ?? false) {
-        Get.back();
-      }
+      _closeProgressDialog(context);
 
       // Show success message with platform-specific path info
       String locationMsg = _getLocationMessage(exportDir.path);
@@ -468,9 +486,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       }
     } catch (e) {
       // Close progress dialog if it's still open
-      if (Get.isDialogOpen ?? false) {
-        Get.back();
-      }
+      _closeProgressDialog(context);
 
       printERROR("Error exporting playlist: $e");
 
@@ -491,8 +507,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         ).showSnackBar(snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
       }
     } finally {
-      isExporting.value = false;
-      exportProgress.value = 0.0;
+      _setExportState(isExporting: false, exportProgress: 0.0);
     }
   }
 
@@ -507,8 +522,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     }
 
     try {
-      isExporting.value = true;
-      exportProgress.value = 0.1;
+      _setExportState(isExporting: true, exportProgress: 0.1);
 
       // Show progress dialog
       if (context.mounted) {
@@ -517,11 +531,11 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
       // Get appropriate directory based on platform
       final Directory exportDir = await _getExportDirectory();
-      exportProgress.value = 0.2;
+      _setExportProgress(0.2);
 
       // Build CSV content
       final csvContent = _generateCsvContent();
-      exportProgress.value = 0.5;
+      _setExportProgress(0.5);
 
       // Generate filename with playlist name
       final sanitizedName = playlist.value.title.replaceAll(
@@ -542,16 +556,14 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         counter++;
       }
 
-      exportProgress.value = 0.7;
+      _setExportProgress(0.7);
 
       // Write CSV to file
       await file.writeAsString(csvContent);
-      exportProgress.value = 1.0;
+      _setExportProgress(1.0);
 
       // Close progress dialog if it's still open
-      if (Get.isDialogOpen ?? false) {
-        Get.back();
-      }
+      _closeProgressDialog(context);
 
       // Show success message with platform-specific path info
       String locationMsg = _getLocationMessage(exportDir.path);
@@ -566,9 +578,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       }
     } catch (e) {
       // Close progress dialog if it's still open
-      if (Get.isDialogOpen ?? false) {
-        Get.back();
-      }
+      _closeProgressDialog(context);
 
       printERROR("Error exporting playlist to CSV: $e");
 
@@ -589,8 +599,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         ).showSnackBar(snackbar(context, errorMsg, size: SanckBarSize.MEDIUM));
       }
     } finally {
-      isExporting.value = false;
-      exportProgress.value = 0.0;
+      _setExportState(isExporting: false, exportProgress: 0.0);
     }
   }
 
@@ -730,36 +739,68 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     }
   }
 
+  void _setExportState({
+    required bool isExporting,
+    required double exportProgress,
+  }) {
+    this.isExporting = isExporting;
+    this.exportProgress = exportProgress;
+    notifyListeners();
+  }
+
+  void _setExportProgress(double value) {
+    exportProgress = value;
+    notifyListeners();
+  }
+
   // Helper method to show progress dialog
   Future<void> _showProgressDialog(BuildContext context, String title) async {
-    await Get.dialog(
-      AlertDialog(
-        backgroundColor: Theme.of(context).cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Text(title, style: Theme.of(context).textTheme.titleLarge),
-        content: Obx(
-          () => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(
-                value: exportProgress.value,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Theme.of(context).colorScheme.secondary,
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: Theme.of(dialogContext).cardColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Text(
+            title,
+            style: Theme.of(dialogContext).textTheme.titleLarge,
+          ),
+          content: AnimatedBuilder(
+            animation: this,
+            builder: (context, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(
+                  value: exportProgress,
+                  backgroundColor: Theme.of(
+                    dialogContext,
+                  ).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(dialogContext).colorScheme.secondary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                "${(exportProgress.value * 100).toInt()}%",
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  "${(exportProgress * 100).toInt()}%",
+                  style: Theme.of(dialogContext).textTheme.bodyMedium,
+                ),
+              ],
+            ),
           ),
         ),
       ),
-      barrierDismissible: false,
     );
+    await Future<void>.delayed(Duration.zero);
+  }
+
+  void _closeProgressDialog(BuildContext context) {
+    if (!context.mounted) return;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
   }
 }

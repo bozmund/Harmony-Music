@@ -1,29 +1,34 @@
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:get/get.dart';
 import 'package:harmonymusic/ui/player/player_controller.dart';
 import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
-class DesktopSystemTray extends GetxService with TrayListener {
-  late WindowListener listener;
-
-  @override
-  void onInit() {
+class DesktopSystemTray with TrayListener {
+  DesktopSystemTray({
+    required AudioHandler audioHandler,
+    required PlayerController playerController,
+    required SettingsScreenController settingsScreenController,
+  }) : _audioHandler = audioHandler,
+       _playerController = playerController,
+       _settingsScreenController = settingsScreenController {
     trayManager.addListener(this);
     Future.delayed(const Duration(seconds: 2), () => initSystemTray());
-    super.onInit();
   }
 
+  final AudioHandler _audioHandler;
+  final PlayerController _playerController;
+  final SettingsScreenController _settingsScreenController;
+  WindowListener? listener;
+
   Future<void> initSystemTray() async {
-    String path = GetPlatform.isWindows
+    String path = Platform.isWindows
         ? 'assets/icons/icon.ico'
         : 'assets/icons/icon.png';
 
     await windowManager.ensureInitialized();
-    final playerController = Get.find<PlayerController>();
 
     await trayManager.setIcon(path);
 
@@ -40,24 +45,24 @@ class DesktopSystemTray extends GetxService with TrayListener {
         MenuItem(
           label: 'Prev',
           onClick: (menuItem) async {
-            if (playerController.currentQueue.isNotEmpty) {
-              playerController.requestPrev();
+            if (_playerController.currentQueue.isNotEmpty) {
+              _playerController.requestPrev();
             }
           },
         ),
         MenuItem(
           label: 'Play/Pause',
           onClick: (menuItem) async {
-            if (playerController.currentQueue.isNotEmpty) {
-              playerController.requestPlayPause();
+            if (_playerController.currentQueue.isNotEmpty) {
+              _playerController.requestPlayPause();
             }
           },
         ),
         MenuItem(
           label: 'Next',
           onClick: (menuItem) async {
-            if (playerController.currentQueue.isNotEmpty) {
-              playerController.requestNext();
+            if (_playerController.currentQueue.isNotEmpty) {
+              _playerController.requestNext();
             }
           },
         ),
@@ -65,7 +70,7 @@ class DesktopSystemTray extends GetxService with TrayListener {
         MenuItem(
           label: 'Quit',
           onClick: (menuItem) async {
-            await Get.find<AudioHandler>().customAction("saveSession");
+            await _audioHandler.customAction("saveSession");
             exit(0);
           },
         ),
@@ -76,20 +81,25 @@ class DesktopSystemTray extends GetxService with TrayListener {
     await trayManager.setContextMenu(menu);
 
     await windowManager.setPreventClose(true);
-    listener = CloseWindowListener();
-    windowManager.addListener(listener);
+    listener = CloseWindowListener(
+      audioHandler: _audioHandler,
+      playerController: _playerController,
+      settingsScreenController: _settingsScreenController,
+    );
+    windowManager.addListener(listener!);
   }
 
-  @override
-  void onClose() {
+  void dispose() {
     trayManager.removeListener(this);
-    windowManager.removeListener(listener);
-    super.onClose();
+    final windowListener = listener;
+    if (windowListener != null) {
+      windowManager.removeListener(windowListener);
+    }
   }
 
   @override
   Future<void> onTrayIconMouseDown() async {
-    if (GetPlatform.isWindows) {
+    if (Platform.isWindows) {
       await windowManager.show();
     } else {
       await trayManager.popUpContextMenu();
@@ -100,7 +110,7 @@ class DesktopSystemTray extends GetxService with TrayListener {
 
   @override
   Future<void> onTrayIconRightMouseDown() async {
-    if (GetPlatform.isWindows) {
+    if (Platform.isWindows) {
       await trayManager.popUpContextMenu();
     } else {
       await windowManager.show();
@@ -111,15 +121,25 @@ class DesktopSystemTray extends GetxService with TrayListener {
 }
 
 class CloseWindowListener extends WindowListener {
+  CloseWindowListener({
+    required AudioHandler audioHandler,
+    required PlayerController playerController,
+    required SettingsScreenController settingsScreenController,
+  }) : _audioHandler = audioHandler,
+       _playerController = playerController,
+       _settingsScreenController = settingsScreenController;
+
+  final AudioHandler _audioHandler;
+  final PlayerController _playerController;
+  final SettingsScreenController _settingsScreenController;
+
   @override
   Future<void> onWindowClose() async {
-    final settingsScreenController = Get.find<SettingsScreenController>();
-    if (settingsScreenController.backgroundPlayEnabled.isTrue &&
-        Get.find<PlayerController>().buttonState.value ==
-            PlayButtonState.playing) {
+    if (_settingsScreenController.backgroundPlayEnabled.value &&
+        _playerController.buttonState.value == PlayButtonState.playing) {
       await windowManager.hide();
     } else {
-      await Get.find<AudioHandler>().customAction("saveSession");
+      await _audioHandler.customAction("saveSession");
       exit(0);
     }
   }

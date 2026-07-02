@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:get/get.dart';
 import '../domain/repositories/download_repository.dart';
 import '../domain/repositories/library_repository.dart';
 import '../domain/repositories/song_cache_repository.dart';
@@ -9,13 +8,27 @@ import 'package:path_provider/path_provider.dart';
 import '../services/utils.dart';
 import 'helper.dart';
 
-Future<void> startHouseKeeping() async {
-  await removeExpiredSongsUrlFromDb();
+Future<void> startHouseKeeping({
+  required SongCacheRepository songCacheRepository,
+  required DownloadRepository downloadRepository,
+  required LibraryRepository libraryRepository,
+  required LibrarySongsController librarySongsController,
+}) async {
+  await removeExpiredSongsUrlFromDb(
+    songCacheRepository: songCacheRepository,
+    downloadRepository: downloadRepository,
+    libraryRepository: libraryRepository,
+    librarySongsController: librarySongsController,
+  );
 }
 
-Future<void> removeExpiredSongsUrlFromDb() async {
+Future<void> removeExpiredSongsUrlFromDb({
+  required SongCacheRepository songCacheRepository,
+  required DownloadRepository downloadRepository,
+  required LibraryRepository libraryRepository,
+  required LibrarySongsController librarySongsController,
+}) async {
   try {
-    final songCacheRepository = Get.find<SongCacheRepository>();
     final entries = await songCacheRepository.getAllStreamCacheEntries();
     for (final entry in entries.entries) {
       final songUrlKey = entry.key;
@@ -26,7 +39,11 @@ Future<void> removeExpiredSongsUrlFromDb() async {
   } catch (e) {
     printERROR("Error in removeExpiredSongsUrlFromDb: $e");
   } finally {
-    await removeDeletedOfflineSongsFromDb();
+    await removeDeletedOfflineSongsFromDb(
+      downloadRepository: downloadRepository,
+      libraryRepository: libraryRepository,
+      librarySongsController: librarySongsController,
+    );
   }
 }
 
@@ -54,14 +71,14 @@ bool shouldDeleteStreamCacheEntry(dynamic cacheValue) {
   return true;
 }
 
-Future<void> removeDeletedOfflineSongsFromDb() async {
+Future<void> removeDeletedOfflineSongsFromDb({
+  required DownloadRepository downloadRepository,
+  required LibraryRepository libraryRepository,
+  required LibrarySongsController librarySongsController,
+}) async {
   final supportDir = (await getApplicationSupportDirectory()).path;
   try {
-    final downloadRepository = Get.find<DownloadRepository>();
-    final downloadedSongs = await Get.find<LibraryRepository>()
-        .getDownloadedSongs();
-    final LibrarySongsController librarySongsController =
-        Get.find<LibrarySongsController>();
+    final downloadedSongs = await libraryRepository.getDownloadedSongs();
     for (final downloadedSong in downloadedSongs) {
       final songKey = downloadedSong.id;
       final songUrl = downloadedSong.extras?['url'];

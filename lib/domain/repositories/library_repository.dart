@@ -20,6 +20,8 @@ abstract class LibraryRepository {
   Future<List<MediaItem>> getImportReviewSongs();
   Future<void> addImportDuplicate(MediaItem song);
   Future<void> addImportReview(MediaItem song);
+  Future<void> deleteImportDuplicate(String songId);
+  Future<void> deleteImportReview(String songId);
   Future<void> clearImportReview();
   Future<void> clearImportDuplicates();
   Future<List<Album>> getAlbums();
@@ -31,4 +33,12 @@ abstract class LibraryRepository {
   Future<List<String>> getSearches();
   Future<void> addSearch(String query);
   Future<void> deleteSearch(String query);
+
+  /// Applies [transform] to every song JSON map stored in the library song
+  /// boxes (favorites, recently played, import review/duplicates). A null
+  /// return leaves the entry unchanged. Used after a backup restore to fix
+  /// absolute file paths persisted by another install.
+  Future<void> rewriteSongEntries(
+    Map<dynamic, dynamic>? Function(Map<dynamic, dynamic> song) transform,
+  );
 }

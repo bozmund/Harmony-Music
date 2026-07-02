@@ -1,14 +1,12 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
-import 'package:get/get.dart';
 
 import '../domain/repositories/settings_repository.dart';
 import '../utils/helper.dart';
 
-class PipedServices extends GetxService {
-  PipedServices([SettingsRepository? settingsRepository])
-    : _settingsRepository =
-          settingsRepository ?? Get.find<SettingsRepository>() {
+class PipedServices {
+  PipedServices(SettingsRepository settingsRepository)
+    : _settingsRepository = settingsRepository {
     final piped =
         _settingsRepository.getPiped() ??
         {"isLoggedIn": false, "token": "", "instApiUrl": ""};

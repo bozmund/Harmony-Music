@@ -33,5 +33,12 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      - name: Check for unused files and code
+        # Blocking: the codebase is clean as of 6.0.0, so any finding is new
+        # dead code introduced by the PR. Generated bindings are excluded.
+        run: |
+          dart run dart_code_linter:metrics check-unused-files lib --exclude "lib/native_bindings/**"
+          dart run dart_code_linter:metrics check-unused-code lib --exclude "lib/native_bindings/**"
+
       - name: Test
         run: flutter test

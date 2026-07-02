@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
-import 'package:get/get.dart' as getx;
 
 import '../domain/repositories/settings_repository.dart';
 import '/models/album.dart';
@@ -14,8 +15,10 @@ import 'nav_parser.dart';
 
 enum AudioQuality { Low, High }
 
-class MusicServices extends getx.GetxService implements MusicServiceContract {
-  MusicServices(this._settingsRepository);
+class MusicServices implements MusicServiceContract {
+  MusicServices(this._settingsRepository) {
+    unawaited(init());
+  }
 
   final SettingsRepository _settingsRepository;
 
@@ -38,12 +41,6 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       'user': {},
     },
   };
-
-  @override
-  Future<void> onInit() async {
-    await init();
-    super.onInit();
-  }
 
   final dio = Dio();
 
@@ -1076,10 +1073,8 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
     }
   }
 
-  @override
-  void onClose() {
+  void dispose() {
     dio.close();
-    super.onClose();
   }
 }
 

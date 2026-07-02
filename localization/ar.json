@@ -167,8 +167,6 @@
     "blacklistPlaylistResetAlert": "تمت إعادة الضبط بنجاح!",
     "resetBlacklistedPlaylist": "إعادة تعيين قوائم التشغيل المدرجة في القائمة السوداء",
     "resetBlacklistedPlaylistDes": "إعادة تعيين كافة قوائم التشغيل المدرجة في القائمة السوداء",
-    "backupSettingsAndPlaylists": "إعدادات النسخ الاحتياطي وقوائم التشغيل",
-    "restoreSettingsAndPlaylists": "استعادة الإعدادات وقوائم التشغيل",
     "restoreSettingsAndPlaylistsDes": "استعادة كافة الإعدادات، وبيانات تسجيل الدخول وقوائم التشغيل من ملف النسخ الاحتياطي. سيتم استبدال جميع البيانات الحالية",
     "errorOccurredAlert": "لقد حدث خطأ ما!",
     "playlistCreatedAlert": "تم إنشاء قائمة التشغيل!",

@@ -9,13 +9,14 @@ class HomeShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-        baseColor: Colors.grey[500]!,
-        highlightColor: Colors.grey[300]!,
-        enabled: true,
-        direction: ShimmerDirection.ltr,
-        child: Column(
-          children: [_discoverWidget(), _contentWidget(), _contentWidget()],
-        ));
+      baseColor: Colors.grey[500]!,
+      highlightColor: Colors.grey[300]!,
+      enabled: true,
+      direction: ShimmerDirection.ltr,
+      child: Column(
+        children: [_discoverWidget(), _contentWidget(), _contentWidget()],
+      ),
+    );
   }
 
   Widget _discoverWidget() {
@@ -34,24 +35,25 @@ class HomeShimmer extends StatelessWidget {
           const SizedBox(height: 10),
           Expanded(
             child: GridView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: 20,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  childAspectRatio: .26 / 1,
-                  crossAxisSpacing: 1,
-                  mainAxisSpacing: 5,
-                ),
-                itemBuilder: (_, item) {
-                  return const ListTile(
-                    contentPadding: EdgeInsetsDirectional.all(5),
-                    leading: BasicShimmerContainer(Size(50, 50)),
-                    title: BasicShimmerContainer(Size(90, 20)),
-                    subtitle: BasicShimmerContainer(Size(40, 15)),
-                  );
-                }),
+              scrollDirection: Axis.horizontal,
+              itemCount: 20,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                childAspectRatio: .26 / 1,
+                crossAxisSpacing: 1,
+                mainAxisSpacing: 5,
+              ),
+              itemBuilder: (_, item) {
+                return const ListTile(
+                  contentPadding: EdgeInsetsDirectional.all(5),
+                  leading: BasicShimmerContainer(Size(50, 50)),
+                  title: BasicShimmerContainer(Size(90, 20)),
+                  subtitle: BasicShimmerContainer(Size(40, 15)),
+                );
+              },
+            ),
           ),
-          const SizedBox(height: 20)
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -70,26 +72,28 @@ class HomeShimmer extends StatelessWidget {
           height: 200,
           //color: Colors.blueAccent,
           child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: 5,
-              itemBuilder: (_, index) {
-                return Container(
-                  width: 140,
-                  padding: const EdgeInsets.only(left: 5.0),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                          height: 120,
-                          child: BasicShimmerContainer(Size(120, 120))),
-                      SizedBox(height: 5),
-                      BasicShimmerContainer(Size(115, 20)),
-                      SizedBox(height: 5),
-                      BasicShimmerContainer(Size(90, 15)),
-                    ],
-                  ),
-                );
-              }),
+            scrollDirection: Axis.horizontal,
+            itemCount: 5,
+            itemBuilder: (_, index) {
+              return Container(
+                width: 140,
+                padding: const EdgeInsets.only(left: 5.0),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 120,
+                      child: BasicShimmerContainer(Size(120, 120)),
+                    ),
+                    SizedBox(height: 5),
+                    BasicShimmerContainer(Size(115, 20)),
+                    SizedBox(height: 5),
+                    BasicShimmerContainer(Size(90, 15)),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ],
     );

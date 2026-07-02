@@ -1,10 +1,10 @@
-import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../domain/repositories/storage_admin_repository.dart';
 import '../../services/constant.dart';
+import '../../utils/platform_utils.dart';
 
 class HiveStorageAdminRepository implements StorageAdminRepository {
   @override
@@ -16,16 +16,29 @@ class HiveStorageAdminRepository implements StorageAdminRepository {
     BoxNames.homeScreenData,
     BoxNames.prevSessionData,
     BoxNames.libFav,
+    BoxNames.libFavNotDownloaded,
     BoxNames.libRP,
+    BoxNames.libImportDuplicates,
+    BoxNames.libImportReview,
     BoxNames.libraryPlaylists,
     BoxNames.libraryAlbums,
     BoxNames.libraryArtists,
     BoxNames.librarySearches,
+    BoxNames.blacklistedPlaylist,
+    BoxNames.searchQuery,
+    BoxNames.lyrics,
   ];
 
   @override
   Future<void> flushBox(String boxName) async {
     if (Hive.isBoxOpen(boxName)) await Hive.box(boxName).flush();
+  }
+
+  @override
+  Future<void> flushBackupBoxes() async {
+    for (final boxName in backupBoxNames) {
+      await flushBox(boxName);
+    }
   }
 
   @override
@@ -43,7 +56,7 @@ class HiveStorageAdminRepository implements StorageAdminRepository {
 
   @override
   Future<String> databaseDirectoryPath() async {
-    if (GetPlatform.isDesktop) {
+    if (isDesktopPlatform) {
       return '${(await getApplicationSupportDirectory()).path}/db';
     }
     return (await getApplicationDocumentsDirectory()).path;
@@ -82,5 +95,66 @@ class HiveStorageAdminRepository implements StorageAdminRepository {
         await box.put(key, updated);
       }
     }
+  }
+
+  @override
+  Future<void> rewriteClonePaths({
+    required String oldMusicPath,
+    required String newMusicPath,
+  }) async {
+    final downloadsBox = Hive.isBoxOpen(BoxNames.songDownloads)
+        ? Hive.box(BoxNames.songDownloads)
+        : await Hive.openBox(BoxNames.songDownloads);
+    for (final key in downloadsBox.keys.toList()) {
+      final song = downloadsBox.get(key);
+      if (song is! Map) continue;
+
+      final updatedSong = Map<dynamic, dynamic>.from(song);
+      updatedSong['url'] = _rewriteClonePath(
+        updatedSong['url'],
+        oldMusicPath,
+        newMusicPath,
+      );
+
+      final streamInfo = updatedSong['streamInfo'];
+      if (streamInfo is List && streamInfo.length > 1 && streamInfo[1] is Map) {
+        final streamInfoData = Map<dynamic, dynamic>.from(streamInfo[1]);
+        streamInfoData['url'] = _rewriteClonePath(
+          streamInfoData['url'],
+          oldMusicPath,
+          newMusicPath,
+        );
+        final updatedStreamInfo = List<dynamic>.from(streamInfo);
+        updatedStreamInfo[1] = streamInfoData;
+        updatedSong['streamInfo'] = updatedStreamInfo;
+      }
+
+      await downloadsBox.put(key, updatedSong);
+    }
+
+    final appPrefsBox = Hive.isBoxOpen(BoxNames.appPrefs)
+        ? Hive.box(BoxNames.appPrefs)
+        : await Hive.openBox(BoxNames.appPrefs);
+    final downloadPath = appPrefsBox.get(PrefKeys.downloadLocationPath);
+    final updatedDownloadPath = _rewriteClonePath(
+      downloadPath,
+      oldMusicPath,
+      newMusicPath,
+    );
+    if (updatedDownloadPath != downloadPath) {
+      await appPrefsBox.put(PrefKeys.downloadLocationPath, updatedDownloadPath);
+    }
+
+    await downloadsBox.flush();
+    await appPrefsBox.flush();
+  }
+
+  dynamic _rewriteClonePath(
+    dynamic value,
+    String oldMusicPath,
+    String newMusicPath,
+  ) {
+    if (value is! String || value.isEmpty) return value;
+    return value.replaceFirst(oldMusicPath, newMusicPath);
   }
 }

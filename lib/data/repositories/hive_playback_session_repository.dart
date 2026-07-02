@@ -38,4 +38,24 @@ class HivePlaybackSessionRepository implements PlaybackSessionRepository {
 
   @override
   Future<void> clearSession() async => (await _box).clear();
+
+  @override
+  Future<void> rewriteQueueEntries(
+    Map<dynamic, dynamic>? Function(Map<dynamic, dynamic> song) transform,
+  ) async {
+    final box = await _box;
+    final raw = box.get('queue');
+    if (raw is! List) return;
+    var changed = false;
+    final rewrittenQueue = raw.map((item) {
+      if (item is! Map) return item;
+      final rewritten = transform(item);
+      if (rewritten == null) return item;
+      changed = true;
+      return rewritten;
+    }).toList();
+    if (changed) {
+      await box.put('queue', rewrittenQueue);
+    }
+  }
 }

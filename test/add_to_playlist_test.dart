@@ -3,8 +3,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:get/get.dart';
-import 'package:harmonymusic/data/repositories/hive_repository_registration.dart';
+import 'package:harmonymusic/data/repositories/hive_playlist_repository.dart';
 import 'package:harmonymusic/data/repositories/hive_settings_repository.dart';
 import 'package:harmonymusic/models/media_Item_builder.dart';
 import 'package:harmonymusic/models/playlist.dart';
@@ -70,11 +69,9 @@ void main() {
 
   setUp(() async {
     await Hive.openBox('AppPrefs');
-    registerHiveRepositories();
   });
 
   tearDown(() async {
-    Get.reset();
     await Hive.close();
   });
 
@@ -86,7 +83,7 @@ void main() {
 
   group('add to playlist multi-select behavior', () {
     test('membership disables playlists that contain every selected song', () {
-      final controller = AddToPlaylistController();
+      final controller = _controller();
       controller.updatePlaylistMembership('playlist-a', ['song-1']);
 
       expect(
@@ -112,7 +109,7 @@ void main() {
     });
 
     test('marking one playlist added leaves other playlists available', () {
-      final controller = AddToPlaylistController();
+      final controller = _controller();
       controller.updatePlaylistMembership('playlist-a', []);
       controller.updatePlaylistMembership('playlist-b', []);
 
@@ -136,7 +133,7 @@ void main() {
     });
 
     test('duplicate membership updates do not duplicate ids', () {
-      final controller = AddToPlaylistController();
+      final controller = _controller();
       controller.updatePlaylistMembership('playlist-a', ['song-1']);
 
       controller.markSongsAddedToPlaylist('playlist-a', [
@@ -148,7 +145,7 @@ void main() {
     });
 
     test('removed songs make a playlist addable again', () {
-      final controller = AddToPlaylistController();
+      final controller = _controller();
       controller.updatePlaylistMembership('playlist-a', ['song-1']);
 
       expect(
@@ -165,7 +162,7 @@ void main() {
     });
 
     test('stale local cache skips when Hive already has all songs', () async {
-      final controller = AddToPlaylistController();
+      final controller = _controller();
       final playlistId = nextBoxName('stale_all');
       final playlistBox = await Hive.openBox(playlistId);
       await playlistBox.add(MediaItemBuilder.toJson(_song('song-1')));
@@ -182,7 +179,7 @@ void main() {
     });
 
     test('stale local cache adds only missing songs', () async {
-      final controller = AddToPlaylistController();
+      final controller = _controller();
       final playlistId = nextBoxName('stale_partial');
       final playlistBox = await Hive.openBox(playlistId);
       await playlistBox.add(MediaItemBuilder.toJson(_song('song-1')));
@@ -215,7 +212,7 @@ void main() {
           },
         ),
       );
-      final controller = AddToPlaylistController()
+      final controller = _controller(pipedServices: pipedServices)
         ..playlistType.value = 'piped';
 
       final failed = await controller.ensurePlaylistMembershipLoaded('piped-a');
@@ -236,7 +233,7 @@ void main() {
 
     test('switching to piped does not eagerly load memberships', () async {
       final pipedServices = await _putPipedServices(TestPipedServices());
-      final controller = AddToPlaylistController()
+      final controller = _controller(pipedServices: pipedServices)
         ..pipedPlaylists = [_playlist('piped-a'), _playlist('piped-b')];
 
       await controller.changePlaylistType('piped');
@@ -252,7 +249,7 @@ void main() {
       final pipedServices = await _putPipedServices(
         TestPipedServices(playlistSongsHandler: (_) async => []),
       );
-      final controller = AddToPlaylistController()
+      final controller = _controller(pipedServices: pipedServices)
         ..playlistType.value = 'piped';
 
       final result = await controller.addSongsToPlaylist([
@@ -274,7 +271,7 @@ void main() {
             playlistSongsHandler: (_) async => [_song('song-1')],
           ),
         );
-        final controller = AddToPlaylistController()
+        final controller = _controller(pipedServices: pipedServices)
           ..playlistType.value = 'piped';
 
         final result = await controller.addSongsToPlaylist([
@@ -296,7 +293,7 @@ void main() {
           addToPlaylistHandler: (_, _) => addCompleter.future,
         ),
       );
-      final controller = AddToPlaylistController()
+      final controller = _controller(pipedServices: pipedServices)
         ..playlistType.value = 'piped';
       controller.updatePlaylistMembership('piped-a', []);
 
@@ -321,7 +318,7 @@ void main() {
         final playlistBox = await Hive.openBox(playlistId);
         await playlistBox.add(MediaItemBuilder.toJson(_song('song-1')));
         await playlistBox.close();
-        final controller = AddToPlaylistController();
+        final controller = _controller();
 
         expect(controller.isPlaylistMembershipLoaded(playlistId), isFalse);
         expect(
@@ -337,7 +334,7 @@ void main() {
 
     test('adding locally marks the playlist disabled afterward', () async {
       final playlistId = nextBoxName('local_add');
-      final controller = AddToPlaylistController();
+      final controller = _controller();
 
       expect(
         await controller.addSongsToPlaylist([_song('song-1')], playlistId),
@@ -351,8 +348,14 @@ void main() {
   });
 }
 
+AddToPlaylistController _controller({TestPipedServices? pipedServices}) {
+  return AddToPlaylistController(
+    playlistRepository: HivePlaylistRepository(),
+    pipedServices: pipedServices ?? TestPipedServices(),
+  );
+}
+
 Future<TestPipedServices> _putPipedServices(TestPipedServices service) async {
-  Get.put<PipedServices>(service);
   return service;
 }
 

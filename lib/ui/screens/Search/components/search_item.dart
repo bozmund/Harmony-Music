@@ -1,26 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import '/ui/screens/Search/search_screen_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../app/providers/controller_providers.dart';
+import '../../../../utils/runtime_platform.dart';
 
 import '../../../navigator.dart';
 
-class SearchItem extends StatelessWidget {
+class SearchItem extends ConsumerWidget {
   final String queryString;
   final bool isHistoryString;
-  const SearchItem(
-      {super.key, required this.queryString, required this.isHistoryString});
+  const SearchItem({
+    super.key,
+    required this.queryString,
+    required this.isHistoryString,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    final searchScreenController = Get.find<SearchScreenController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final searchScreenController = ref.watch(searchScreenControllerProvider);
     return ListTile(
       contentPadding: const EdgeInsets.only(left: 10, right: 20),
       onTap: () async {
-        await Get.toNamed(ScreenNavigationSetup.searchResultScreen,
-            id: ScreenNavigationSetup.id, arguments: queryString);
+        await ScreenNavigationSetup.navigatorKey.currentState!.pushNamed(
+          ScreenNavigationSetup.searchResultScreen,
+          arguments: queryString,
+        );
         await searchScreenController.addToHistoryQueryList(queryString);
         // for Desktop searchbar
-        if (GetPlatform.isDesktop) {
+        if (RuntimePlatform.isDesktop) {
           searchScreenController.focusNode.unfocus();
         }
       },
@@ -40,17 +47,16 @@ class SearchItem extends StatelessWidget {
                     splashRadius: 18,
                     visualDensity: const VisualDensity(horizontal: -2),
                     onPressed: () async {
-                      await searchScreenController
-                          .removeQueryFromHistory(queryString);
+                      await searchScreenController.removeQueryFromHistory(
+                        queryString,
+                      );
                     },
                     icon: Icon(
                       Icons.clear,
                       color: Theme.of(context).textTheme.titleMedium!.color,
                     ),
                   )
-                : const SizedBox(
-                    width: 40,
-                  ),
+                : const SizedBox(width: 40),
             IconButton(
               iconSize: 20,
               splashRadius: 18,

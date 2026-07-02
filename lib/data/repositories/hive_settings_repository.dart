@@ -18,13 +18,28 @@ class HiveSettingsRepository implements SettingsRepository {
 
   @override
   UpdateChannel getUpdateChannel() =>
-      (_box.get(PrefKeys.updateChannel) ?? 'rolling') == 'rolling'
+      (_box.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
       ? UpdateChannel.rolling
       : UpdateChannel.stable;
 
   @override
   Future<void> setUpdateChannel(UpdateChannel value) =>
       _box.put(PrefKeys.updateChannel, value.name);
+
+  @override
+  bool isReleasePromptAnswered(String promptId) {
+    final answered = _box.get(PrefKeys.answeredReleasePrompts);
+    return answered is List && answered.contains(promptId);
+  }
+
+  @override
+  Future<void> setReleasePromptAnswered(String promptId) async {
+    final answered = _box.get(PrefKeys.answeredReleasePrompts);
+    final ids = answered is List ? List<dynamic>.from(answered) : <dynamic>[];
+    if (ids.contains(promptId)) return;
+    ids.add(promptId);
+    await _box.put(PrefKeys.answeredReleasePrompts, ids);
+  }
 
   @override
   bool getNewVersionVisibility(bool fallback) =>
@@ -234,12 +249,20 @@ class HiveSettingsRepository implements SettingsRepository {
       _box.put(PrefKeys.downloadLocationPath, value);
 
   @override
+  Future<void> resetDownloadLocationPath() =>
+      _box.delete(PrefKeys.downloadLocationPath);
+
+  @override
   String getExportLocationPath() =>
       _box.get(PrefKeys.exportLocationPath) ?? '/storage/emulated/0/Music';
 
   @override
   Future<void> setExportLocationPath(String value) =>
       _box.put(PrefKeys.exportLocationPath, value);
+
+  @override
+  Future<void> resetExportLocationPath() =>
+      _box.delete(PrefKeys.exportLocationPath);
 
   @override
   String getDownloadingFormat() =>
@@ -316,6 +339,10 @@ class HiveSettingsRepository implements SettingsRepository {
       _box.get('stopPlaybackOnSwipeAway') ?? false;
 
   @override
+  Future<void> setStopPlaybackOnSwipeAway(bool value) =>
+      _box.put('stopPlaybackOnSwipeAway', value);
+
+  @override
   int? getHomeScreenDataTime() => _box.get(PrefKeys.homeScreenDataTime);
 
   @override
@@ -367,6 +394,9 @@ class HiveSettingsRepository implements SettingsRepository {
       unawaited(_box.put(PrefKeys.playbackPreloadRange, 0));
     }
   }
+
+  @override
+  Future<void> clearAll() => _box.clear();
 
   @override
   Map<String, dynamic> developerValues() => Map<String, dynamic>.fromEntries(

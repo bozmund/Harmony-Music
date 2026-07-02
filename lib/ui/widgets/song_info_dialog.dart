@@ -1,25 +1,34 @@
+import 'dart:convert';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
-import '../../domain/repositories/download_repository.dart';
-import '../../domain/repositories/settings_repository.dart';
-import '../../domain/repositories/song_cache_repository.dart';
+import '../../app/providers/controller_providers.dart';
+import '../../app/providers/repository_providers.dart';
 import '/ui/widgets/common_dialog_widget.dart';
 
 class SongInfoDialog extends StatelessWidget {
   final MediaItem song;
-  const SongInfoDialog({super.key, required this.song});
+  final bool includePlaybackDebug;
+  const SongInfoDialog({
+    super.key,
+    required this.song,
+    this.includePlaybackDebug = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return CommonDialog(
-      child: FutureBuilder<Map<dynamic, dynamic>>(
-        future: _getStreamInfo(song.id),
+      child: FutureBuilder<_SongInfoDetails>(
+        future: _getDetails(context, song.id),
         builder: (context, snapshot) {
-          final streamInfo = snapshot.data ?? _nullStreamInfo;
+          final details = snapshot.data;
+          final streamInfo = details?.streamInfo ?? _nullStreamInfo;
+          final playbackDebug = details?.playbackDebug;
           return SizedBox(
-            height: Get.mediaQuery.size.height * .7,
+            height: MediaQuery.of(context).size.height * .7,
             child: Column(
               children: [
                 Padding(
@@ -54,6 +63,17 @@ class SongInfoDialog extends StatelessWidget {
                         title: "loudnessDb".tr,
                         value: "${streamInfo["loudnessDb"] ?? "NA"}",
                       ),
+                      if (includePlaybackDebug) ...[
+                        const Divider(),
+                        InfoItem(
+                          title: "Playback and handler state",
+                          value: playbackDebug == null
+                              ? "Loading..."
+                              : const JsonEncoder.withIndent(
+                                  '  ',
+                                ).convert(playbackDebug),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -91,10 +111,14 @@ class SongInfoDialog extends StatelessWidget {
     "approxDurationMs": null,
   };
 
-  Future<Map<dynamic, dynamic>> _getStreamInfo(String id) async {
-    final downloadRepository = Get.find<DownloadRepository>();
-    final songCacheRepository = Get.find<SongCacheRepository>();
-    final settingsRepository = Get.find<SettingsRepository>();
+  Future<Map<dynamic, dynamic>> _getStreamInfo(
+    BuildContext context,
+    String id,
+  ) async {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final downloadRepository = container.read(downloadRepositoryProvider);
+    final songCacheRepository = container.read(songCacheRepositoryProvider);
+    final settingsRepository = container.read(settingsRepositoryProvider);
 
     if (await downloadRepository.containsDownload(id)) {
       final song = await downloadRepository.getDownloadJson(id);
@@ -112,6 +136,29 @@ class SongInfoDialog extends StatelessWidget {
     final audio = streamInfo?.audio;
     return audio == null ? _nullStreamInfo : audio.toJson();
   }
+
+  Future<_SongInfoDetails> _getDetails(BuildContext context, String id) async {
+    final streamInfo = await _getStreamInfo(context, id);
+    if (!includePlaybackDebug) {
+      return _SongInfoDetails(streamInfo: streamInfo);
+    }
+
+    final container = ProviderScope.containerOf(context, listen: false);
+    final playerController = container.read(playerControllerProvider);
+    final playbackDebug = await playerController
+        .detailedPlaybackDebugSnapshot();
+    return _SongInfoDetails(
+      streamInfo: streamInfo,
+      playbackDebug: playbackDebug,
+    );
+  }
+}
+
+class _SongInfoDetails {
+  const _SongInfoDetails({required this.streamInfo, this.playbackDebug});
+
+  final Map<dynamic, dynamic> streamInfo;
+  final Map<String, dynamic>? playbackDebug;
 }
 
 class InfoItem extends StatelessWidget {

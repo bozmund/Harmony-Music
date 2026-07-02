@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:harmonymusic/ui/widgets/common_dialog_widget.dart';
 import 'package:harmonymusic/ui/widgets/sort_widget.dart';
 
@@ -7,11 +7,12 @@ import 'custom_button.dart';
 import 'modification_list.dart';
 
 class AdditionalOperationDialog extends StatelessWidget {
-  const AdditionalOperationDialog(
-      {super.key,
-      required this.operationMode,
-      required this.screenController,
-      required this.controller});
+  const AdditionalOperationDialog({
+    super.key,
+    required this.operationMode,
+    required this.screenController,
+    required this.controller,
+  });
   final OperationMode operationMode;
   final dynamic screenController;
   final SortWidgetController controller;
@@ -48,17 +49,21 @@ class AdditionalOperationDialog extends StatelessWidget {
                       children: [
                         Padding(
                           padding: const EdgeInsets.only(left: 5.0),
-                          child: Obx(
-                            () => Checkbox(
-                              value: controller.isAllSelected.value,
+                          child: AnimatedBuilder(
+                            animation: controller,
+                            builder: (context, _) => Checkbox(
+                              value: controller.isAllSelected,
                               onChanged: (val) {
                                 screenController.selectAll!(val!);
                                 controller.toggleSelectAll(val);
                               },
                               visualDensity: const VisualDensity(
-                                  horizontal: -3, vertical: -3),
+                                horizontal: -3,
+                                vertical: -3,
+                              ),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10)),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
                           ),
                         ),
@@ -66,7 +71,7 @@ class AdditionalOperationDialog extends StatelessWidget {
                         Text(
                           "selectAll".tr,
                           style: Theme.of(context).textTheme.titleMedium,
-                        )
+                        ),
                       ],
                     ),
                   ],
@@ -88,11 +93,12 @@ class AdditionalOperationDialog extends StatelessWidget {
                     },
                   ),
                   ProceedButton(
-                      buttonText: "Proceed",
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        screenController.performAdditionalOperation!();
-                      }),
+                    buttonText: "Proceed",
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      screenController.performAdditionalOperation!();
+                    },
+                  ),
                 ],
               ),
             ),

@@ -1,6 +1,5 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
-import 'package:get/get.dart';
 import 'package:harmonymusic/utils/helper.dart';
 
 import '../domain/repositories/lyrics_repository.dart';
@@ -9,8 +8,8 @@ class SyncedLyricsService {
   static Future<Map<String, dynamic>?> getSyncedLyrics(
     MediaItem song,
     int durInSec,
+    LyricsRepository lyricsRepository,
   ) async {
-    final lyricsRepository = Get.find<LyricsRepository>();
     // check if lyrics available in local database
     final cachedLyrics = await lyricsRepository.getLyrics(song.id);
     if (cachedLyrics != null) {

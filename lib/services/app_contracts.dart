@@ -116,6 +116,13 @@ abstract class FilePickerContract {
     String? confirmButtonText,
   });
 
+  /// Picks a single file and returns its filesystem path without ever
+  /// loading the file contents into memory. [openFile] (file_selector)
+  /// eagerly reads the whole file into a byte array on Android and its size
+  /// into a 32-bit int, so it fails on multi-gigabyte files — use this for
+  /// large files such as .hmb backups.
+  Future<String?> pickLargeFilePath({required List<String> extensions});
+
   Future<String?> getDirectoryPath({
     String? initialDirectory,
     String? confirmButtonText,

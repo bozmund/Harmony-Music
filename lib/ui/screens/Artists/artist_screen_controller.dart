@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 
+import '../../../app/navigation/app_navigator.dart';
+import '../../../domain/repositories/library_repository.dart';
 import '../../widgets/add_to_playlist.dart';
 import '/ui/widgets/sort_widget.dart';
 import '../../../models/artist.dart';
@@ -14,53 +14,84 @@ import '/services/app_contracts.dart';
 import '/ui/screens/Home/home_screen_controller.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
 
-class ArtistScreenController extends GetxController
-    with GetSingleTickerProviderStateMixin {
-  final isArtistContentFetched = false.obs;
-  final navigationRailCurrentIndex = 0.obs;
-  final musicServices = Get.find<MusicServiceContract>();
-  final railItems = <String>[].obs;
-  final artistData = <String, dynamic>{}.obs;
-  final separatedContent = <String, dynamic>{}.obs;
-  final isSeparatedArtistContentFetched = false.obs;
-  final isAddedToLibrary = false.obs;
+class ArtistScreenControllerRegistry {
+  static final _controllers = <String, ArtistScreenController>{};
+
+  static void register(String tag, ArtistScreenController controller) {
+    _controllers[tag] = controller;
+  }
+
+  static void unregister(String tag, ArtistScreenController controller) {
+    if (_controllers[tag] == controller) {
+      _controllers.remove(tag);
+    }
+  }
+
+  static ArtistScreenController? maybeOf(String? tag) =>
+      tag == null ? null : _controllers[tag];
+}
+
+class ArtistScreenController extends ChangeNotifier {
+  ArtistScreenController({
+    required MusicServiceContract musicService,
+    required LibraryRepository libraryRepository,
+    required SettingsScreenController settingsScreenController,
+    required HomeScreenController homeScreenController,
+  }) : musicServices = musicService,
+       _libraryRepository = libraryRepository,
+       _settingsScreenController = settingsScreenController,
+       _homeScreenController = homeScreenController;
+
+  bool isArtistContentFetched = false;
+  int navigationRailCurrentIndex = 0;
+  final MusicServiceContract musicServices;
+  final LibraryRepository _libraryRepository;
+  final SettingsScreenController _settingsScreenController;
+  final HomeScreenController _homeScreenController;
+  final railItems = <String>[];
+  Map<String, dynamic> artistData = <String, dynamic>{};
+  final separatedContent = <String, dynamic>{};
+  bool isSeparatedArtistContentFetched = false;
+  bool isAddedToLibrary = false;
   final songScrollController = ScrollController();
   final videoScrollController = ScrollController();
   final albumScrollController = ScrollController();
   final singlesScrollController = ScrollController();
   SortWidgetController? sortWidgetController;
-  final additionalOperationMode = OperationMode.none.obs;
+  OperationMode additionalOperationMode = OperationMode.none;
   bool continuationInProgress = false;
   int _loadGeneration = 0;
+  bool _closed = false;
   late Artist artist_;
   Map<String, List> tempListContainer = {};
   TabController? tabController;
   bool isTabTransitionReversed = false;
 
-  @override
-  void onInit() {
-    final args = Get.arguments;
-    unawaited(_init(args[0], args[1]));
-    if (GetPlatform.isDesktop ||
-        Get.find<SettingsScreenController>().isBottomNavBarEnabled.isTrue) {
-      tabController = TabController(vsync: this, length: 5);
+  void initialize({
+    required bool isIdOnly,
+    required dynamic artist,
+    required bool isDesktopLayout,
+    required TickerProvider vsync,
+  }) {
+    unawaited(_init(isIdOnly, artist));
+    if (isDesktopLayout ||
+        _settingsScreenController.isBottomNavBarEnabled.value) {
+      tabController = TabController(vsync: vsync, length: 5);
       tabController?.animation?.addListener(() async {
         int indexChange = tabController!.offset.round();
         int index = tabController!.index + indexChange;
 
-        if (index != navigationRailCurrentIndex.value) {
+        if (index != navigationRailCurrentIndex) {
           await onDestinationSelected(index);
-          navigationRailCurrentIndex.value = index;
+          navigationRailCurrentIndex = index;
+          notifyListeners();
         }
       });
     }
-    super.onInit();
   }
 
-  @override
-  void onReady() {
-    Get.find<HomeScreenController>().whenHomeScreenOnTop();
-    super.onReady();
+  void ready() {
+    _homeScreenController.whenHomeScreenOnTop();
   }
 
   Future<void> _init(bool isIdOnly, dynamic artist) async {
@@ -78,25 +109,22 @@ class ArtistScreenController extends GetxController
   }
 
   bool _isLoadActive(int generation) =>
-      !isClosed && generation == _loadGeneration;
+      !_closed && generation == _loadGeneration;
 
   Future<void> _checkIfAddedToLibrary(String id, int generation) async {
-    final box = await Hive.openBox("LibraryArtists");
-    if (!_isLoadActive(generation)) {
-      await box.close();
-      return;
-    }
-    isAddedToLibrary.value = box.containsKey(id);
-    await box.close();
+    final artists = await _libraryRepository.getArtists();
+    if (!_isLoadActive(generation)) return;
+    isAddedToLibrary = artists.any((artist) => artist.browseId == id);
+    notifyListeners();
   }
 
   Future<void> _fetchArtistContent(String id, int generation) async {
     final artistContent = await musicServices.getArtist(id);
     if (!_isLoadActive(generation)) return;
-    artistData.value = artistContent;
+    artistData = artistContent;
     artistData["Singles"] = artistData["Singles & EPs"];
     artistData["Songs"] = artistData["Top songs"];
-    isArtistContentFetched.value = true;
+    isArtistContentFetched = true;
     //inspect(artistData.value);
     artist_ = Artist(
       browseId: id,
@@ -107,17 +135,18 @@ class ArtistScreenController extends GetxController
       subscribers: "${artistData['subscribers']} subscribers",
       radioId: artistData["radioId"],
     );
+    notifyListeners();
   }
 
   Future<bool> addNRemoveFromLibrary({bool add = true}) async {
     try {
-      final box = await Hive.openBox("LibraryArtists");
       add
-          ? await box.put(artist_.browseId, artist_.toJson())
-          : await box.delete(artist_.browseId);
-      isAddedToLibrary.value = add;
+          ? await _libraryRepository.saveArtist(artist_)
+          : await _libraryRepository.deleteArtist(artist_.browseId);
+      isAddedToLibrary = add;
+      notifyListeners();
       //Update frontend
-      await Get.find<LibraryArtistsController>().refreshLib();
+      await LibraryArtistsControllerRegistry.current?.refreshLib();
       return true;
     } catch (e) {
       return false;
@@ -125,8 +154,9 @@ class ArtistScreenController extends GetxController
   }
 
   Future<void> onDestinationSelected(int val) async {
-    isTabTransitionReversed = val > navigationRailCurrentIndex.value;
-    navigationRailCurrentIndex.value = val;
+    isTabTransitionReversed = val > navigationRailCurrentIndex;
+    navigationRailCurrentIndex = val;
+    notifyListeners();
     final tabName = ["About", "Songs", "Videos", "Albums", "Singles"][val];
 
     //cancel additional operations in case of tab change
@@ -138,10 +168,12 @@ class ArtistScreenController extends GetxController
     //skip for about page
     if (val == 0 || separatedContent.containsKey(tabName)) return;
     if (artistData[tabName] == null) {
-      isSeparatedArtistContentFetched.value = true;
+      isSeparatedArtistContentFetched = true;
+      notifyListeners();
       return;
     }
-    isSeparatedArtistContentFetched.value = false;
+    isSeparatedArtistContentFetched = false;
+    notifyListeners();
 
     //check if params available for continuation
     //tab browse endpoint & top result stored in [artistData], tabContent & additionalParams for continuation stored in Separated Content
@@ -152,7 +184,8 @@ class ArtistScreenController extends GetxController
       );
     } else {
       separatedContent[tabName] = {"results": artistData[tabName]['content']};
-      isSeparatedArtistContentFetched.value = true;
+      isSeparatedArtistContentFetched = true;
+      notifyListeners();
       return;
     }
 
@@ -179,7 +212,8 @@ class ArtistScreenController extends GetxController
         }
       });
     }
-    isSeparatedArtistContentFetched.value = true;
+    isSeparatedArtistContentFetched = true;
+    notifyListeners();
   }
 
   Future<void> getContinuationContents(browseEndpoint, tabName) async {
@@ -190,7 +224,7 @@ class ArtistScreenController extends GetxController
     );
     separatedContent[tabName]['results'].addAll(x['results']);
     separatedContent[tabName]['additionalParams'] = x['additionalParams'];
-    separatedContent.refresh();
+    notifyListeners();
 
     continuationInProgress = false;
   }
@@ -208,7 +242,7 @@ class ArtistScreenController extends GetxController
       sortAlbumNSingles(albumList, sortType, isAscending);
       separatedContent[title]['results'] = albumList;
     }
-    separatedContent.refresh();
+    notifyListeners();
   }
 
   void onSearchStart(String? tag) {
@@ -225,19 +259,19 @@ class ArtistScreenController extends GetxController
         )
         .toList();
     separatedContent[title]['results'] = list;
-    separatedContent.refresh();
+    notifyListeners();
   }
 
   void onSearchClose(String? tag) {
     final title = tag?.split("_")[0];
     separatedContent[title]['results'] = (tempListContainer[title]!).toList();
-    separatedContent.refresh();
     (tempListContainer[title]!).clear();
+    notifyListeners();
   }
 
   //Additional operations
-  final additionalOperationTempList = <MediaItem>[].obs;
-  final additionalOperationTempMap = <int, bool>{}.obs;
+  List<MediaItem> additionalOperationTempList = <MediaItem>[];
+  final additionalOperationTempMap = <int, bool>{};
 
   void startAdditionalOperation(
     SortWidgetController sortWidgetController_,
@@ -250,36 +284,42 @@ class ArtistScreenController extends GetxController
       "Videos",
       "Albums",
       "Singles",
-    ][navigationRailCurrentIndex.value];
-    additionalOperationTempList.value = separatedContent[tabName]['results']
-        .toList();
+    ][navigationRailCurrentIndex];
+    additionalOperationTempList = List<MediaItem>.from(
+      separatedContent[tabName]['results'],
+    ).toList();
     if (mode == OperationMode.addToPlaylist || mode == OperationMode.delete) {
       for (int i = 0; i < additionalOperationTempList.length; i++) {
         additionalOperationTempMap[i] = false;
       }
     }
-    additionalOperationMode.value = mode;
+    additionalOperationMode = mode;
+    notifyListeners();
   }
 
   void checkIfAllSelected() {
-    sortWidgetController!.isAllSelected.value = !additionalOperationTempMap
-        .containsValue(false);
+    sortWidgetController!.toggleSelectAll(
+      !additionalOperationTempMap.containsValue(false),
+    );
+    notifyListeners();
   }
 
   void selectAll(bool selected) {
     for (int i = 0; i < additionalOperationTempList.length; i++) {
       additionalOperationTempMap[i] = selected;
     }
+    notifyListeners();
   }
 
   Future<void> performAdditionalOperation() async {
-    final currMode = additionalOperationMode.value;
+    final currMode = additionalOperationMode;
     if (currMode == OperationMode.addToPlaylist) {
+      final context = AppNavigator.context;
+      if (context == null) return;
       await showDialog(
-        context: Get.context!,
+        context: context,
         builder: (context) => AddToPlaylist(selectedSongs()),
       ).whenComplete(() async {
-        await Get.delete<AddToPlaylistController>();
         sortWidgetController?.setActiveMode(OperationMode.none);
         cancelAdditionalOperation();
       });
@@ -298,15 +338,17 @@ class ArtistScreenController extends GetxController
   }
 
   void cancelAdditionalOperation() {
-    sortWidgetController!.isAllSelected.value = false;
+    sortWidgetController?.toggleSelectAll(false);
     sortWidgetController = null;
-    additionalOperationMode.value = OperationMode.none;
-    additionalOperationTempList.clear();
+    additionalOperationMode = OperationMode.none;
+    additionalOperationTempList = <MediaItem>[];
     additionalOperationTempMap.clear();
+    notifyListeners();
   }
 
   @override
-  void onClose() {
+  void dispose() {
+    _closed = true;
     _loadGeneration++;
     tempListContainer.clear();
     songScrollController.dispose();
@@ -314,7 +356,7 @@ class ArtistScreenController extends GetxController
     albumScrollController.dispose();
     singlesScrollController.dispose();
     tabController?.dispose();
-    Get.find<HomeScreenController>().whenHomeScreenOnTop();
-    super.onClose();
+    _homeScreenController.whenHomeScreenOnTop();
+    super.dispose();
   }
 }

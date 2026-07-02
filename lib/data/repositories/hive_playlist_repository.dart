@@ -13,6 +13,13 @@ class HivePlaylistRepository implements PlaylistRepository {
   Future<Box> _songBox(String playlistId) => Hive.openBox(playlistId);
 
   @override
+  Future<Playlist?> getPlaylist(String playlistId) async {
+    final box = await _playlistBox;
+    final value = box.get(playlistId);
+    return value == null ? null : Playlist.fromJson(value);
+  }
+
+  @override
   Future<List<Playlist>> getPlaylists() async {
     final box = await _playlistBox;
     return box.values
@@ -147,5 +154,27 @@ class HivePlaylistRepository implements PlaylistRepository {
     final box = await _blacklistBox;
     final key = box.keys.firstWhereOrNull((key) => box.get(key) == playlistId);
     if (key != null) await box.delete(key);
+  }
+
+  @override
+  Future<void> clearBlacklistedPlaylistIds() async =>
+      (await _blacklistBox).clear();
+
+  @override
+  Future<void> rewritePlaylistSongEntries(
+    Map<dynamic, dynamic>? Function(Map<dynamic, dynamic> song) transform,
+  ) async {
+    final playlistBox = await _playlistBox;
+    for (final playlistKey in playlistBox.keys.toList()) {
+      final songBox = await _songBox(playlistKey.toString());
+      for (final key in songBox.keys.toList()) {
+        final value = songBox.get(key);
+        if (value is! Map) continue;
+        final rewritten = transform(value);
+        if (rewritten != null) {
+          await songBox.put(key, rewritten);
+        }
+      }
+    }
   }
 }

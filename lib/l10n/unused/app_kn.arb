@@ -1,0 +1,22 @@
+{
+  "@@locale": "kn",
+  "album": "ಆಲ್ಬಂ",
+  "albums": "ಆಲ್ಬಂಗಳು",
+  "artists": "ಕಲಾವಿದರು",
+  "cachedOrOffline": "ಸಂಗ್ರಹಿಸಲಾಗಿದೆ/ಆಫ್ ಲೈನ್",
+  "downloads": "ಡೌನ್ಲೋಡ್ಗಳು",
+  "emptyPlaylist": "ಖಾಲಿ ಪ್ಲೇಪಟ್ಟಿ!",
+  "enqueueAll": "ಎಲ್ಲವನ್ನೂ ಎನ್ಕ್ಯೂ ಮಾಡಿ",
+  "favorites": "ಇಷ್ಟವಾದವು",
+  "home": "ಮುಖಪುಟ",
+  "keepScreenOnWhilePlaying": "ಪ್ಲೇ ಮಾಡುವಾಗ ಪರದೆ ಜಾಗೃತವಾಗಿರಲಿ",
+  "keepScreenOnWhilePlayingDes": "ಸಕ್ರಿಯಗೊಳಿಸಿದರೆ, ಸಂಗೀತ ಪ್ಲೇ ಮಾಡುವಾಗ ಸಾಧನದ ಪರದೆ ಜಾಗೃತವಾಗಿರುತ್ತದೆ",
+  "libArtists": "",
+  "noOfflineSong": "ಆಫ್ಲೈನ್ ಹಾಡುಗಳಿಲ್ಲ!",
+  "playlists": "ಪಟ್ಟಿಗಳು",
+  "recentlyPlayed": "ಇತ್ತೀಚಿಗೆ ಕೇಳಿದ ಹಾಡುಗಳು",
+  "renamePlaylist": "ಪ್ಲೇಪಟ್ಟಿಯನ್ನು ಮರುಹೆಸರಿಸಿ",
+  "retry": "ಮರುಪ್ರಯತ್ನಿಸಿ!",
+  "settings": "ಸಂಯೋಜನೆಗಳು",
+  "songs": "ಹಾಡುಗಳು"
+}

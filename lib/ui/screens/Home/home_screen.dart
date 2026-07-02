@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
+import '../../../app/providers/controller_providers.dart';
+import '../../../utils/runtime_platform.dart';
 import '../Search/components/desktop_search_bar.dart';
-import '/ui/screens/Search/search_screen_controller.dart';
 import '/ui/widgets/animated_screen_transition.dart';
 import '../Library/library_combined.dart';
 import '../../widgets/side_nav_bar.dart';
 import '../Library/library.dart';
 import '../Search/search_screen.dart';
-import '../Settings/settings_screen_controller.dart';
 import '/ui/player/player_controller.dart';
 import '/ui/widgets/create_playlist_dialog.dart';
 import '../../navigator.dart';
@@ -19,92 +20,94 @@ import '../../widgets/shimmer_widgets/home_shimmer.dart';
 import 'home_screen_controller.dart';
 import '../Settings/settings_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
   @override
-  Widget build(BuildContext context) {
-    final PlayerController playerController = Get.find<PlayerController>();
-    final HomeScreenController homeScreenController =
-        Get.find<HomeScreenController>();
-    final SettingsScreenController settingsScreenController =
-        Get.find<SettingsScreenController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final PlayerController playerController = ref.watch(
+      playerControllerProvider,
+    );
+    final homeScreenController = ref.watch(homeScreenControllerProvider);
+    final settingsScreenController = ref.watch(
+      settingsScreenControllerProvider,
+    );
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Scaffold(
-      floatingActionButton: Obx(
-        () =>
-            ((homeScreenController.tabIndex.value == 0 &&
-                        !GetPlatform.isDesktop) ||
-                    homeScreenController.tabIndex.value == 2) &&
-                settingsScreenController.isBottomNavBarEnabled.isFalse
-            ? Obx(
-                () => Padding(
-                  padding: EdgeInsets.only(
-                    bottom:
-                        playerController.playerPanelMinHeight.value >
-                            Get.mediaQuery.padding.bottom
-                        ? playerController.playerPanelMinHeight.value -
-                              Get.mediaQuery.padding.bottom
-                        : playerController.playerPanelMinHeight.value,
-                  ),
-                  child: SizedBox(
-                    height: 60,
-                    width: 60,
-                    child: FittedBox(
-                      child: FloatingActionButton(
-                        focusElevation: 0,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(14)),
-                        ),
-                        elevation: 0,
-                        onPressed: () async {
-                          if (homeScreenController.tabIndex.value == 2) {
-                            await showDialog(
-                              context: context,
-                              builder: (context) =>
-                                  const CreateNRenamePlaylistPopup(),
-                            );
-                          } else {
-                            await Get.toNamed(
-                              ScreenNavigationSetup.searchScreen,
-                              id: ScreenNavigationSetup.id,
-                            );
-                          }
-                          // file:///data/user/0/com.example.harmonymusic/cache/libCachedImageData/
-                          //file:///data/user/0/com.example.harmonymusic/cache/just_audio_cache/
-                        },
-                        child: Icon(
-                          homeScreenController.tabIndex.value == 2
-                              ? Icons.add
-                              : Icons.search,
-                        ),
+    final homeShellAnimation = Listenable.merge([
+      homeScreenController,
+      settingsScreenController,
+      playerController,
+    ]);
+
+    return AnimatedBuilder(
+      animation: homeShellAnimation,
+      builder: (context, _) => Scaffold(
+        floatingActionButton:
+            ((homeScreenController.tabIndex == 0 &&
+                        !RuntimePlatform.isDesktop) ||
+                    homeScreenController.tabIndex == 2) &&
+                !settingsScreenController.isBottomNavBarEnabled.value
+            ? Padding(
+                padding: EdgeInsets.only(
+                  bottom:
+                      playerController.playerPanelMinHeight.value >
+                          bottomPadding
+                      ? playerController.playerPanelMinHeight.value -
+                            bottomPadding
+                      : playerController.playerPanelMinHeight.value,
+                ),
+                child: SizedBox(
+                  height: 60,
+                  width: 60,
+                  child: FittedBox(
+                    child: FloatingActionButton(
+                      focusElevation: 0,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                      ),
+                      elevation: 0,
+                      onPressed: () async {
+                        if (homeScreenController.tabIndex == 2) {
+                          await showDialog(
+                            context: context,
+                            builder: (context) =>
+                                const CreateNRenamePlaylistPopup(),
+                          );
+                        } else {
+                          await ScreenNavigationSetup.navigatorKey.currentState
+                              ?.pushNamed(ScreenNavigationSetup.searchScreen);
+                        }
+                        // file:///data/user/0/com.example.harmonymusic/cache/libCachedImageData/
+                        //file:///data/user/0/com.example.harmonymusic/cache/just_audio_cache/
+                      },
+                      child: Icon(
+                        homeScreenController.tabIndex == 2
+                            ? Icons.add
+                            : Icons.search,
                       ),
                     ),
                   ),
                 ),
               )
             : const SizedBox.shrink(),
-      ),
-      body: Obx(
-        () => Row(
+        body: Row(
           children: <Widget>[
             // create a navigation rail
-            settingsScreenController.isBottomNavBarEnabled.isFalse
+            !settingsScreenController.isBottomNavBarEnabled.value
                 ? const SideNavBar()
                 : const SizedBox(width: 0),
             //const VerticalDivider(thickness: 1, width: 2),
             Expanded(
-              child: Obx(
-                () => AnimatedScreenTransition(
-                  enabled: settingsScreenController
-                      .isTransitionAnimationDisabled
-                      .isFalse,
-                  resverse: homeScreenController.reverseAnimationTransition,
-                  horizontalTransition:
-                      settingsScreenController.isBottomNavBarEnabled.isTrue,
-                  child: Center(
-                    key: ValueKey<int>(homeScreenController.tabIndex.value),
-                    child: const Body(),
-                  ),
+              child: AnimatedScreenTransition(
+                enabled: !settingsScreenController
+                    .isTransitionAnimationDisabled
+                    .value,
+                resverse: homeScreenController.reverseAnimationTransition,
+                horizontalTransition:
+                    settingsScreenController.isBottomNavBarEnabled.value,
+                child: Center(
+                  key: ValueKey<int>(homeScreenController.tabIndex),
+                  child: const Body(),
                 ),
               ),
             ),
@@ -115,200 +118,107 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class Body extends StatelessWidget {
+class Body extends ConsumerWidget {
   const Body({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final homeScreenController = Get.find<HomeScreenController>();
-    final settingsScreenController = Get.find<SettingsScreenController>();
-    final size = MediaQuery.of(context).size;
-    final topPadding = GetPlatform.isDesktop
-        ? 85.0
-        : context.isLandscape
-        ? 50.0
-        : size.height < 750
-        ? 80.0
-        : 85.0;
-    final leftPadding = settingsScreenController.isBottomNavBarEnabled.isTrue
+  Widget build(BuildContext context, WidgetRef ref) {
+    final homeScreenController = ref.watch(homeScreenControllerProvider);
+    final settingsScreenController = ref.watch(
+      settingsScreenControllerProvider,
+    );
+    final playerController = ref.read(playerControllerProvider);
+    final topPadding = RuntimePlatform.isDesktop ? 85.0 : 36.0;
+    final leftPadding = settingsScreenController.isBottomNavBarEnabled.value
         ? 20.0
         : 5.0;
-    if (homeScreenController.tabIndex.value == 0) {
-      return Padding(
-        padding: EdgeInsets.only(left: leftPadding),
-        child: Stack(
-          children: [
-            GestureDetector(
-              onTap: () {
-                // for Desktop search bar
-                if (GetPlatform.isDesktop) {
-                  final searchScreenController = Get.find<SearchScreenController>();
-                  if (searchScreenController.focusNode.hasFocus) {
-                    searchScreenController.focusNode.unfocus();
-                  }
-                }
-              },
-              child: Obx(
-                () => homeScreenController.networkError.isTrue
-                    ? SizedBox(
-                        height: MediaQuery.of(context).size.height - 180,
-                        child: Column(
-                          children: [
-                            Align(
-                              alignment: Alignment.topLeft,
-                              child: Text(
-                                "home".tr,
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      "networkError1".tr,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 15,
-                                        vertical: 10,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(
-                                          context,
-                                        ).textTheme.titleLarge!.color,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: InkWell(
-                                        onTap: () async {
-                                          await homeScreenController
-                                              .loadContentFromNetwork();
-                                        },
-                                        child: Text(
-                                          "retry".tr,
-                                          style: TextStyle(
-                                            color: Theme.of(
-                                              context,
-                                            ).canvasColor,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Obx(() {
-                        // dispose all detached scroll controllers
-                        homeScreenController.disposeDetachedScrollControllers();
-                        final items =
-                            homeScreenController.isContentFetched.value
-                            ? [
-                                if (homeScreenController
-                                    .quickPicks
-                                    .value
-                                    .songList
-                                    .isNotEmpty)
-                                  Obx(() {
-                                    final scrollController = ScrollController();
-                                    homeScreenController
-                                        .contentScrollControllers
-                                        .add(scrollController);
-                                    return QuickPicksWidget(
-                                      content:
-                                          homeScreenController.quickPicks.value,
-                                      scrollController: scrollController,
-                                    );
-                                  }),
-                                ...getWidgetList(
-                                  homeScreenController.middleContent,
-                                  homeScreenController,
-                                ),
-                                ...getWidgetList(
-                                  homeScreenController.fixedContent,
-                                  homeScreenController,
-                                ),
-                              ]
-                            : [const HomeShimmer()];
-                        return ListView.builder(
-                          padding: EdgeInsets.only(
-                            bottom: 200,
-                            top: topPadding,
-                          ),
-                          itemCount: items.length,
-                          itemBuilder: (context, index) => items[index],
-                        );
-                      }),
-              ),
-            ),
-            if (GetPlatform.isDesktop)
-              Align(
-                alignment: Alignment.topCenter,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SizedBox(
-                      width: constraints.maxWidth > 800
-                          ? 800
-                          : constraints.maxWidth - 40,
-                      child: const Padding(
-                        padding: EdgeInsets.only(top: 15.0),
-                        child: DesktopSearchBar(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 10,
-              right: 14,
-              child: Tooltip(
-                message: "Report an issue",
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(
-                      context,
-                    ).textTheme.bodyLarge?.color,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        homeScreenController,
+        settingsScreenController,
+      ]),
+      builder: (context, _) {
+        // Rendered as the first item of the scrolling home list (not a
+        // pinned overlay), so it scrolls away with the content.
+        final reportIssueButton = Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: Tooltip(
+              message: "Report an issue",
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
                   ),
-                  icon: const Icon(Icons.bug_report_outlined, size: 20),
-                  label: const Text("Report issue"),
-                  onPressed: () => _openIssueReportDialog(context),
+                ),
+                icon: const Icon(Icons.bug_report_outlined, size: 20),
+                label: const Text("Report issue"),
+                onPressed: () => _openIssueReportDialog(
+                  context,
+                  extraDiagnosticsBuilder:
+                      settingsScreenController.developerSettingsEnabled.value
+                      ? () async => {
+                          'playback': await playerController
+                              .detailedPlaybackDebugSnapshot(),
+                        }
+                      : null,
                 ),
               ),
             ),
-          ],
-        ),
-      );
-    } else if (homeScreenController.tabIndex.value == 1) {
-      return settingsScreenController.isBottomNavBarEnabled.isTrue
-          ? const SearchScreen()
-          : const SongsLibraryWidget();
-    } else if (homeScreenController.tabIndex.value == 2) {
-      return settingsScreenController.isBottomNavBarEnabled.isTrue
-          ? const CombinedLibrary()
-          : const PlaylistNAlbumLibraryWidget(isAlbumContent: false);
-    } else if (homeScreenController.tabIndex.value == 3) {
-      return settingsScreenController.isBottomNavBarEnabled.isTrue
-          ? const SettingsScreen(isBottomNavActive: true)
-          : const PlaylistNAlbumLibraryWidget();
-    } else if (homeScreenController.tabIndex.value == 4) {
-      return const LibraryArtistWidget();
-    } else if (homeScreenController.tabIndex.value == 5) {
-      return const SettingsScreen();
-    } else {
-      return Center(child: Text("${homeScreenController.tabIndex.value}"));
-    }
+          ),
+        );
+        return switch (homeScreenController.tabIndex) {
+          0 => Padding(
+            padding: EdgeInsets.only(left: leftPadding),
+            child: Stack(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    if (RuntimePlatform.isDesktop) {
+                      final searchScreenController = ref.read(
+                        searchScreenControllerProvider,
+                      );
+                      if (searchScreenController.focusNode.hasFocus) {
+                        searchScreenController.focusNode.unfocus();
+                      }
+                    }
+                  },
+                  child: homeScreenController.networkError
+                      ? _HomeNetworkError(
+                          onRetry: homeScreenController.loadContentFromNetwork,
+                        )
+                      : _HomeContentList(
+                          topPadding: topPadding,
+                          homeScreenController: homeScreenController,
+                          getWidgetList: getWidgetList,
+                          reportIssueButton: reportIssueButton,
+                        ),
+                ),
+                if (RuntimePlatform.isDesktop) const _DesktopSearchBarHeader(),
+              ],
+            ),
+          ),
+          1 =>
+            settingsScreenController.isBottomNavBarEnabled.value
+                ? const SearchScreen()
+                : const SongsLibraryWidget(),
+          2 =>
+            settingsScreenController.isBottomNavBarEnabled.value
+                ? const CombinedLibrary()
+                : const PlaylistNAlbumLibraryWidget(isAlbumContent: false),
+          3 =>
+            settingsScreenController.isBottomNavBarEnabled.value
+                ? const SettingsScreen(isBottomNavActive: true)
+                : const PlaylistNAlbumLibraryWidget(),
+          4 => const LibraryArtistWidget(),
+          5 => const SettingsScreen(),
+          final tab => Center(child: Text("$tab")),
+        };
+      },
+    );
   }
 
   List<Widget> getWidgetList(
@@ -328,10 +238,146 @@ class Body extends StatelessWidget {
         .toList();
   }
 
-  Future<void> _openIssueReportDialog(BuildContext context) async {
+  Future<void> _openIssueReportDialog(
+    BuildContext context, {
+    Future<Map<String, dynamic>?> Function()? extraDiagnosticsBuilder,
+  }) async {
     await showDialog(
       context: context,
-      builder: (context) => const IssueReportDialog(),
-    ).whenComplete(() => Get.delete<IssueReportDialogController>());
+      builder: (context) =>
+          IssueReportDialog(extraDiagnosticsBuilder: extraDiagnosticsBuilder),
+    );
+  }
+}
+
+class _HomeNetworkError extends StatelessWidget {
+  const _HomeNetworkError({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height - 180,
+      child: Column(
+        children: [
+          Align(
+            alignment: Alignment.topLeft,
+            child: Text(
+              "home".tr,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "networkError1".tr,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 15,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).textTheme.titleLarge!.color,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: InkWell(
+                      onTap: onRetry,
+                      child: Text(
+                        "retry".tr,
+                        style: TextStyle(color: Theme.of(context).canvasColor),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeContentList extends StatelessWidget {
+  const _HomeContentList({
+    required this.topPadding,
+    required this.homeScreenController,
+    required this.getWidgetList,
+    required this.reportIssueButton,
+  });
+
+  final double topPadding;
+  final HomeScreenController homeScreenController;
+  final List<Widget> Function(
+    dynamic list,
+    HomeScreenController homeScreenController,
+  )
+  getWidgetList;
+  final Widget reportIssueButton;
+
+  @override
+  Widget build(BuildContext context) {
+    homeScreenController.disposeDetachedScrollControllers();
+    final items = homeScreenController.isContentFetched
+        ? [
+            reportIssueButton,
+            if (homeScreenController.quickPicks.songList.isNotEmpty)
+              Builder(
+                builder: (context) {
+                  final scrollController = ScrollController();
+                  homeScreenController.contentScrollControllers.add(
+                    scrollController,
+                  );
+                  return QuickPicksWidget(
+                    content: homeScreenController.quickPicks,
+                    scrollController: scrollController,
+                  );
+                },
+              ),
+            ...getWidgetList(
+              homeScreenController.middleContent,
+              homeScreenController,
+            ),
+            ...getWidgetList(
+              homeScreenController.fixedContent,
+              homeScreenController,
+            ),
+          ]
+        : [reportIssueButton, const HomeShimmer()];
+
+    return ListView.builder(
+      padding: EdgeInsets.only(bottom: 200, top: topPadding),
+      itemCount: items.length,
+      itemBuilder: (context, index) => items[index],
+    );
+  }
+}
+
+class _DesktopSearchBarHeader extends StatelessWidget {
+  const _DesktopSearchBarHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SizedBox(
+            width: constraints.maxWidth > 800 ? 800 : constraints.maxWidth - 40,
+            child: const Padding(
+              padding: EdgeInsets.only(top: 15.0),
+              child: DesktopSearchBar(),
+            ),
+          );
+        },
+      ),
+    );
   }
 }

@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
+import '../../utils/runtime_platform.dart';
 import '../screens/Search/search_result_screen_controller.dart';
 import '/ui/widgets/content_list_widget_item.dart';
 
 class ContentListWidget extends StatelessWidget {
   ///ContentListWidget is used to render a section of Content like a list of Albums or Playlists in HomeScreen
-  const ContentListWidget(
-      {super.key,
-      this.content,
-      this.isHomeContent = true,
-      this.scrollController});
+  const ContentListWidget({
+    super.key,
+    this.content,
+    this.isHomeContent = true,
+    this.scrollController,
+    this.searchResultScreenController,
+  });
 
   ///content will be of class Type AlbumContent or PlaylistContent
   final dynamic content;
   final bool isHomeContent;
   final ScrollController? scrollController;
+  final SearchResultScreenController? searchResultScreenController;
 
   @override
   Widget build(BuildContext context) {
@@ -40,12 +44,18 @@ class ContentListWidget extends StatelessWidget {
                     ? TextButton(
                         onPressed: () async {
                           final searchResultScreenController =
-                              Get.find<SearchResultScreenController>();
-                          await searchResultScreenController.viewAllCallback(content.title);
+                              this.searchResultScreenController ??
+                              SearchResultScreenControllerRegistry.current;
+                          await searchResultScreenController?.viewAllCallback(
+                            content.title,
+                          );
                         },
-                        child: Text("viewAll".tr,
-                            style: Theme.of(Get.context!).textTheme.titleSmall))
-                    : const SizedBox.shrink()
+                        child: Text(
+                          "viewAll".tr,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ],
             ),
           ),
@@ -54,27 +64,25 @@ class ContentListWidget extends StatelessWidget {
             height: 200,
             //color: Colors.blueAccent,
             child: Scrollbar(
-              thickness: GetPlatform.isDesktop ? null : 0,
+              thickness: RuntimePlatform.isDesktop ? null : 0,
               controller: scrollController,
               child: ListView.separated(
-                  controller: scrollController,
-                  addAutomaticKeepAlives: false, //Testing going
-                  addRepaintBoundaries: false, //on this
-                  physics: const BouncingScrollPhysics(),
-                  separatorBuilder: (context, index) => const SizedBox(
-                        width: 15,
-                      ),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: isAlbumContent
-                      ? content.albumList.length
-                      : content.playlistList.length,
-                  itemBuilder: (_, index) {
-                    if (isAlbumContent) {
-                      return ContentListItem(content: content.albumList[index]);
-                    }
-                    return ContentListItem(
-                        content: content.playlistList[index]);
-                  }),
+                controller: scrollController,
+                addAutomaticKeepAlives: false, //Testing going
+                addRepaintBoundaries: false, //on this
+                physics: const BouncingScrollPhysics(),
+                separatorBuilder: (context, index) => const SizedBox(width: 15),
+                scrollDirection: Axis.horizontal,
+                itemCount: isAlbumContent
+                    ? content.albumList.length
+                    : content.playlistList.length,
+                itemBuilder: (_, index) {
+                  if (isAlbumContent) {
+                    return ContentListItem(content: content.albumList[index]);
+                  }
+                  return ContentListItem(content: content.playlistList[index]);
+                },
+              ),
             ),
           ),
         ],

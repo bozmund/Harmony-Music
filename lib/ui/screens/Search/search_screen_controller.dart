@@ -1,48 +1,61 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 import '../../../domain/repositories/search_history_repository.dart';
-import '/utils/app_link_controller.dart' show ProcessLink;
 import '/services/app_contracts.dart';
+import '/ui/player/player_controller.dart';
+import '/utils/app_link_controller.dart' show ProcessLink;
 
-class SearchScreenController extends GetxController with ProcessLink {
-  SearchScreenController(this._searchHistoryRepository);
+class SearchScreenController extends ChangeNotifier with ProcessLink {
+  SearchScreenController({
+    required SearchHistoryRepository searchHistoryRepository,
+    required MusicServiceContract musicService,
+    required PlayerController playerController,
+  }) : _searchHistoryRepository = searchHistoryRepository,
+       _musicServices = musicService,
+       _playerController = playerController {
+    unawaited(_init());
+  }
 
   final SearchHistoryRepository _searchHistoryRepository;
+  final MusicServiceContract _musicServices;
+  final PlayerController _playerController;
+  @override
+  MusicServiceContract get musicService => _musicServices;
+  @override
+  PlayerController get playerController => _playerController;
   final textInputController = TextEditingController();
-  final musicServices = Get.find<MusicServiceContract>();
-  final suggestionList = [].obs;
-  final historyQueryList = [].obs;
-  final urlPasted = false.obs;
+  List<String> suggestionList = [];
+  List<String> historyQueryList = [];
+  bool urlPasted = false;
 
   // Desktop search bar related
   final focusNode = FocusNode();
-  final isSearchBarInFocus = false.obs;
+  bool isSearchBarInFocus = false;
 
-  @override
-  onInit() {
-    _init();
-    super.onInit();
-  }
-
-  _init() async {
-    if (GetPlatform.isDesktop) {
-      focusNode.addListener(() {
-        isSearchBarInFocus.value = focusNode.hasFocus;
-      });
-    }
-    historyQueryList.value = (await _searchHistoryRepository.getQueries())
-        .reversed
+  Future<void> _init() async {
+    focusNode.addListener(() {
+      isSearchBarInFocus = focusNode.hasFocus;
+      notifyListeners();
+    });
+    historyQueryList = (await _searchHistoryRepository.getQueries()).reversed
+        .cast<String>()
         .toList();
+    notifyListeners();
   }
 
   Future<void> onChanged(String text) async {
     if (text.contains("https://")) {
-      urlPasted.value = true;
+      urlPasted = true;
+      notifyListeners();
       return;
     }
-    urlPasted.value = false;
-    suggestionList.value = await musicServices.getSearchSuggestion(text);
+    urlPasted = false;
+    suggestionList = List<String>.from(
+      await _musicServices.getSearchSuggestion(text),
+    );
+    notifyListeners();
   }
 
   Future<void> suggestionInput(String txt) async {
@@ -56,11 +69,13 @@ class SearchScreenController extends GetxController with ProcessLink {
   Future<void> addToHistoryQueryList(String txt) async {
     if (historyQueryList.length > 9) {
       final queryForRemoval = historyQueryList.last;
-      historyQueryList.removeWhere((element) => element == queryForRemoval);
+      historyQueryList = historyQueryList
+          .where((element) => element != queryForRemoval)
+          .toList();
     }
     if (!historyQueryList.contains(txt)) {
       await _searchHistoryRepository.addQuery(txt, maxEntries: 10);
-      historyQueryList.insert(0, txt);
+      historyQueryList = [txt, ...historyQueryList];
     }
 
     //reset current query and suggestionList
@@ -68,18 +83,20 @@ class SearchScreenController extends GetxController with ProcessLink {
   }
 
   void reset() {
-    urlPasted.value = false;
+    urlPasted = false;
     textInputController.text = "";
-    suggestionList.clear();
+    suggestionList = [];
+    notifyListeners();
   }
 
   Future<void> removeQueryFromHistory(String txt) async {
     await _searchHistoryRepository.deleteQuery(txt);
-    historyQueryList.remove(txt);
+    historyQueryList = historyQueryList.where((query) => query != txt).toList();
+    notifyListeners();
   }
 
   @override
-  Future<void> dispose() async {
+  void dispose() {
     focusNode.dispose();
     textInputController.dispose();
     super.dispose();

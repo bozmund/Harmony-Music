@@ -1,183 +1,220 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
-import '/services/piped_service.dart';
+import '../../app/providers/service_providers.dart';
 import '../screens/Library/library_controller.dart';
 import '/ui/widgets/snackbar.dart';
 import '../../models/playlist.dart';
 import 'common_dialog_widget.dart';
 import 'modified_text_field.dart';
 
-class CreateNRenamePlaylistPopup extends StatelessWidget {
-  const CreateNRenamePlaylistPopup(
-      {super.key,
-      this.isCreateNAdd = false,
-      this.songItems,
-      this.renamePlaylist = false,
-      this.playlist});
+class CreateNRenamePlaylistPopup extends ConsumerWidget {
+  const CreateNRenamePlaylistPopup({
+    super.key,
+    this.isCreateNAdd = false,
+    this.songItems,
+    this.renamePlaylist = false,
+    this.playlist,
+  });
   final bool isCreateNAdd;
   final bool renamePlaylist;
   final List<MediaItem>? songItems;
   final Playlist? playlist;
 
   @override
-  Widget build(BuildContext context) {
-    final libraryPlaylistsController = Get.find<LibraryPlaylistsController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final libraryPlaylistsController =
+        LibraryPlaylistsControllerRegistry.current!;
     libraryPlaylistsController.changeCreationMode("local");
     libraryPlaylistsController.textInputController.text = "";
-    final isPipedLinked = Get.find<PipedServices>().isLoggedIn;
+    final isPipedLinked = ref.watch(pipedServicesProvider).isLoggedIn;
     return CommonDialog(
       child: Container(
         height: (isPipedLinked && !renamePlaylist) ? 245 : 200,
-        padding:
-            const EdgeInsets.only(top: 30, left: 30, right: 30, bottom: 10),
+        padding: const EdgeInsets.only(
+          top: 30,
+          left: 30,
+          right: 30,
+          bottom: 10,
+        ),
         child: Stack(
           children: [
-            Column(children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 5),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Marquee(
-                    delay: const Duration(milliseconds: 300),
-                    id: "createPlaylist",
-                    child: Text(
-                      renamePlaylist
-                          ? "renamePlaylist".tr
-                          : "CreateNewPlaylist".tr,
-                      style: Theme.of(context).textTheme.titleMedium,
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Marquee(
+                      delay: const Duration(milliseconds: 300),
+                      id: "createPlaylist",
+                      child: Text(
+                        renamePlaylist
+                            ? "renamePlaylist".tr
+                            : "CreateNewPlaylist".tr,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              if (isPipedLinked && !renamePlaylist)
-                Obx(
-                      () =>
-                      RadioGroup<String>(
-                        groupValue: libraryPlaylistsController.playlistCreationMode.value,
-                        onChanged: (value) {
-                          if (value == null) return;
-                          libraryPlaylistsController.changeCreationMode(value);
-                        },
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Radio<String>(value: 'piped'),
-                                Text('Piped'.tr),
-                              ],
-                            ),
-                            const SizedBox(width: 15),
-                            Row(
-                              children: [
-                                const Radio<String>(value: 'local'),
-                                Text('local'.tr),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                ),
-              ModifiedTextField(
-                textCapitalization: TextCapitalization.sentences,
-                autofocus: true,
-                cursorColor: Theme.of(context).textTheme.titleSmall!.color,
-                controller: libraryPlaylistsController.textInputController,
-                decoration: const InputDecoration(
-                  contentPadding: EdgeInsets.only(left: 5),
-                  focusColor: Colors.white,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 20.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    InkWell(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10.0),
-                        child: Text("cancel".tr),
-                      ),
-                      onTap: () => Navigator.of(context).pop(),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                          color: Theme.of(context).textTheme.titleLarge!.color,
-                          borderRadius: BorderRadius.circular(10)),
-                      child: InkWell(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 15.0, vertical: 10),
-                          child: Text(
-                            isCreateNAdd
-                                ? "createNAdd".tr
-                                : renamePlaylist
-                                    ? "rename".tr
-                                    : "create".tr,
-                            style:
-                                TextStyle(color: Theme.of(context).canvasColor),
+                if (isPipedLinked && !renamePlaylist)
+                  AnimatedBuilder(
+                    animation: libraryPlaylistsController,
+                    builder: (context, _) => RadioGroup<String>(
+                      groupValue:
+                          libraryPlaylistsController.playlistCreationMode,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        libraryPlaylistsController.changeCreationMode(value);
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Radio<String>(value: 'piped'),
+                              Text('Piped'.tr),
+                            ],
                           ),
-                        ),
-                        onTap: () async {
-                          if (renamePlaylist) {
-                            await libraryPlaylistsController
-                                .renamePlaylist(playlist!)
-                                .then((value) {
-                              if (value) {
-                                if (!context.mounted) return;
-                                Navigator.of(context).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    snackbar(context, "playlistRenameAlert".tr,
-                                        size: SanckBarSize.MEDIUM));
-                              }
-                            });
-                          } else {
-                            await libraryPlaylistsController
-                                .createNewPlaylist(
-                                    createPlaylistNAddSong: isCreateNAdd,
-                                    songItems: songItems)
-                                .then((value) {
-                              if (!context.mounted) return;
-                              if (value) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    snackbar(
-                                        context,
-                                        isCreateNAdd
-                                            ? "playlistCreatedNSongAddedAlert".tr
-                                            : "playlistCreatedAlert".tr,
-                                        size: SanckBarSize.MEDIUM));
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    snackbar(context, "errorOccurredAlert".tr,
-                                        size: SanckBarSize.MEDIUM));
-                              }
-                              Navigator.of(context).pop();
-                            });
-                          }
-                        },
+                          const SizedBox(width: 15),
+                          Row(
+                            children: [
+                              const Radio<String>(value: 'local'),
+                              Text('local'.tr),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
+                ModifiedTextField(
+                  textCapitalization: TextCapitalization.sentences,
+                  autofocus: true,
+                  cursorColor: Theme.of(context).textTheme.titleSmall!.color,
+                  controller: libraryPlaylistsController.textInputController,
+                  decoration: const InputDecoration(
+                    contentPadding: EdgeInsets.only(left: 5),
+                    focusColor: Colors.white,
+                  ),
                 ),
-              )
-            ]),
-            Obx(() =>
-                (libraryPlaylistsController.creationInProgress.isTrue && isPipedLinked)
-                    ? const Positioned(
-                        top: 5,
-                        right: 8,
-                        child: SizedBox(
-                            height: 15,
-                            width: 15,
-                            child: CircularProgressIndicator(
-                              backgroundColor: Colors.transparent,
-                              strokeWidth: 2,
-                            )),
-                      )
-                    : const SizedBox.shrink()),
+                Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      InkWell(
+                        child: Padding(
+                          padding: const EdgeInsets.all(10.0),
+                          child: Text("cancel".tr),
+                        ),
+                        onTap: () => Navigator.of(context).pop(),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).textTheme.titleLarge!.color,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: InkWell(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 15.0,
+                              vertical: 10,
+                            ),
+                            child: Text(
+                              isCreateNAdd
+                                  ? "createNAdd".tr
+                                  : renamePlaylist
+                                  ? "rename".tr
+                                  : "create".tr,
+                              style: TextStyle(
+                                color: Theme.of(context).canvasColor,
+                              ),
+                            ),
+                          ),
+                          onTap: () async {
+                            if (renamePlaylist) {
+                              await libraryPlaylistsController
+                                  .renamePlaylist(playlist!)
+                                  .then((value) {
+                                    if (value) {
+                                      if (!context.mounted) return;
+                                      Navigator.of(context).pop();
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        snackbar(
+                                          context,
+                                          "playlistRenameAlert".tr,
+                                          size: SanckBarSize.MEDIUM,
+                                        ),
+                                      );
+                                    }
+                                  });
+                            } else {
+                              await libraryPlaylistsController
+                                  .createNewPlaylist(
+                                    createPlaylistNAddSong: isCreateNAdd,
+                                    songItems: songItems,
+                                  )
+                                  .then((value) {
+                                    if (!context.mounted) return;
+                                    if (value) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        snackbar(
+                                          context,
+                                          isCreateNAdd
+                                              ? "playlistCreatedNSongAddedAlert"
+                                                    .tr
+                                              : "playlistCreatedAlert".tr,
+                                          size: SanckBarSize.MEDIUM,
+                                        ),
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        snackbar(
+                                          context,
+                                          "errorOccurredAlert".tr,
+                                          size: SanckBarSize.MEDIUM,
+                                        ),
+                                      );
+                                    }
+                                    Navigator.of(context).pop();
+                                  });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            AnimatedBuilder(
+              animation: libraryPlaylistsController,
+              builder: (context, _) =>
+                  (libraryPlaylistsController.creationInProgress &&
+                      isPipedLinked)
+                  ? const Positioned(
+                      top: 5,
+                      right: 8,
+                      child: SizedBox(
+                        height: 15,
+                        width: 15,
+                        child: CircularProgressIndicator(
+                          backgroundColor: Colors.transparent,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ],
         ),
       ),

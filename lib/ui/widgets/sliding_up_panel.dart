@@ -3,16 +3,16 @@ Copyright: © 2020, Akshath Jain. All rights reserved.
 Licensing: More information can be found here: https://github.com/akshathjain/sliding_up_panel/blob/master/LICENSE
 */
 
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'dart:math';
 
 import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 
-enum SlideDirection {
-  up,
-  down,
-}
+enum SlideDirection { up, down }
 
 enum PanelState { open, closed }
 
@@ -31,8 +31,12 @@ class SlidingUpPanel extends StatefulWidget {
   /// the panel position with the scroll position. Useful for implementing an
   /// infinite scroll behavior. If [panel] and [panelBuilder] are both non-null,
   /// [panel] will be used.
-  final Widget Function(ScrollController sc, Function(int) onListReorderStart,
-      Function(int) onListReorderEnd)? panelBuilder;
+  final Widget Function(
+    ScrollController sc,
+    Function(int) onListReorderStart,
+    Function(int) onListReorderEnd,
+  )?
+  panelBuilder;
 
   /// The Widget displayed overtop the [panel] when collapsed.
   /// This fades out as the panel is opened.
@@ -160,55 +164,54 @@ class SlidingUpPanel extends StatefulWidget {
   /// in the closed position and must be opened. PanelState.OPEN indicates that
   /// by default the Panel is open and must be swiped closed by the user.
   final PanelState defaultPanelState;
+  final bool setsScreenMode;
 
-  const SlidingUpPanel(
-      {super.key,
-      this.panel,
-      this.panelBuilder,
-      this.body,
-      this.collapsed,
-      this.minHeight = 100.0,
-      this.maxHeight = 500.0,
-      this.snapPoint,
-      this.border,
-      this.borderRadius,
-      this.boxShadow = const <BoxShadow>[
-        BoxShadow(
-          blurRadius: 8.0,
-          color: Color.fromRGBO(0, 0, 0, 0.25),
-        )
-      ],
-      this.color = Colors.white,
-      this.padding,
-      this.margin,
-      this.renderPanelSheet = true,
-      this.panelSnapping = true,
-      this.controller,
-      this.backdropEnabled = false,
-      this.backdropColor = Colors.black,
-      this.backdropOpacity = 0.5,
-      this.backdropTapClosesPanel = true,
-      this.onPanelSlide,
-      this.onPanelOpened,
-      this.onPanelClosed,
-      this.onSwipeUp,
-      this.parallaxEnabled = false,
-      this.parallaxOffset = 0.1,
-      this.isDraggable = true,
-      this.slideDirection = SlideDirection.up,
-      this.defaultPanelState = PanelState.closed,
-      this.header,
-      this.footer})
-      : assert(panel != null || panelBuilder != null),
-        assert(0 <= backdropOpacity && backdropOpacity <= 1.0),
-        assert(snapPoint == null || 0 < snapPoint && snapPoint < 1.0);
+  const SlidingUpPanel({
+    super.key,
+    this.panel,
+    this.panelBuilder,
+    this.body,
+    this.collapsed,
+    this.minHeight = 100.0,
+    this.maxHeight = 500.0,
+    this.snapPoint,
+    this.border,
+    this.borderRadius,
+    this.boxShadow = const <BoxShadow>[
+      BoxShadow(blurRadius: 8.0, color: Color.fromRGBO(0, 0, 0, 0.25)),
+    ],
+    this.color = Colors.white,
+    this.padding,
+    this.margin,
+    this.renderPanelSheet = true,
+    this.panelSnapping = true,
+    this.controller,
+    this.backdropEnabled = false,
+    this.backdropColor = Colors.black,
+    this.backdropOpacity = 0.5,
+    this.backdropTapClosesPanel = true,
+    this.onPanelSlide,
+    this.onPanelOpened,
+    this.onPanelClosed,
+    this.onSwipeUp,
+    this.parallaxEnabled = false,
+    this.parallaxOffset = 0.1,
+    this.isDraggable = true,
+    this.slideDirection = SlideDirection.up,
+    this.defaultPanelState = PanelState.closed,
+    this.header,
+    this.footer,
+    this.setsScreenMode = true
+  }) : assert(panel != null || panelBuilder != null),
+       assert(0 <= backdropOpacity && backdropOpacity <= 1.0),
+       assert(snapPoint == null || 0 < snapPoint && snapPoint < 1.0);
 
   @override
   State<SlidingUpPanel> createState() => _SlidingUpPanelState();
 }
 
 class _SlidingUpPanelState extends State<SlidingUpPanel>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _ac;
   late ScrollController _sc;
 
@@ -220,26 +223,28 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
-    _ac = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 300),
-        value: widget.defaultPanelState == PanelState.closed
-            ? 0.0
-            : 1.0 //set the default panel state (i.e. set initial value of _ac)
-        )
-      ..addListener(() {
-        if (widget.onPanelSlide != null) widget.onPanelSlide!(_ac.value);
+    _ac =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 300),
+          value: widget.defaultPanelState == PanelState.closed
+              ? 0.0
+              : 1.0, //set the default panel state (i.e. set initial value of _ac)
+        )..addListener(() {
+          widget.onPanelSlide?.call(_ac.value);
 
-        if (widget.onPanelOpened != null && _ac.value == 1.0) {
-          widget.onPanelOpened!();
-        }
+          if (_ac.value == 1.0) {
+            unawaited(_applyScreenUiMode(widget.setsScreenMode, SystemUiMode.immersive));
+            widget.onPanelOpened?.call();
+          }
 
-        if (widget.onPanelClosed != null && _ac.value == 0.0) {
-          widget.onPanelClosed!();
-        }
-        //printINFO("offset :${_sc.offset}");
-      });
+          if (_ac.value == 0.0) {
+            unawaited(_applyScreenUiMode(widget.setsScreenMode, SystemUiMode.edgeToEdge));
+            widget.onPanelClosed?.call();
+          }
+        });
 
     // prevent the panel content from being scrolled only if the widget is
     // draggable and panel scrolling is enabled
@@ -249,6 +254,22 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
     });
 
     widget.controller?._addState(this);
+  }
+
+  Future<void> _applyScreenUiMode(bool applyMode, SystemUiMode mode) async {
+    if(applyMode) await SystemChrome.setEnabledSystemUIMode(mode);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Android drops immersive mode when the screen turns off / the app is
+    // resumed (e.g. unlock with the player still open), so the panel that
+    // owns the screen mode reapplies it.
+    if (state == AppLifecycleState.resumed &&
+        widget.setsScreenMode &&
+        _isPanelOpen) {
+      unawaited(_applyScreenUiMode(true, SystemUiMode.immersive));
+    }
   }
 
   @override
@@ -294,21 +315,23 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                     : null,
                 onTap: widget.backdropTapClosesPanel ? () => _close() : null,
                 child: AnimatedBuilder(
-                    animation: _ac,
-                    builder: (context, _) {
-                      return Container(
-                        height: MediaQuery.of(context).size.height,
-                        width: MediaQuery.of(context).size.width,
+                  animation: _ac,
+                  builder: (context, _) {
+                    return Container(
+                      height: MediaQuery.of(context).size.height,
+                      width: MediaQuery.of(context).size.width,
 
-                        //set color to null so that touch events pass through
-                        //to the body when the panel is closed, otherwise,
-                        //if a color exists, then touch events won't go through
-                        color: _ac.value == 0.0
-                            ? null
-                            : widget.backdropColor.withValues(
-                                alpha: widget.backdropOpacity * _ac.value),
-                      );
-                    }),
+                      //set color to null so that touch events pass through
+                      //to the body when the panel is closed, otherwise,
+                      //if a color exists, then touch events won't go through
+                      color: _ac.value == 0.0
+                          ? null
+                          : widget.backdropColor.withValues(
+                              alpha: widget.backdropOpacity * _ac.value,
+                            ),
+                    );
+                  },
+                ),
               ),
 
         //the actual sliding part
@@ -321,7 +344,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                     return Container(
                       height:
                           _ac.value * (widget.maxHeight - widget.minHeight) +
-                              widget.minHeight,
+                          widget.minHeight,
                       margin: widget.margin,
                       padding: widget.padding,
                       decoration: widget.renderPanelSheet
@@ -339,25 +362,31 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                     children: <Widget>[
                       //open panel
                       Positioned(
-                          top: widget.slideDirection == SlideDirection.up
-                              ? 0.0
-                              : null,
-                          bottom: widget.slideDirection == SlideDirection.down
-                              ? 0.0
-                              : null,
-                          width: MediaQuery.of(context).size.width -
-                              (widget.margin != null
-                                  ? widget.margin!.horizontal
-                                  : 0) -
-                              (widget.padding != null
-                                  ? widget.padding!.horizontal
-                                  : 0),
-                          child: SizedBox(
-                            height: widget.maxHeight,
-                            child: widget.panel ??
-                                widget.panelBuilder!(
-                                    _sc, onListReorderStart, onListReorderEnd),
-                          )),
+                        top: widget.slideDirection == SlideDirection.up
+                            ? 0.0
+                            : null,
+                        bottom: widget.slideDirection == SlideDirection.down
+                            ? 0.0
+                            : null,
+                        width:
+                            MediaQuery.of(context).size.width -
+                            (widget.margin != null
+                                ? widget.margin!.horizontal
+                                : 0) -
+                            (widget.padding != null
+                                ? widget.padding!.horizontal
+                                : 0),
+                        child: SizedBox(
+                          height: widget.maxHeight,
+                          child:
+                              widget.panel ??
+                              widget.panelBuilder!(
+                                _sc,
+                                onListReorderStart,
+                                onListReorderEnd,
+                              ),
+                        ),
+                      ),
 
                       // header
                       widget.header != null
@@ -367,8 +396,8 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                                   : null,
                               bottom:
                                   widget.slideDirection == SlideDirection.down
-                                      ? 0.0
-                                      : null,
+                                  ? 0.0
+                                  : null,
                               child: widget.header ?? const SizedBox(),
                             )
                           : Container(),
@@ -381,9 +410,10 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                                   : 0.0,
                               bottom:
                                   widget.slideDirection == SlideDirection.down
-                                      ? null
-                                      : 0.0,
-                              child: widget.footer ?? const SizedBox())
+                                  ? null
+                                  : 0.0,
+                              child: widget.footer ?? const SizedBox(),
+                            )
                           : Container(),
 
                       // collapsed panel
@@ -394,7 +424,8 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                         bottom: widget.slideDirection == SlideDirection.down
                             ? 0.0
                             : null,
-                        width: MediaQuery.of(context).size.width -
+                        width:
+                            MediaQuery.of(context).size.width -
                             (widget.margin != null
                                 ? widget.margin!.horizontal
                                 : 0) -
@@ -406,14 +437,17 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                           child: widget.collapsed == null
                               ? Container()
                               : FadeTransition(
-                                  opacity:
-                                      Tween(begin: 1.0, end: 0.0).animate(_ac),
+                                  opacity: Tween(
+                                    begin: 1.0,
+                                    end: 0.0,
+                                  ).animate(_ac),
 
                                   // if the panel is open ignore pointers (touch events) on the collapsed
                                   // child so that way touch events go through to whatever is underneath
                                   child: IgnorePointer(
-                                      ignoring: _isPanelOpen,
-                                      child: widget.collapsed),
+                                    ignoring: _isPanelOpen,
+                                    child: widget.collapsed,
+                                  ),
                                 ),
                         ),
                       ),
@@ -427,6 +461,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ac.dispose();
     super.dispose();
   }
@@ -479,8 +514,10 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
       onPointerDown: (PointerDownEvent p) =>
           _vt.addPosition(p.timeStamp, p.position),
       onPointerMove: (PointerMoveEvent p) {
-        _vt.addPosition(p.timeStamp,
-            p.position); // add current position for velocity tracking
+        _vt.addPosition(
+          p.timeStamp,
+          p.position,
+        ); // add current position for velocity tracking
         _onGestureSlide(p.delta.dy);
       },
       onPointerUp: (PointerUpEvent p) => _onGestureEnd(_vt.getVelocity()),
@@ -584,14 +621,15 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
 
   Future<void> _flingPanelToPosition(double targetPos, double velocity) async {
     final Simulation simulation = SpringSimulation(
-        SpringDescription.withDampingRatio(
-          mass: 1.0,
-          stiffness: 500.0,
-          ratio: 1.0,
-        ),
-        _ac.value,
-        targetPos,
-        velocity);
+      SpringDescription.withDampingRatio(
+        mass: 1.0,
+        stiffness: 500.0,
+        ratio: 1.0,
+      ),
+      _ac.value,
+      targetPos,
+      velocity,
+    );
 
     await _ac.animateWith(simulation);
   }
@@ -630,16 +668,21 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
 
   //animate the panel position to value - must
   //be between 0.0 and 1.0
-  Future<void> _animatePanelToPosition(double value,
-      {Duration? duration, Curve curve = Curves.linear}) {
+  Future<void> _animatePanelToPosition(
+    double value, {
+    Duration? duration,
+    Curve curve = Curves.linear,
+  }) {
     assert(0.0 <= value && value <= 1.0);
     return _ac.animateTo(value, duration: duration, curve: curve);
   }
 
   //animate the panel position to the snap point
   //REQUIRES that widget.snapPoint != null
-  Future<void> _animatePanelToSnapPoint(
-      {Duration? duration, Curve curve = Curves.linear}) {
+  Future<void> _animatePanelToSnapPoint({
+    Duration? duration,
+    Curve curve = Curves.linear,
+  }) {
     assert(widget.snapPoint != null);
     return _ac.animateTo(widget.snapPoint!, duration: duration, curve: curve);
   }
@@ -662,11 +705,15 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
 
   //returns whether or not the
   //panel is open
-  bool get _isPanelOpen => _ac.value == 1.0;
+  //
+  //threshold instead of exact equality: a fling/spring animation can settle
+  //within tolerance of the bound, and callers (e.g. the back handler) must
+  //still treat the panel as open/closed then
+  bool get _isPanelOpen => _ac.value >= 0.99;
 
   //returns whether or not the
   //panel is closed
-  bool get _isPanelClosed => _ac.value == 0.0;
+  bool get _isPanelClosed => _ac.value <= 0.01;
 
   //returns whether or not the
   //panel is shown/hidden
@@ -716,25 +763,37 @@ class PanelController {
   /// where 0.0 is fully collapsed and 1.0 is completely open.
   /// (optional) duration specifies the time for the animation to complete
   /// (optional) curve specifies the easing behavior of the animation.
-  Future<void> animatePanelToPosition(double value,
-      {Duration? duration, Curve curve = Curves.linear}) {
+  Future<void> animatePanelToPosition(
+    double value, {
+    Duration? duration,
+    Curve curve = Curves.linear,
+  }) {
     assert(isAttached, "PanelController must be attached to a SlidingUpPanel");
     assert(0.0 <= value && value <= 1.0);
-    return _panelState!
-        ._animatePanelToPosition(value, duration: duration, curve: curve);
+    return _panelState!._animatePanelToPosition(
+      value,
+      duration: duration,
+      curve: curve,
+    );
   }
 
   /// Animates the panel position to the snap point
   /// Requires that the SlidingUpPanel snapPoint property is not null
   /// (optional) duration specifies the time for the animation to complete
   /// (optional) curve specifies the easing behavior of the animation.
-  Future<void> animatePanelToSnapPoint(
-      {Duration? duration, Curve curve = Curves.linear}) {
+  Future<void> animatePanelToSnapPoint({
+    Duration? duration,
+    Curve curve = Curves.linear,
+  }) {
     assert(isAttached, "PanelController must be attached to a SlidingUpPanel");
-    assert(_panelState!.widget.snapPoint != null,
-        "SlidingUpPanel snapPoint property must not be null");
-    return _panelState!
-        ._animatePanelToSnapPoint(duration: duration, curve: curve);
+    assert(
+      _panelState!.widget.snapPoint != null,
+      "SlidingUpPanel snapPoint property must not be null",
+    );
+    return _panelState!._animatePanelToSnapPoint(
+      duration: duration,
+      curve: curve,
+    );
   }
 
   /// Sets the panel position (without animation).

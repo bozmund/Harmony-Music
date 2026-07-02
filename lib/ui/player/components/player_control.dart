@@ -2,46 +2,57 @@ import 'dart:async';
 
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
+import '../../../app/providers/controller_providers.dart';
 import '../../widgets/add_to_playlist_btn.dart';
 import '/ui/player/components/animated_play_button.dart';
 import '../player_controller.dart';
 
-class PlayerControlWidget extends StatelessWidget {
+class PlayerControlWidget extends ConsumerWidget {
   const PlayerControlWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final PlayerController playerController = Get.find<PlayerController>();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: ShaderMask(
-                shaderCallback: (rect) {
-                  return const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      Colors.white,
-                      Colors.white,
-                      Colors.white,
-                      Colors.white,
-                      Colors.white,
-                      Colors.white,
-                      Colors.transparent,
-                    ],
-                  ).createShader(Rect.fromLTWH(0, 0, rect.width, rect.height));
-                },
-                blendMode: BlendMode.dstIn,
-                child: Obx(() {
-                  return Column(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerController = ref.read(playerControllerProvider);
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        playerController.currentSong,
+        playerController.currentQueue,
+        playerController.isCurrentSongFav,
+        playerController.isShuffleModeEnabled,
+        playerController.isLoopModeEnabled,
+        playerController.isQueueLoopModeEnabled,
+      ]),
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: ShaderMask(
+                  shaderCallback: (rect) {
+                    return const LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Colors.white,
+                        Colors.white,
+                        Colors.white,
+                        Colors.white,
+                        Colors.white,
+                        Colors.white,
+                        Colors.transparent,
+                      ],
+                    ).createShader(
+                      Rect.fromLTWH(0, 0, rect.width, rect.height),
+                    );
+                  },
+                  blendMode: BlendMode.dstIn,
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Marquee(
@@ -71,34 +82,31 @@ class PlayerControlWidget extends StatelessWidget {
                         ),
                       ),
                     ],
-                  );
-                }),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(
-              width: 45,
-              child: AddToPlaylistButton(calledFromPlayer: true),
-            ),
-            SizedBox(
-              width: 45,
-              child: IconButton(
-                onPressed: playerController.toggleFavourite,
-                icon: Obx(
-                  () => Icon(
-                    playerController.isCurrentSongFav.isFalse
+              const SizedBox(
+                width: 45,
+                child: AddToPlaylistButton(calledFromPlayer: true),
+              ),
+              SizedBox(
+                width: 45,
+                child: IconButton(
+                  onPressed: playerController.toggleFavourite,
+                  icon: Icon(
+                    !playerController.isCurrentSongFav.value
                         ? Icons.favorite_border
                         : Icons.favorite,
                     color: Theme.of(context).textTheme.titleMedium!.color,
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        GetX<PlayerController>(
-          builder: (controller) {
-            return ProgressBar(
+            ],
+          ),
+          const SizedBox(height: 20),
+          AnimatedBuilder(
+            animation: playerController.progressBarStatus,
+            builder: (context, _) => ProgressBar(
               thumbRadius: 7,
               barHeight: 4.5,
               baseBarColor: Theme.of(context).sliderTheme.inactiveTrackColor,
@@ -110,23 +118,21 @@ class PlayerControlWidget extends StatelessWidget {
               timeLabelTextStyle: Theme.of(
                 context,
               ).textTheme.titleMedium!.copyWith(fontSize: 14),
-              progress: controller.progressBarStatus.value.current,
-              total: controller.progressBarStatus.value.total,
-              buffered: controller.progressBarStatus.value.buffered,
-              onSeek: controller.requestSeek,
-            );
-          },
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            IconButton(
-              onPressed: () {
-                unawaited(playerController.toggleShuffleMode());
-              },
-              icon: Obx(
-                () => Icon(
+              progress: playerController.progressBarStatus.value.current,
+              total: playerController.progressBarStatus.value.total,
+              buffered: playerController.progressBarStatus.value.buffered,
+              onSeek: playerController.requestSeek,
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: () {
+                  unawaited(playerController.toggleShuffleMode());
+                },
+                icon: Icon(
                   Icons.shuffle,
                   color: playerController.isShuffleModeEnabled.value
                       ? Theme.of(context).textTheme.titleLarge!.color
@@ -135,15 +141,13 @@ class PlayerControlWidget extends StatelessWidget {
                         ).textTheme.titleLarge!.color!.withValues(alpha: 0.2),
                 ),
               ),
-            ),
-            _previousButton(playerController, context),
-            const CircleAvatar(
-              radius: 35,
-              child: AnimatedPlayButton(key: Key("playButton")),
-            ),
-            _nextButton(playerController, context),
-            Obx(() {
-              return IconButton(
+              _previousButton(playerController, context),
+              const CircleAvatar(
+                radius: 35,
+                child: AnimatedPlayButton(key: Key("playButton")),
+              ),
+              _nextButton(playerController, context),
+              IconButton(
                 onPressed: () {
                   unawaited(playerController.toggleLoopMode());
                 },
@@ -155,11 +159,11 @@ class PlayerControlWidget extends StatelessWidget {
                           context,
                         ).textTheme.titleLarge!.color!.withValues(alpha: 0.2),
                 ),
-              );
-            }),
-          ],
-        ),
-      ],
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -179,24 +183,22 @@ class PlayerControlWidget extends StatelessWidget {
 }
 
 Widget _nextButton(PlayerController playerController, BuildContext context) {
-  return Obx(() {
-    final isLastSong =
-        playerController.currentQueue.isEmpty ||
-        (!(playerController.isShuffleModeEnabled.isTrue ||
-                playerController.isQueueLoopModeEnabled.isTrue) &&
-            (playerController.currentQueue.last.id ==
-                playerController.currentSong.value?.id));
-    return IconButton(
-      icon: Icon(
-        Icons.skip_next,
-        color: isLastSong
-            ? Theme.of(
-                context,
-              ).textTheme.titleLarge!.color!.withValues(alpha: 0.2)
-            : Theme.of(context).textTheme.titleMedium!.color,
-      ),
-      iconSize: 30,
-      onPressed: isLastSong ? null : playerController.requestNext,
-    );
-  });
+  final isLastSong =
+      playerController.currentQueue.isEmpty ||
+      (!(playerController.isShuffleModeEnabled.value ||
+              playerController.isQueueLoopModeEnabled.value) &&
+          (playerController.currentQueue.last.id ==
+              playerController.currentSong.value?.id));
+  return IconButton(
+    icon: Icon(
+      Icons.skip_next,
+      color: isLastSong
+          ? Theme.of(
+              context,
+            ).textTheme.titleLarge!.color!.withValues(alpha: 0.2)
+          : Theme.of(context).textTheme.titleMedium!.color,
+    ),
+    iconSize: 30,
+    onPressed: isLastSong ? null : playerController.requestNext,
+  );
 }
