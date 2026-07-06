@@ -22,11 +22,11 @@ void main() {
         classicBranchIndex,
       );
       final persistedRangeZeroIndex = block.indexOf(
-        'setBox.put(PrefKeys.playbackPreloadRange, 0)',
+        '_settingsRepository.setPlaybackPreloadRange(0)',
         classicBranchIndex,
       );
 
-      expect(block, contains('setBox.put(PrefKeys.playbackMode'));
+      expect(block, contains('_settingsRepository.setPlaybackMode'));
       expect(classicBranchIndex, isNot(-1));
       expect(rangeZeroIndex, isNot(-1));
       expect(persistedRangeZeroIndex, isNot(-1));
@@ -43,7 +43,7 @@ void main() {
         preloadedBranchIndex,
       );
       final persistedRangeOneIndex = block.indexOf(
-        'setBox.put(PrefKeys.playbackPreloadRange, 1)',
+        '_settingsRepository.setPlaybackPreloadRange(1)',
         preloadedBranchIndex,
       );
 
@@ -72,7 +72,7 @@ void main() {
       expect(initBlock, contains('playbackPreloadRange.value = 1;'));
       expect(
         initBlock,
-        contains('setBox.put(PrefKeys.playbackPreloadRange, 1)'),
+        contains('_settingsRepository.setPlaybackPreloadRange(1)'),
       );
     });
   });

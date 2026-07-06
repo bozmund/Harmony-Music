@@ -75,6 +75,11 @@ android {
             applicationIdSuffix ".dev"
         }
 
+        profile {
+            applicationIdSuffix ".profile"
+            signingConfig signingConfigs.debug
+        }
+
         release {
             applicationIdSuffix ".prod"
             signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug

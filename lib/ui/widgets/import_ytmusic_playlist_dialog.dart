@@ -1,63 +1,89 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 import '../screens/Library/library_controller.dart';
 import 'common_dialog_widget.dart';
 import 'modified_text_field.dart';
 
-class ImportYtMusicPlaylistDialogController extends GetxController {
+class ImportYtMusicPlaylistDialogController extends ChangeNotifier {
+  ImportYtMusicPlaylistDialogController(this._libraryPlaylistsController);
+
+  final LibraryPlaylistsController _libraryPlaylistsController;
   final inputController = TextEditingController();
-  final isImporting = false.obs;
-  final status = "Paste a public YouTube Music playlist URL or ID".obs;
-  final error = RxnString();
-  final result = Rxn<YouTubePlaylistImportResult>();
+  var isImporting = false;
+  var status = "Paste a public YouTube Music playlist URL or ID";
+  String? error;
+  YouTubePlaylistImportResult? result;
 
   Future<void> importPlaylist() async {
-    if (isImporting.value) return;
+    if (isImporting) return;
 
-    error.value = null;
-    result.value = null;
-    isImporting.value = true;
+    error = null;
+    result = null;
+    isImporting = true;
+    notifyListeners();
 
     try {
-      result.value = await Get.find<LibraryPlaylistsController>()
-          .importPlaylistFromYouTubeMusic(
+      result = await _libraryPlaylistsController.importPlaylistFromYouTubeMusic(
         inputController.text,
-        onStatus: (value) => status.value = value,
+        onStatus: (value) {
+          status = value;
+          notifyListeners();
+        },
       );
-      status.value = "Completed";
+      status = "Completed";
     } on YouTubePlaylistImportException catch (e) {
-      error.value = e.message;
-      status.value = "Import failed";
+      error = e.message;
+      status = "Import failed";
     } catch (e) {
-      error.value = "Network error or playlist unavailable";
-      status.value = "Import failed";
+      error = "Network error or playlist unavailable";
+      status = "Import failed";
     } finally {
-      isImporting.value = false;
+      isImporting = false;
+      notifyListeners();
     }
   }
 
   @override
-  void onClose() {
+  void dispose() {
     inputController.dispose();
-    super.onClose();
+    super.dispose();
   }
 }
 
-class ImportYtMusicPlaylistDialog extends StatelessWidget {
+class ImportYtMusicPlaylistDialog extends StatefulWidget {
   const ImportYtMusicPlaylistDialog({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.isRegistered<ImportYtMusicPlaylistDialogController>()
-        ? Get.find<ImportYtMusicPlaylistDialogController>()
-        : Get.put(ImportYtMusicPlaylistDialogController());
+  State<ImportYtMusicPlaylistDialog> createState() =>
+      _ImportYtMusicPlaylistDialogState();
+}
 
+class _ImportYtMusicPlaylistDialogState
+    extends State<ImportYtMusicPlaylistDialog> {
+  late final ImportYtMusicPlaylistDialogController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = ImportYtMusicPlaylistDialogController(
+      LibraryPlaylistsControllerRegistry.current!,
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return CommonDialog(
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: Obx(
-          () => Column(
+        child: AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) => Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -78,28 +104,27 @@ class ImportYtMusicPlaylistDialog extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                controller.status.value,
+                controller.status,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              if (controller.isImporting.value) ...[
+              if (controller.isImporting) ...[
                 const SizedBox(height: 12),
                 const LinearProgressIndicator(),
               ],
-              if (controller.error.value != null) ...[
+              if (controller.error != null) ...[
                 const SizedBox(height: 12),
                 Text(
-                  controller.error.value!,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: Theme.of(context).colorScheme.error),
+                  controller.error!,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                 ),
               ],
-              if (controller.result.value != null) ...[
+              if (controller.result != null) ...[
                 const SizedBox(height: 12),
                 Text(
-                  "${controller.result.value!.importedSongCount} songs imported\n"
-                  "${controller.result.value!.conflictAddedCount} conflicts added to Import conflicts",
+                  "${controller.result!.importedSongCount} songs imported\n"
+                  "${controller.result!.conflictAddedCount} conflicts added to Import conflicts",
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -108,14 +133,14 @@ class ImportYtMusicPlaylistDialog extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed:
-                        controller.isImporting.value ? null : () => Get.back(),
-                    child: Text(
-                        controller.result.value == null ? "Cancel" : "Close"),
+                    onPressed: controller.isImporting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    child: Text(controller.result == null ? "Cancel" : "Close"),
                   ),
                   const SizedBox(width: 8),
                   TextButton(
-                    onPressed: controller.isImporting.value
+                    onPressed: controller.isImporting
                         ? null
                         : controller.importPlaylist,
                     child: const Text("Import"),

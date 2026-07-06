@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:harmonymusic/ui/utils/theme_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class CustomSwitch extends StatelessWidget {
+import '../../app/providers/controller_providers.dart';
+
+class CustomSwitch extends ConsumerWidget {
   const CustomSwitch({super.key, this.onChanged, required this.value});
   final void Function(bool)? onChanged;
   final bool value;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeController = ref.watch(themeControllerProvider);
     final isLightMode =
-        Get.find<ThemeController>().themeData.value!.primaryColor ==
-            Colors.white;
+        themeController.themeData.value!.primaryColor == Colors.white;
     return Switch(
-        activeThumbColor: Colors.white,
-        activeTrackColor: isLightMode ? Colors.grey : null,
-        inactiveTrackColor: isLightMode ? Colors.grey : null,
-        inactiveThumbColor: isLightMode
-            ? Colors.grey[300]
-            : Colors.white.withValues(alpha: 0.5),
-        value: value,
-        onChanged: onChanged);
+      activeThumbColor: Colors.white,
+      activeTrackColor: isLightMode ? Colors.grey : null,
+      inactiveTrackColor: isLightMode ? Colors.grey : null,
+      inactiveThumbColor: isLightMode
+          ? Colors.grey[300]
+          : Colors.white.withValues(alpha: 0.5),
+      value: value,
+      onChanged: onChanged,
+    );
   }
 }

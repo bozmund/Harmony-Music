@@ -80,6 +80,23 @@ void main() {
         expect(response.contentLength, 12);
       },
     );
+
+    test('requests use cancellable single-subscription streams', () async {
+      final source = await _source(
+        uri: uri,
+        tempDir: tempDir,
+        audioBytes: audioBytes,
+        prefixLength: 12,
+      );
+
+      final prefixOnlyResponse = await source.request(3, 9);
+      final combinedResponse = await source.request(8, 20);
+      final networkResponse = await source.request(12, 20);
+
+      expect(prefixOnlyResponse.stream.isBroadcast, isFalse);
+      expect(combinedResponse.stream.isBroadcast, isFalse);
+      expect(networkResponse.stream.isBroadcast, isFalse);
+    });
   });
 }
 

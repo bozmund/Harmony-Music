@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
-import 'package:get/get.dart' as getx;
-import 'package:hive/hive.dart';
 
+import '../domain/repositories/settings_repository.dart';
 import '/models/album.dart';
 import '/services/app_contracts.dart';
 import '/services/utils.dart';
@@ -14,7 +15,13 @@ import 'nav_parser.dart';
 
 enum AudioQuality { Low, High }
 
-class MusicServices extends getx.GetxService implements MusicServiceContract {
+class MusicServices implements MusicServiceContract {
+  MusicServices(this._settingsRepository) {
+    unawaited(init());
+  }
+
+  final SettingsRepository _settingsRepository;
+
   final Map<String, String> _headers = {
     'user-agent': userAgent,
     'accept': '*/*',
@@ -35,12 +42,6 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
     },
   };
 
-  @override
-  Future<void> onInit() async {
-    await init();
-    super.onInit();
-  }
-
   final dio = Dio();
 
   Future<void> init() async {
@@ -53,13 +54,12 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       'contentPlaybackContext': {'signatureTimestamp': signatureTimestamp},
     };
 
-    final appPrefsBox = Hive.box('AppPrefs');
-    hlCode = appPrefsBox.get('contentLanguage') ?? "en";
-    if (appPrefsBox.containsKey('visitorId')) {
-      final visitorData = appPrefsBox.get("visitorId");
-      if (visitorData != null && !isExpired(epoch: visitorData['exp'])) {
+    hlCode = _settingsRepository.getContentLanguage();
+    final visitorData = _settingsRepository.getVisitorData();
+    if (visitorData != null) {
+      if (!isExpired(epoch: visitorData['exp'])) {
         _headers['X-Goog-Visitor-Id'] = visitorData['id'];
-        await appPrefsBox.put("visitorId", {
+        await _settingsRepository.setVisitorData({
           'id': visitorData['id'],
           'exp': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 2590200,
         });
@@ -72,7 +72,7 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
     if (visitorId != null) {
       _headers['X-Goog-Visitor-Id'] = visitorId;
       printINFO("New Visitor id generated ($visitorId)");
-      await appPrefsBox.put("visitorId", {
+      await _settingsRepository.setVisitorData({
         'id': visitorId,
         'exp': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 2592000,
       });
@@ -464,9 +464,8 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
       final int secondSubtitleRunCount =
           header['secondSubtitle']['runs'].length;
       final String count =
-          (header['secondSubtitle']['runs'][secondSubtitleRunCount %
-                              3]['text']
-                          .split(' ')[0]
+          (header['secondSubtitle']['runs'][secondSubtitleRunCount % 3]['text']
+                      .split(' ')[0]
                       .split(',')
                   as List)
               .join();
@@ -1074,10 +1073,8 @@ class MusicServices extends getx.GetxService implements MusicServiceContract {
     }
   }
 
-  @override
-  void onClose() {
+  void dispose() {
     dio.close();
-    super.onClose();
   }
 }
 

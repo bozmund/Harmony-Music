@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
 class ProceedButton extends StatelessWidget {
   const ProceedButton({
@@ -14,8 +14,9 @@ class ProceedButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-          color: Theme.of(context).textTheme.titleLarge!.color,
-          borderRadius: BorderRadius.circular(10)),
+        color: Theme.of(context).textTheme.titleLarge!.color,
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: InkWell(
         onTap: onPressed,
         child: Padding(
@@ -43,7 +44,7 @@ class CancelButton extends StatelessWidget {
       ),
       onTap: () {
         Navigator.of(context).pop();
-         if (onPressed != null) {
+        if (onPressed != null) {
           onPressed!();
         }
       },

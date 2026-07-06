@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:get/get.dart';
 import 'package:harmonymusic/services/app_contracts.dart';
 import 'package:harmonymusic/services/app_platform_service.dart';
 import 'package:harmonymusic/utils/helper.dart';
@@ -11,11 +10,14 @@ class _MockAppPlatform extends Mock implements AppPlatformContract {}
 
 void main() {
   setUp(() {
-    Get.testMode = true;
-    Get.reset();
+    newVersionCheckOverride = null;
+    AppPlatformService.override = null;
   });
 
-  tearDown(Get.reset);
+  tearDown(() {
+    newVersionCheckOverride = null;
+    AppPlatformService.override = null;
+  });
 
   test('newVersionCheck delegates to registered update service', () async {
     final updateService = _MockUpdateService();
@@ -33,7 +35,7 @@ void main() {
       ),
     ).thenAnswer((_) async => update);
 
-    Get.put<UpdateServiceContract>(updateService);
+    newVersionCheckOverride = updateService;
 
     final result = await newVersionCheck(
       '5.9.2',
@@ -59,7 +61,7 @@ void main() {
       when(() => platform.installApk('/tmp/app.apk')).thenAnswer((_) async {});
       when(() => platform.setPlaybackWakeLock(true)).thenAnswer((_) async {});
 
-      Get.put<AppPlatformContract>(platform);
+      AppPlatformService.override = platform;
 
       await AppPlatformService.openUrl('https://example.test');
       await AppPlatformService.installApk('/tmp/app.apk');

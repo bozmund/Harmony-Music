@@ -26,5 +26,11 @@
     "firstLibraryTab": "Prva kartica biblioteke",
     "firstLibraryTabDes": "Odaberi koja će se kartica prva prikazati u biblioteci",
     "keepScreenOnWhilePlaying": "Ostavi zaslon uključen tijekom reprodukcije",
-    "keepScreenOnWhilePlayingDes": "Ako je omogućeno, zaslon uređaja ostat će uključen tijekom reprodukcije glazbe"
+    "keepScreenOnWhilePlayingDes": "Ako je omogućeno, zaslon uređaja ostat će uključen tijekom reprodukcije glazbe",
+    "chooseUpdateChannel": "Odaberi kanal ažuriranja",
+    "chooseUpdateChannelDes": "Harmony Music sada nudi dva kanala ažuriranja. Odaberi kako želiš primati ažuriranja — to možeš u bilo kojem trenutku promijeniti u postavkama.",
+    "stableChannelOption": "Stabilni (preporučeno)",
+    "stableChannelOptionDes": "Testirana, verzionirana izdanja. Rjeđa ažuriranja, veća pouzdanost.",
+    "rollingChannelOption": "Rolling",
+    "rollingChannelOptionDes": "Svaka nova razvojna verzija. Najnovije značajke odmah, ali moguća nestabilnost."
 }

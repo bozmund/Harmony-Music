@@ -1,53 +1,54 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
-import 'package:hive/hive.dart';
+import '../../domain/repositories/settings_repository.dart';
 import '/utils/helper.dart';
 
-class ThemeController extends GetxController {
-  final primaryColor = Colors.deepPurple[400].obs;
-  final textColor = Colors.white24.obs;
-  final themeData = Rxn<ThemeData>();
+class ThemeController extends ChangeNotifier {
+  ThemeController(this._settingsRepository) {
+    systemBrightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+
+    primaryColor.value = Color(_settingsRepository.getThemePrimaryColor());
+
+    _listenSystemBrightness();
+    unawaited(
+      changeThemeModeType(
+        ThemeType.values[_settingsRepository.getThemeModeType()],
+      ),
+    );
+  }
+
+  final SettingsRepository _settingsRepository;
+  final primaryColor = ValueNotifier<Color?>(Colors.deepPurple[400]);
+  final textColor = ValueNotifier<Color>(Colors.white24);
+  final themeData = ValueNotifier<ThemeData?>(null);
 
   /// The method channel for setting the title bar color on Windows.
   final platform = const MethodChannel('win_titlebar_color');
   String? currentSongId;
+  String? _pendingSongId;
   late Brightness systemBrightness;
-  @override
-  Future<void> onInit() async {
-    super.onInit();
-    await changeThemeModeType(
-    ThemeType.values[Hive.box('appPrefs').get("themeModeType") ?? 0],
-    );
-  }
-  ThemeController() {
-    systemBrightness =
-        WidgetsBinding.instance.platformDispatcher.platformBrightness;
 
-    primaryColor.value = Color(
-      Hive.box('appPrefs').get("themePrimaryColor") ?? 4278199603,
-    );
-
-    _listenSystemBrightness();
-
-    super.onInit();
-  }
   void _listenSystemBrightness() {
     final platformDispatcher = WidgetsBinding.instance.platformDispatcher;
     platformDispatcher.onPlatformBrightnessChanged = () async {
       systemBrightness = platformDispatcher.platformBrightness;
       await changeThemeModeType(
-        ThemeType.values[Hive.box('appPrefs').get("themeModeType")],
+        ThemeType.values[_settingsRepository.getThemeModeType()],
         sysCall: true,
       );
     };
   }
 
-  Future<void> changeThemeModeType(dynamic value, {bool sysCall = false}) async {
+  Future<void> changeThemeModeType(
+    dynamic value, {
+    bool sysCall = false,
+  }) async {
     if (value == ThemeType.system) {
       themeData.value = _createThemeData(
         null,
@@ -62,35 +63,63 @@ class ThemeController extends GetxController {
         value,
       );
     }
+    notifyListeners();
     await setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
   }
 
   Future<void> setTheme(ImageProvider imageProvider, String songId) async {
-    if (songId == currentSongId) return;
-    final paletteColor = await _dominantColorFromImageProvider(
-      ResizeImage(imageProvider, height: 200, width: 200),
-    );
-    primaryColor.value = paletteColor;
-    textColor.value = paletteColor.computeLuminance() > 0.45
-        ? Colors.black87
-        : Colors.white70;
-    // printINFO(paletteColor.color.computeLuminance().toString());0.11 ref
-    if (paletteColor.computeLuminance() > 0.10) {
-      primaryColor.value = paletteColor.withLightness(0.10);
-      textColor.value = Colors.white54;
+    if (songId == currentSongId || songId == _pendingSongId) return;
+    _pendingSongId = songId;
+    try {
+      final paletteColor = await _dominantColorFromImageProvider(
+        ResizeImage(imageProvider, height: 200, width: 200),
+      );
+      var nextPrimaryColor = paletteColor;
+      var nextTextColor = paletteColor.computeLuminance() > 0.45
+          ? Colors.black87
+          : Colors.white70;
+      // printINFO(paletteColor.color.computeLuminance().toString());0.11 ref
+      if (paletteColor.computeLuminance() > 0.10) {
+        nextPrimaryColor = paletteColor.withLightness(0.10);
+        nextTextColor = Colors.white54;
+      }
+      if (nextPrimaryColor == primaryColor.value &&
+          nextTextColor == textColor.value &&
+          themeData.value != null) {
+        // The new song's palette matches the current theme: rebuilding
+        // ThemeData here would re-run the app-wide AnimatedTheme transition
+        // (plus a Hive write) on every song change with nothing visibly
+        // changing — a main frame-drop source on next/prev.
+        currentSongId = songId;
+        return;
+      }
+      primaryColor.value = nextPrimaryColor;
+      textColor.value = nextTextColor;
+      final primarySwatch = _createMaterialColor(primaryColor.value!);
+      themeData.value = _createThemeData(
+        primarySwatch,
+        ThemeType.dynamic,
+        textColor: textColor.value,
+        titleColorSwatch: _createMaterialColor(textColor.value),
+      );
+      currentSongId = songId;
+      await _settingsRepository.setThemePrimaryColor(
+        primaryColor.value!.toARGB32(),
+      );
+      notifyListeners();
+      await setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
+    } catch (error, stackTrace) {
+      currentSongId = songId;
+      printERROR(
+        'Dynamic theme extraction failed for $songId: $error',
+        tag: 'Theme',
+      );
+      printERROR(stackTrace, tag: 'Theme');
+    } finally {
+      if (_pendingSongId == songId) {
+        _pendingSongId = null;
+      }
     }
-    final primarySwatch = _createMaterialColor(primaryColor.value!);
-    themeData.value = _createThemeData(
-      primarySwatch,
-      ThemeType.dynamic,
-      textColor: textColor.value,
-      titleColorSwatch: _createMaterialColor(textColor.value),
-    );
-    currentSongId = songId;
-    await Hive.box(
-      'appPrefs',
-    ).put("themePrimaryColor", primaryColor.value!.toARGB32());
-    await setWindowsTitleBarColor(themeData.value!.scaffoldBackgroundColor);
   }
 
   Future<Color> _dominantColorFromImageProvider(ImageProvider provider) async {
@@ -440,7 +469,7 @@ class ThemeController extends GetxController {
   }
 
   Future<void> setWindowsTitleBarColor(Color color) async {
-    if (!GetPlatform.isWindows) return;
+    if (!Platform.isWindows) return;
     try {
       Future.delayed(
         const Duration(milliseconds: 350),
@@ -480,24 +509,6 @@ extension ColorWithHSL on Color {
   Color withHue(double hue) {
     return hsl.withHue(clampDouble(hue, 0.0, 360.0)).toColor();
   }
-}
-
-extension HexColor on Color {
-  /// String is in the format "aabbcc" or "ffaabbcc" with an optional leading "#".
-  static Color fromHex(String hexString) {
-    final buffer = StringBuffer();
-    if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
-    buffer.write(hexString.replaceFirst('#', ''));
-    return Color(int.parse(buffer.toString(), radix: 16));
-  }
-
-  /// Prefixes a hash sign if [leadingHashSign] is set to `true` (default is `true`).
-  String toHex({bool leadingHashSign = true}) =>
-      '${leadingHashSign ? '#' : ''}'
-      '${(a * 255).round().toRadixString(16).padLeft(2, '0')}'
-      '${(r * 255).round().toRadixString(16).padLeft(2, '0')}'
-      '${(g * 255).round().toRadixString(16).padLeft(2, '0')}'
-      '${(b * 255).round().toRadixString(16).padLeft(2, '0')}';
 }
 
 enum ThemeType { dynamic, system, dark, light }

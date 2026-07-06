@@ -1,17 +1,19 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
+import '../../../app/providers/controller_providers.dart';
+import '../../../app/providers/repository_providers.dart';
+import '../../../app/providers/service_providers.dart';
 import '/models/playing_from.dart';
 import '/models/thumbnail.dart';
 import '../../../services/app_platform_service.dart';
 import '/ui/widgets/playlist_album_scroll_behaviour.dart';
 import '../../../services/constant.dart';
-import '../../../services/downloader.dart';
 import '../../navigator.dart';
-import '../../player/player_controller.dart';
 import '../../widgets/create_playlist_dialog.dart';
 import '../../widgets/loader.dart';
 import '../../widgets/playlist_export_dialog.dart';
@@ -22,18 +24,64 @@ import '../../widgets/sort_widget.dart';
 import '../Library/library_controller.dart';
 import 'playlist_screen_controller.dart';
 
-class PlaylistScreen extends StatelessWidget {
+class PlaylistScreen extends ConsumerStatefulWidget {
   const PlaylistScreen({super.key});
 
   @override
+  ConsumerState<PlaylistScreen> createState() => _PlaylistScreenState();
+}
+
+class _PlaylistScreenState extends ConsumerState<PlaylistScreen>
+    with SingleTickerProviderStateMixin {
+  late final String tag;
+  PlaylistScreenController? _playlistController;
+
+  @override
+  void initState() {
+    super.initState();
+    tag = widget.key.hashCode.toString();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_playlistController != null) return;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final controller = PlaylistScreenController(
+      musicServices: container.read(musicServiceContractProvider),
+      playlistRepository: container.read(playlistRepositoryProvider),
+      libraryRepository: container.read(libraryRepositoryProvider),
+      homeScreenController: container.read(homeScreenControllerProvider),
+      settingsScreenController: container.read(
+        settingsScreenControllerProvider,
+      ),
+      pipedServices: container.read(pipedServicesProvider),
+    );
+    PlaylistScreenControllerRegistry.register(tag, controller);
+    final routeArgs = ModalRoute.of(context)?.settings.arguments as List?;
+    if (routeArgs == null) {
+      throw StateError('PlaylistScreen requires list route arguments');
+    }
+    controller.initialize(args: routeArgs, vsync: this);
+    _playlistController = controller;
+  }
+
+  @override
+  void dispose() {
+    final controller = _playlistController;
+    if (controller != null) {
+      PlaylistScreenControllerRegistry.unregister(tag, controller);
+      controller.close();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final tag = key.hashCode.toString();
-    final playlistController =
-        (Get.isRegistered<PlaylistScreenController>(tag: tag))
-        ? Get.find<PlaylistScreenController>(tag: tag)
-        : Get.put(PlaylistScreenController(), tag: tag);
+    final playlistController = _playlistController!;
     final size = MediaQuery.of(context).size;
-    final playerController = Get.find<PlayerController>();
+    final playerController = ref.read(playerControllerProvider);
+    final downloader = ref.watch(downloaderProvider);
     final landscape = size.width > size.height;
     return Scaffold(
       body: NotificationListener<ScrollNotification>(
@@ -52,202 +100,230 @@ class PlaylistScreen extends StatelessWidget {
           }
           return true;
         },
-        child: Stack(
-          children: [
-            Obx(
-              () => playlistController.isContentFetched.isTrue
+        child: AnimatedBuilder(
+          animation: Listenable.merge([playlistController, downloader]),
+          builder: (context, _) => Stack(
+            children: [
+              // The artwork depends on scrollOffset, which updates every
+              // scroll frame — give it its own listener instead of putting
+              // scrollOffset in the screen-wide merge (that would rebuild the
+              // entire Stack, song list included, per frame).
+              AnimatedBuilder(
+                animation: Listenable.merge([
+                  playlistController.scrollOffset,
+                  playlistController.isSearchingOn,
+                  playlistController.isContentFetched,
+                ]),
+                builder: (context, _) => playlistController
+                        .isContentFetched
+                        .value
                   ? Positioned(
                       top: landscape
                           ? 0
                           : -.25 * playlistController.scrollOffset.value,
                       right: landscape ? 0 : null,
-                      child: Obx(() {
-                        final opacityValue =
-                            1 -
-                            playlistController.scrollOffset.value /
-                                (size.width - 100);
-                        return Opacity(
-                          opacity:
-                              opacityValue < 0 ||
-                                  playlistController.isSearchingOn.isTrue &&
-                                      !landscape
-                              ? 0
-                              : opacityValue,
-                          child: DecoratedBox(
-                            position: DecorationPosition.foreground,
-                            decoration: BoxDecoration(
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Theme.of(context).canvasColor,
-                                  spreadRadius: 200,
-                                  blurRadius: 100,
-                                  offset: Offset(-size.height, 0),
-                                ),
-                                BoxShadow(
-                                  color: Theme.of(context).canvasColor,
-                                  spreadRadius: 200,
-                                  blurRadius: 100,
-                                  offset: Offset(
-                                    0,
-                                    landscape ? size.height : size.width + 80,
+                      child: Builder(
+                        builder: (context) {
+                          final opacityValue =
+                              1 -
+                              playlistController.scrollOffset.value /
+                                  (size.width - 100);
+                          return Opacity(
+                            opacity:
+                                opacityValue < 0 ||
+                                    playlistController.isSearchingOn.value &&
+                                        !landscape
+                                ? 0
+                                : opacityValue,
+                            child: DecoratedBox(
+                              position: DecorationPosition.foreground,
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Theme.of(context).canvasColor,
+                                    spreadRadius: 200,
+                                    blurRadius: 100,
+                                    offset: Offset(-size.height, 0),
                                   ),
-                                ),
-                              ],
-                            ),
-                            child: CachedNetworkImage(
-                              imageUrl: Thumbnail(
-                                playlistController.playlist.value.thumbnailUrl,
-                              ).extraHigh,
-                              fit: landscape ? BoxFit.fitHeight : BoxFit.cover,
-                              width: landscape ? null : size.width,
-                              height: landscape ? size.height : size.width,
-                            ),
-                          ),
-                        );
-                      }),
-                    )
-                  : SizedBox(height: size.width, width: size.width),
-            ),
-            Column(
-              children: [
-                Container(
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + 10,
-                    left: 10,
-                    right: 10,
-                  ),
-                  height: 80,
-                  child: Center(
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 50,
-                          child: IconButton(
-                            tooltip: "back".tr,
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                            icon: const Icon(Icons.arrow_back_ios),
-                          ),
-                        ),
-                        Expanded(
-                          child: Obx(
-                            () => Marquee(
-                              delay: const Duration(milliseconds: 300),
-                              duration: const Duration(seconds: 5),
-                              id: "${playlistController.playlist.value.title.hashCode.toString()}_appbar",
-                              child: Text(
-                                playlistController.appBarTitleVisible.isTrue
-                                    ? playlistController.playlist.value.title
-                                    : "",
-                                maxLines: 1,
-                                style: Theme.of(context).textTheme.titleLarge,
+                                  BoxShadow(
+                                    color: Theme.of(context).canvasColor,
+                                    spreadRadius: 200,
+                                    blurRadius: 100,
+                                    offset: Offset(
+                                      0,
+                                      landscape ? size.height : size.width + 80,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              child: CachedNetworkImage(
+                                imageUrl: Thumbnail(
+                                  playlistController
+                                      .playlist
+                                      .value
+                                      .thumbnailUrl,
+                                ).extraHigh,
+                                fit: landscape
+                                    ? BoxFit.fitHeight
+                                    : BoxFit.cover,
+                                width: landscape ? null : size.width,
+                                height: landscape ? size.height : size.width,
                               ),
                             ),
-                          ),
-                        ),
-                        if (!playlistController
-                                .playlist
-                                .value
-                                .isCloudPlaylist &&
-                            playlistController.isDefaultPlaylist.isFalse)
+                          );
+                        },
+                      ),
+                    )
+                  : SizedBox(height: size.width, width: size.width),
+              ),
+              Column(
+                children: [
+                  Container(
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.of(context).padding.top + 10,
+                      left: 10,
+                      right: 10,
+                    ),
+                    height: 80,
+                    child: Center(
+                      child: Row(
+                        children: [
                           SizedBox(
                             width: 50,
                             child: IconButton(
-                              onPressed: () async {
-                                await showModalBottomSheet(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 500,
-                                  ),
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(10.0),
-                                    ),
-                                  ),
-                                  context: Get.find<PlayerController>()
-                                      .homeScaffoldKey
-                                      .currentState!
-                                      .context,
-                                  barrierColor: Colors.transparent.withAlpha(
-                                    100,
-                                  ),
-                                  builder: (context) => SizedBox(
-                                    height: 140,
-                                    child: Column(
-                                      children: [
-                                        ListTile(
-                                          leading: const Icon(Icons.edit),
-                                          title: Text("renamePlaylist".tr),
-                                          onTap: () async {
-                                            Navigator.of(context).pop();
-                                            await showDialog(
-                                              context: context,
-                                              builder: (context) =>
-                                                  CreateNRenamePlaylistPopup(
-                                                    renamePlaylist: true,
-                                                    playlist: playlistController
-                                                        .playlist
-                                                        .value,
-                                                  ),
-                                            );
-                                          },
-                                        ),
-                                        ListTile(
-                                          leading: const Icon(Icons.delete),
-                                          title: Text("removePlaylist".tr),
-                                          onTap: () async {
-                                            Navigator.of(context).pop();
-                                            await playlistController
-                                                .addNRemoveFromLibrary(
-                                                  playlistController
-                                                      .playlist
-                                                      .value,
-                                                  add: false,
-                                                )
-                                                .then((value) {
-                                                  Get.nestedKey(
-                                                    ScreenNavigationSetup.id,
-                                                  )!.currentState!.pop();
-                                                  ScaffoldMessenger.of(
-                                                    Get.context!,
-                                                  ).showSnackBar(
-                                                    snackbar(
-                                                      Get.context!,
-                                                      value
-                                                          ? "playlistRemovedAlert"
-                                                                .tr
-                                                          : "operationFailed"
-                                                                .tr,
-                                                      size: SanckBarSize.MEDIUM,
-                                                    ),
-                                                  );
-                                                });
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
+                              tooltip: "back".tr,
+                              onPressed: () {
+                                Navigator.of(context).pop();
                               },
-                              icon: const Icon(Icons.more_vert),
+                              icon: const Icon(Icons.arrow_back_ios),
                             ),
                           ),
-                      ],
+                          Expanded(
+                            // appBarTitleVisible is written from the scroll
+                            // listener; it needs its own listener to rebuild.
+                            child: AnimatedBuilder(
+                              animation: playlistController.appBarTitleVisible,
+                              builder: (context, _) => Marquee(
+                                delay: const Duration(milliseconds: 300),
+                                duration: const Duration(seconds: 5),
+                                id: "${playlistController.playlist.value.title.hashCode.toString()}_appbar",
+                                child: Text(
+                                  playlistController.appBarTitleVisible.value
+                                      ? playlistController.playlist.value.title
+                                      : "",
+                                  maxLines: 1,
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (!playlistController
+                                  .playlist
+                                  .value
+                                  .isCloudPlaylist &&
+                              playlistController.isDefaultPlaylist.value ==
+                                  false)
+                            SizedBox(
+                              width: 50,
+                              child: IconButton(
+                                onPressed: () async {
+                                  await showModalBottomSheet(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 500,
+                                    ),
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(10.0),
+                                      ),
+                                    ),
+                                    context: playerController
+                                        .homeScaffoldKey
+                                        .currentState!
+                                        .context,
+                                    barrierColor: Colors.transparent.withAlpha(
+                                      100,
+                                    ),
+                                    builder: (context) => SizedBox(
+                                      height: 140,
+                                      child: Column(
+                                        children: [
+                                          ListTile(
+                                            leading: const Icon(Icons.edit),
+                                            title: Text("renamePlaylist".tr),
+                                            onTap: () async {
+                                              Navigator.of(context).pop();
+                                              await showDialog(
+                                                context: context,
+                                                builder: (context) =>
+                                                    CreateNRenamePlaylistPopup(
+                                                      renamePlaylist: true,
+                                                      playlist:
+                                                          playlistController
+                                                              .playlist
+                                                              .value,
+                                                    ),
+                                              );
+                                            },
+                                          ),
+                                          ListTile(
+                                            leading: const Icon(Icons.delete),
+                                            title: Text("removePlaylist".tr),
+                                            onTap: () async {
+                                              Navigator.of(context).pop();
+                                              await playlistController
+                                                  .addNRemoveFromLibrary(
+                                                    playlistController
+                                                        .playlist
+                                                        .value,
+                                                    add: false,
+                                                  )
+                                                  .then((value) {
+                                                    ScreenNavigationSetup
+                                                        .navigatorKey
+                                                        .currentState
+                                                        ?.pop();
+                                                    if (!context.mounted)
+                                                      return;
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      snackbar(
+                                                        context,
+                                                        value
+                                                            ? "playlistRemovedAlert"
+                                                                  .tr
+                                                            : "operationFailed"
+                                                                  .tr,
+                                                        size:
+                                                            SanckBarSize.MEDIUM,
+                                                      ),
+                                                    );
+                                                  });
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.more_vert),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 800),
-                      child: Obx(
-                        () => ScrollConfiguration(
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: ScrollConfiguration(
                           behavior: PlaylistAlbumScrollBehaviour(),
                           child: ListView.builder(
                             addRepaintBoundaries: false,
                             padding: EdgeInsets.only(
-                              top: playlistController.isSearchingOn.isTrue
+                              top: playlistController.isSearchingOn.value
                                   ? 0
                                   : landscape
                                   ? 150
@@ -256,7 +332,8 @@ class PlaylistScreen extends StatelessWidget {
                             ),
                             itemCount:
                                 playlistController.songList.isEmpty ||
-                                    playlistController.isContentFetched.isFalse
+                                    playlistController.isContentFetched.value ==
+                                        false
                                 ? 4
                                 : playlistController.songList.length + 3,
                             itemBuilder: (_, index) {
@@ -270,72 +347,71 @@ class PlaylistScreen extends StatelessWidget {
                                       child: Row(
                                         children: [
                                           // Bookmark button
-                                          Obx(
-                                            () =>
-                                                (playlistController
-                                                        .playlist
-                                                        .value
-                                                        .isPipedPlaylist ||
-                                                    !playlistController
-                                                        .playlist
-                                                        .value
-                                                        .isCloudPlaylist)
-                                                ? const SizedBox.shrink()
-                                                : IconButton(
-                                                    tooltip:
-                                                        playlistController
-                                                            .isAddedToLibrary
-                                                            .isFalse
-                                                        ? "addToLibrary".tr
-                                                        : "removeFromLibrary"
-                                                              .tr,
-                                                    splashRadius: 10,
-                                                    onPressed: () async {
-                                                      final add =
-                                                          playlistController
-                                                              .isAddedToLibrary
-                                                              .isFalse;
-                                                      await playlistController
-                                                          .addNRemoveFromLibrary(
-                                                            playlistController
-                                                                .playlist
-                                                                .value,
-                                                            add: add,
-                                                          )
-                                                          .then((value) {
-                                                            if (!context
-                                                                .mounted) {
-                                                              return;
-                                                            }
-
-                                                            ScaffoldMessenger.of(
-                                                              context,
-                                                            ).showSnackBar(
-                                                              snackbar(
-                                                                context,
-                                                                value
-                                                                    ? add
-                                                                          ? "playlistBookmarkAddAlert".tr
-                                                                          : "listBookmarkRemoveAlert".tr
-                                                                    : "operationFailed"
-                                                                          .tr,
-                                                                size:
-                                                                    SanckBarSize
-                                                                        .MEDIUM,
-                                                              ),
-                                                            );
-                                                          });
-                                                    },
-                                                    icon: Icon(
+                                          (playlistController
+                                                      .playlist
+                                                      .value
+                                                      .isPipedPlaylist ||
+                                                  !playlistController
+                                                      .playlist
+                                                      .value
+                                                      .isCloudPlaylist)
+                                              ? const SizedBox.shrink()
+                                              : IconButton(
+                                                  tooltip:
                                                       playlistController
                                                               .isAddedToLibrary
-                                                              .isFalse
-                                                          ? Icons.bookmark_add
-                                                          : Icons
-                                                                .bookmark_added,
-                                                    ),
+                                                              .value ==
+                                                          false
+                                                      ? "addToLibrary".tr
+                                                      : "removeFromLibrary".tr,
+                                                  splashRadius: 10,
+                                                  onPressed: () async {
+                                                    final add =
+                                                        playlistController
+                                                            .isAddedToLibrary
+                                                            .value ==
+                                                        false;
+                                                    await playlistController
+                                                        .addNRemoveFromLibrary(
+                                                          playlistController
+                                                              .playlist
+                                                              .value,
+                                                          add: add,
+                                                        )
+                                                        .then((value) {
+                                                          if (!context
+                                                              .mounted) {
+                                                            return;
+                                                          }
+
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            snackbar(
+                                                              context,
+                                                              value
+                                                                  ? add
+                                                                        ? "playlistBookmarkAddAlert"
+                                                                              .tr
+                                                                        : "listBookmarkRemoveAlert"
+                                                                              .tr
+                                                                  : "operationFailed"
+                                                                        .tr,
+                                                              size: SanckBarSize
+                                                                  .MEDIUM,
+                                                            ),
+                                                          );
+                                                        });
+                                                  },
+                                                  icon: Icon(
+                                                    playlistController
+                                                                .isAddedToLibrary
+                                                                .value ==
+                                                            false
+                                                        ? Icons.bookmark_add
+                                                        : Icons.bookmark_added,
                                                   ),
-                                          ),
+                                                ),
                                           // Play button
                                           IconButton(
                                             tooltip: "play".tr,
@@ -368,7 +444,7 @@ class PlaylistScreen extends StatelessWidget {
                                           IconButton(
                                             tooltip: "enqueueSongs".tr,
                                             onPressed: () async {
-                                              await Get.find<PlayerController>()
+                                              await playerController
                                                   .enqueueSongList(
                                                     playlistController.songList
                                                         .toList(),
@@ -427,8 +503,8 @@ class PlaylistScreen extends StatelessWidget {
                                             ),
                                           ),
                                           // Download button
-                                          GetX<Downloader>(
-                                            builder: (controller) {
+                                          Builder(
+                                            builder: (context) {
                                               final id = playlistController
                                                   .playlist
                                                   .value
@@ -438,10 +514,10 @@ class PlaylistScreen extends StatelessWidget {
                                                 onPressed: () async {
                                                   if (playlistController
                                                       .isDownloaded
-                                                      .isTrue) {
+                                                      .value) {
                                                     return;
                                                   }
-                                                  await controller
+                                                  await downloader
                                                       .downloadPlaylist(
                                                         id,
                                                         playlistController
@@ -452,23 +528,23 @@ class PlaylistScreen extends StatelessWidget {
                                                 icon:
                                                     playlistController
                                                         .isDownloaded
-                                                        .isTrue
+                                                        .value
                                                     ? const Icon(
                                                         Icons.download_done,
                                                       )
-                                                    : controller.playlistQueue
+                                                    : downloader.playlistQueue
                                                               .containsKey(
                                                                 id,
                                                               ) &&
-                                                          controller
+                                                          downloader
                                                                   .currentPlaylistId
-                                                                  .toString() ==
+                                                                  .value ==
                                                               id
                                                     ? Stack(
                                                         children: [
                                                           Center(
                                                             child: Text(
-                                                              "${controller.playlistDownloadingProgress.value}/${playlistController.songList.length}",
+                                                              "${downloader.playlistDownloadingProgress.value}/${playlistController.songList.length}",
                                                               style: Theme.of(context)
                                                                   .textTheme
                                                                   .titleMedium!
@@ -489,7 +565,7 @@ class PlaylistScreen extends StatelessWidget {
                                                           ),
                                                         ],
                                                       )
-                                                    : controller.playlistQueue
+                                                    : downloader.playlistQueue
                                                           .containsKey(id)
                                                     ? const Stack(
                                                         children: [
@@ -517,7 +593,7 @@ class PlaylistScreen extends StatelessWidget {
 
                                           if (playlistController
                                               .isAddedToLibrary
-                                              .isTrue)
+                                              .value)
                                             IconButton(
                                               tooltip: "syncPlaylistSongs".tr,
                                               onPressed: () async {
@@ -541,22 +617,23 @@ class PlaylistScreen extends StatelessWidget {
                                               ),
                                               splashRadius: 10,
                                               onPressed: () async {
-                                                Get.nestedKey(
-                                                  ScreenNavigationSetup.id,
-                                                )!.currentState!.pop();
-                                                await Get.find<
-                                                      LibraryPlaylistsController
-                                                    >()
-                                                    .blacklistPipedPlaylist(
+                                                ScreenNavigationSetup
+                                                    .navigatorKey
+                                                    .currentState
+                                                    ?.pop();
+                                                await LibraryPlaylistsControllerRegistry
+                                                    .current
+                                                    ?.blacklistPipedPlaylist(
                                                       playlistController
                                                           .playlist
                                                           .value,
                                                     );
+                                                if (!context.mounted) return;
                                                 ScaffoldMessenger.of(
-                                                  Get.context!,
+                                                  context,
                                                 ).showSnackBar(
                                                   snackbar(
-                                                    Get.context!,
+                                                    context,
                                                     "playlistBlacklistAlert".tr,
                                                     size: SanckBarSize.MEDIUM,
                                                   ),
@@ -704,8 +781,7 @@ class PlaylistScreen extends StatelessWidget {
                                 );
                               } else if (index == 2) {
                                 return SizedBox(
-                                  height:
-                                      playlistController.isSearchingOn.isTrue
+                                  height: playlistController.isSearchingOn.value
                                       ? 60
                                       : 40,
                                   child: Padding(
@@ -713,78 +789,78 @@ class PlaylistScreen extends StatelessWidget {
                                       left: 15.0,
                                       right: 10,
                                     ),
-                                    child: Obx(
-                                      () => SortWidget(
-                                        tag: playlistController
-                                            .playlist
-                                            .value
-                                            .playlistId,
-                                        screenController: playlistController,
-                                        isSearchFeatureRequired: true,
-                                        isPlaylistRearrangeFeatureRequired:
-                                            !playlistController
-                                                .playlist
-                                                .value
-                                                .isCloudPlaylist &&
-                                            playlistController
-                                                    .playlist
-                                                    .value
-                                                    .playlistId !=
-                                                BoxNames.libRP &&
-                                            playlistController
-                                                    .playlist
-                                                    .value
-                                                    .playlistId !=
-                                                BoxNames.songDownloads &&
-                                            playlistController
-                                                    .playlist
-                                                    .value
-                                                    .playlistId !=
-                                                BoxNames.songsCache,
-                                        isSongDeletionFeatureRequired:
-                                            !playlistController
-                                                .playlist
-                                                .value
-                                                .isCloudPlaylist,
-                                        itemCountTitle:
-                                            "${playlistController.songList.length}",
-                                        itemIcon: Icons.music_note,
-                                        titleLeftPadding: 9,
-                                        requiredSortTypes: buildSortTypeSet(
-                                          false,
-                                          true,
-                                        ),
-                                        onSort: playlistController.onSort,
-                                        onSearch: playlistController.onSearch,
-                                        onSearchClose:
-                                            playlistController.onSearchClose,
-                                        onSearchStart:
-                                            playlistController.onSearchStart,
-                                        startAdditionalOperation:
-                                            playlistController
-                                                .startAdditionalOperation,
-                                        selectAll: playlistController.selectAll,
-                                        performAdditionalOperation:
-                                            playlistController
-                                                .performAdditionalOperation,
-                                        cancelAdditionalOperation:
-                                            playlistController
-                                                .cancelAdditionalOperation,
+                                    child: SortWidget(
+                                      tag: playlistController
+                                          .playlist
+                                          .value
+                                          .playlistId,
+                                      screenController: playlistController,
+                                      isSearchFeatureRequired: true,
+                                      isPlaylistRearrangeFeatureRequired:
+                                          !playlistController
+                                              .playlist
+                                              .value
+                                              .isCloudPlaylist &&
+                                          playlistController
+                                                  .playlist
+                                                  .value
+                                                  .playlistId !=
+                                              BoxNames.libRP &&
+                                          playlistController
+                                                  .playlist
+                                                  .value
+                                                  .playlistId !=
+                                              BoxNames.songDownloads &&
+                                          playlistController
+                                                  .playlist
+                                                  .value
+                                                  .playlistId !=
+                                              BoxNames.songsCache,
+                                      isSongDeletionFeatureRequired:
+                                          !playlistController
+                                              .playlist
+                                              .value
+                                              .isCloudPlaylist,
+                                      itemCountTitle:
+                                          "${playlistController.songList.length}",
+                                      itemIcon: Icons.music_note,
+                                      titleLeftPadding: 9,
+                                      requiredSortTypes: buildSortTypeSet(
+                                        false,
+                                        true,
                                       ),
+                                      onSort: playlistController.onSort,
+                                      onSearch: playlistController.onSearch,
+                                      onSearchClose:
+                                          playlistController.onSearchClose,
+                                      onSearchStart:
+                                          playlistController.onSearchStart,
+                                      startAdditionalOperation:
+                                          playlistController
+                                              .startAdditionalOperation,
+                                      selectAll: playlistController.selectAll,
+                                      performAdditionalOperation:
+                                          playlistController
+                                              .performAdditionalOperation,
+                                      cancelAdditionalOperation:
+                                          playlistController
+                                              .cancelAdditionalOperation,
                                     ),
                                   ),
                                 );
                               } else if (playlistController
-                                      .isContentFetched
-                                      .isFalse ||
+                                          .isContentFetched
+                                          .value ==
+                                      false ||
                                   playlistController.songList.isEmpty) {
                                 return SizedBox(
                                   height: 300,
                                   child: Center(
                                     child:
                                         playlistController
-                                            .isContentFetched
-                                            .isFalse
+                                                .isContentFetched
+                                                .value ==
+                                            false
                                         ? const LoadingIndicator()
                                         : Text(
                                             "emptyPlaylist".tr,
@@ -828,10 +904,10 @@ class PlaylistScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -847,6 +923,6 @@ class PlaylistScreen extends StatelessWidget {
       context: context,
       barrierColor: Colors.transparent.withAlpha(100),
       builder: (context) => SongInfoBottomSheet(song),
-    ).whenComplete(() => Get.delete<SongInfoController>());
+    );
   }
 }

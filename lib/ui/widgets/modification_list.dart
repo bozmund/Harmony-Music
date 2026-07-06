@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '/ui/widgets/sort_widget.dart' show OperationMode;
@@ -49,7 +48,13 @@ class ModificationList extends StatelessWidget {
             final list = items.toList();
             final item = list.removeAt(old_);
             list.insert(new_, item);
-            screenController.additionalOperationTempList.value = list;
+            final tempList = screenController.additionalOperationTempList;
+            tempList
+              ..clear()
+              ..addAll(list);
+            if (screenController is ChangeNotifier) {
+              screenController.notifyListeners();
+            }
           },
         ),
       );
@@ -71,8 +76,11 @@ class ModificationList extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Obx(
-                    () => Checkbox(
+                  AnimatedBuilder(
+                    animation: screenController is Listenable
+                        ? screenController as Listenable
+                        : const AlwaysStoppedAnimation(0),
+                    builder: (context, _) => Checkbox(
                       tristate: true,
                       value: screenController.additionalOperationTempMap[index],
                       onChanged: (val) {

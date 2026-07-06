@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers/controller_providers.dart';
 import '../../utils/update_check_flag_file.dart';
-import '../screens/Settings/settings_screen_controller.dart';
 
-class UpdateBadgedSettingsIcon extends StatelessWidget {
+class UpdateBadgedSettingsIcon extends ConsumerWidget {
   const UpdateBadgedSettingsIcon({
     super.key,
     required this.icon,
@@ -17,15 +17,17 @@ class UpdateBadgedSettingsIcon extends StatelessWidget {
   final double dotSize;
 
   @override
-  Widget build(BuildContext context) {
-    final settingsController = Get.find<SettingsScreenController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsController = ref.watch(settingsScreenControllerProvider);
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Icon(icon, size: size),
         if (updateCheckFlag)
-          Obx(
-            () => settingsController.isNewVersionAvailable.value
+          AnimatedBuilder(
+            animation: settingsController,
+            builder: (context, _) =>
+                settingsController.isNewVersionAvailable.value
                 ? Positioned(
                     top: -1,
                     right: -1,

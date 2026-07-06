@@ -1,39 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_lyric/flutter_lyric.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
+import '../../../app/providers/controller_providers.dart';
 import '../../widgets/loader.dart';
-import '../player_controller.dart';
 
-class LyricsWidget extends StatelessWidget {
+class LyricsWidget extends ConsumerWidget {
   final EdgeInsetsGeometry padding;
   const LyricsWidget({super.key, required this.padding});
 
   @override
-  Widget build(BuildContext context) {
-    final playerController = Get.find<PlayerController>();
-    return Obx(
-      () => playerController.isLyricsLoading.isTrue
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerController = ref.read(playerControllerProvider);
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        playerController.isLyricsLoading,
+        playerController.lyricsMode,
+        playerController.lyrics,
+      ]),
+      builder: (context, _) => playerController.isLyricsLoading.value
           ? const Center(child: LoadingIndicator())
-          : playerController.lyricsMode.toInt() == 1
+          : playerController.lyricsMode.value == 1
           ? Center(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: padding,
-                child: Obx(
-                  () => TextSelectionTheme(
-                    data: Theme.of(context).textSelectionTheme,
-                    child: SelectableText(
-                      playerController.lyrics["plainLyrics"] == "NA"
-                          ? "lyricsNotAvailable".tr
-                          : playerController.lyrics["plainLyrics"],
-                      textAlign: TextAlign.center,
-                      style: playerController.isDesktopLyricsDialogOpen
-                          ? Theme.of(context).textTheme.titleMedium!
-                          : Theme.of(context).textTheme.titleMedium!.copyWith(
-                              color: Colors.white,
-                            ),
-                    ),
+                child: TextSelectionTheme(
+                  data: Theme.of(context).textSelectionTheme,
+                  child: SelectableText(
+                    playerController.lyrics["plainLyrics"] == "NA"
+                        ? "lyricsNotAvailable".tr
+                        : playerController.lyrics["plainLyrics"],
+                    textAlign: TextAlign.center,
+                    style: playerController.isDesktopLyricsDialogOpen
+                        ? Theme.of(context).textTheme.titleMedium!
+                        : Theme.of(context).textTheme.titleMedium!.copyWith(
+                            color: Colors.white,
+                          ),
                   ),
                 ),
               ),

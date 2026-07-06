@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:html/parser.dart' as html_parser;
 
 import '../../services/app_platform_service.dart';

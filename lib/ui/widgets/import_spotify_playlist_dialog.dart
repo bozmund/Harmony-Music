@@ -5,33 +5,37 @@ import 'package:archive/archive.dart';
 import 'package:file_selector/file_selector.dart';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:path/path.dart' as path;
 
 import '../screens/Library/library_controller.dart';
 import 'common_dialog_widget.dart';
 
-class ImportSpotifyPlaylistDialogController extends GetxController {
-  final isReading = false.obs;
-  final isImporting = false.obs;
-  final status =
-      "Select a Spotify data export ZIP, Playlist JSON, or library JSON".obs;
-  final error = RxnString();
-  final detectedPlaylists = <SpotifyImportPlaylist>[].obs;
-  final selectedIndexes = <int>{}.obs;
-  final result = Rxn<SpotifyPlaylistImportResult>();
-  final unsupportedItemCount = 0.obs;
+class ImportSpotifyPlaylistDialogController extends ChangeNotifier {
+  ImportSpotifyPlaylistDialogController(this._libraryPlaylistsController);
+
+  final LibraryPlaylistsController _libraryPlaylistsController;
+  var isReading = false;
+  var isImporting = false;
+  final status = _TextState(
+    "Select a Spotify data export ZIP, Playlist JSON, or library JSON",
+  );
+  String? error;
+  final detectedPlaylists = <SpotifyImportPlaylist>[];
+  final selectedIndexes = <int>{};
+  SpotifyPlaylistImportResult? result;
+  var unsupportedItemCount = 0;
 
   Future<void> pickExport() async {
-    if (isReading.value || isImporting.value) return;
+    if (isReading || isImporting) return;
 
-    error.value = null;
-    result.value = null;
+    error = null;
+    result = null;
     detectedPlaylists.clear();
     selectedIndexes.clear();
-    unsupportedItemCount.value = 0;
-    isReading.value = true;
+    unsupportedItemCount = 0;
+    isReading = true;
     status.value = "Reading export";
+    notifyListeners();
 
     try {
       final picked = await FilePickerService.openFile(
@@ -47,10 +51,12 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
       if (picked == null) {
         status.value =
             "Select a Spotify data export ZIP, Playlist JSON, or library JSON";
+        notifyListeners();
         return;
       }
 
       status.value = "Parsing Spotify data";
+      notifyListeners();
       final parsed = await _parseSpotifyExport(File(picked.path));
       if (parsed.playlists.isEmpty) {
         throw const SpotifyPlaylistImportException(
@@ -58,55 +64,62 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
         );
       }
 
-      detectedPlaylists.value = parsed.playlists;
+      detectedPlaylists
+        ..clear()
+        ..addAll(parsed.playlists);
       selectedIndexes
         ..clear()
         ..addAll(List.generate(parsed.playlists.length, (index) => index));
-      selectedIndexes.refresh();
-      unsupportedItemCount.value = parsed.unsupportedItemCount;
+      unsupportedItemCount = parsed.unsupportedItemCount;
       status.value = "Choose playlists to import";
     } on SpotifyPlaylistImportException catch (e) {
-      error.value = e.message;
+      error = e.message;
       status.value = "Import failed";
     } catch (e) {
-      error.value = "Invalid Spotify export file";
+      error = "Invalid Spotify export file";
       status.value = "Import failed";
     } finally {
-      isReading.value = false;
+      isReading = false;
+      notifyListeners();
     }
   }
 
   Future<void> importSelectedPlaylists() async {
-    if (isReading.value || isImporting.value) return;
+    if (isReading || isImporting) return;
 
     final selected = selectedIndexes
         .where((index) => index >= 0 && index < detectedPlaylists.length)
         .map((index) => detectedPlaylists[index])
         .toList();
     if (selected.isEmpty) {
-      error.value = "No selected playlists";
+      error = "No selected playlists";
+      notifyListeners();
       return;
     }
 
-    error.value = null;
-    result.value = null;
-    isImporting.value = true;
+    error = null;
+    result = null;
+    isImporting = true;
+    notifyListeners();
 
     try {
-      result.value = await Get.find<LibraryPlaylistsController>()
-          .importSpotifyPlaylists(
-            selected,
-            onStatus: (value) => status.value = value,
-          );
+      result = await _libraryPlaylistsController.importSpotifyPlaylists(
+        selected,
+        onStatus: (value) {
+          status.value = value;
+          notifyListeners();
+        },
+      );
       status.value = "Completed";
     } on SpotifyPlaylistImportException catch (e) {
-      error.value = e.message;
+      error = e.message;
       status.value = "Import failed";
     } catch (e) {
-      error.value = "Network/search error during matching";
+      error = "Network/search error during matching";
       status.value = "Import failed";
     } finally {
-      isImporting.value = false;
+      isImporting = false;
+      notifyListeners();
     }
   }
 
@@ -120,7 +133,7 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
     selectedIndexes
       ..clear()
       ..addAll(next);
-    selectedIndexes.refresh();
+    notifyListeners();
   }
 
   Future<_ParsedSpotifyExport> _parseSpotifyExport(File file) async {
@@ -293,6 +306,12 @@ class ImportSpotifyPlaylistDialogController extends GetxController {
   }
 }
 
+class _TextState {
+  _TextState(this.value);
+
+  String value;
+}
+
 class _ParsedSpotifyExport {
   const _ParsedSpotifyExport({
     required this.playlists,
@@ -313,20 +332,40 @@ class _ParsedSpotifyLibraryTracks {
   final int unsupportedItemCount;
 }
 
-class ImportSpotifyPlaylistDialog extends StatelessWidget {
+class ImportSpotifyPlaylistDialog extends StatefulWidget {
   const ImportSpotifyPlaylistDialog({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.isRegistered<ImportSpotifyPlaylistDialogController>()
-        ? Get.find<ImportSpotifyPlaylistDialogController>()
-        : Get.put(ImportSpotifyPlaylistDialogController());
+  State<ImportSpotifyPlaylistDialog> createState() =>
+      _ImportSpotifyPlaylistDialogState();
+}
 
+class _ImportSpotifyPlaylistDialogState
+    extends State<ImportSpotifyPlaylistDialog> {
+  late final ImportSpotifyPlaylistDialogController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = ImportSpotifyPlaylistDialogController(
+      LibraryPlaylistsControllerRegistry.current!,
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return CommonDialog(
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: Obx(
-          () => Column(
+        child: AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) => Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -340,13 +379,12 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 14),
-              if (controller.isReading.value ||
-                  controller.isImporting.value) ...[
+              if (controller.isReading || controller.isImporting) ...[
                 const LinearProgressIndicator(),
                 const SizedBox(height: 14),
               ],
               if (controller.detectedPlaylists.isNotEmpty &&
-                  controller.result.value == null) ...[
+                  controller.result == null) ...[
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 260),
                   child: ListView.builder(
@@ -357,7 +395,7 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
                       return CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
                         value: controller.selectedIndexes.contains(index),
-                        onChanged: controller.isImporting.value
+                        onChanged: controller.isImporting
                             ? null
                             : (value) => controller.togglePlaylist(
                                 index,
@@ -369,30 +407,30 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
                     },
                   ),
                 ),
-                if (controller.unsupportedItemCount.value > 0)
+                if (controller.unsupportedItemCount > 0)
                   Text(
-                    "${controller.unsupportedItemCount.value} non-song items ignored",
+                    "${controller.unsupportedItemCount} non-song items ignored",
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 const SizedBox(height: 12),
               ],
-              if (controller.error.value != null) ...[
+              if (controller.error != null) ...[
                 Text(
-                  controller.error.value!,
+                  controller.error!,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.error,
                   ),
                 ),
                 const SizedBox(height: 12),
               ],
-              if (controller.result.value != null) ...[
+              if (controller.result != null) ...[
                 Text(
-                  "${controller.result.value!.playlistsImported} playlists imported\n"
-                  "${controller.result.value!.importedSongCount} songs imported\n"
-                  "${controller.result.value!.conflictAddedCount} conflicts added\n"
-                  "${controller.result.value!.reviewAddedCount} weak matches added to review\n"
-                  "${controller.result.value!.skippedTrackCount} tracks skipped"
-                  "${controller.unsupportedItemCount.value > 0 ? "\n${controller.unsupportedItemCount.value} non-song items ignored" : ""}",
+                  "${controller.result!.playlistsImported} playlists imported\n"
+                  "${controller.result!.importedSongCount} songs imported\n"
+                  "${controller.result!.conflictAddedCount} conflicts added\n"
+                  "${controller.result!.reviewAddedCount} weak matches added to review\n"
+                  "${controller.result!.skippedTrackCount} tracks skipped"
+                  "${controller.unsupportedItemCount > 0 ? "\n${controller.unsupportedItemCount} non-song items ignored" : ""}",
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 12),
@@ -402,20 +440,14 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   TextButton(
-                    onPressed:
-                        controller.isReading.value ||
-                            controller.isImporting.value
+                    onPressed: controller.isReading || controller.isImporting
                         ? null
-                        : () => Get.back(),
-                    child: Text(
-                      controller.result.value == null ? "Cancel" : "Close",
-                    ),
+                        : () => Navigator.of(context).pop(),
+                    child: Text(controller.result == null ? "Cancel" : "Close"),
                   ),
                   const SizedBox(width: 8),
                   TextButton(
-                    onPressed:
-                        controller.isReading.value ||
-                            controller.isImporting.value
+                    onPressed: controller.isReading || controller.isImporting
                         ? null
                         : controller.pickExport,
                     child: Text(
@@ -425,10 +457,10 @@ class ImportSpotifyPlaylistDialog extends StatelessWidget {
                     ),
                   ),
                   if (controller.detectedPlaylists.isNotEmpty &&
-                      controller.result.value == null) ...[
+                      controller.result == null) ...[
                     const SizedBox(width: 8),
                     TextButton(
-                      onPressed: controller.isImporting.value
+                      onPressed: controller.isImporting
                           ? null
                           : controller.importSelectedPlaylists,
                       child: const Text("Import"),

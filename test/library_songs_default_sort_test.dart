@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:harmonymusic/domain/repositories/download_repository.dart';
+import 'package:harmonymusic/domain/repositories/library_repository.dart';
+import 'package:harmonymusic/domain/repositories/song_cache_repository.dart';
 import 'package:harmonymusic/ui/screens/Library/library_controller.dart';
 import 'package:harmonymusic/ui/widgets/sort_widget.dart';
 import 'package:harmonymusic/utils/helper.dart';
@@ -54,7 +57,7 @@ void main() {
       expect(controllerSource, contains('defaultSortType = SortType.date'));
       expect(controllerSource, contains('defaultSortAscending = false'));
       expect(controllerSource, contains('sortWidgetTag = "LibSongSort"'));
-      expect(controllerSource, contains('Get.find<SortWidgetController>'));
+      expect(controllerSource, contains('SortWidgetRegistry.maybeOf'));
       expect(librarySource, contains('initialSortType:'));
       expect(librarySource, contains('initialIsAscending:'));
       expect(sortWidgetSource, contains('initialSortType = SortType.name'));
@@ -62,8 +65,8 @@ void main() {
     });
 
     test('song added during search remains after search closes', () {
-      final controller = LibrarySongsController();
-      controller.librarySongsList.value = [
+      final controller = _librarySongsController();
+      controller.librarySongsList = [
         _song('alpha', 'Alpha', 1000),
         _song('bravo', 'Bravo', 2000),
       ];
@@ -80,8 +83,8 @@ void main() {
     });
 
     test('matching song added during search appears immediately', () {
-      final controller = LibrarySongsController();
-      controller.librarySongsList.value = [
+      final controller = _librarySongsController();
+      controller.librarySongsList = [
         _song('alpha', 'Alpha', 1000),
         _song('bravo', 'Bravo', 2000),
       ];
@@ -99,8 +102,8 @@ void main() {
     test(
       'non-matching song added during search appears after search closes',
       () {
-        final controller = LibrarySongsController();
-        controller.librarySongsList.value = [
+        final controller = _librarySongsController();
+        controller.librarySongsList = [
           _song('alpha', 'Alpha', 1000),
           _song('bravo', 'Bravo', 2000),
         ];
@@ -122,8 +125,8 @@ void main() {
     );
 
     test('adding duplicate song id replaces instead of duplicating', () {
-      final controller = LibrarySongsController();
-      controller.librarySongsList.value = [
+      final controller = _librarySongsController();
+      controller.librarySongsList = [
         _song('alpha', 'Alpha', 1000),
         _song('bravo', 'Bravo', 2000),
       ];
@@ -139,8 +142,8 @@ void main() {
     });
 
     test('inactive additions use date newest first sorting', () {
-      final controller = LibrarySongsController();
-      controller.librarySongsList.value = [
+      final controller = _librarySongsController();
+      controller.librarySongsList = [
         _song('old', 'Old', 1000),
         _song('middle', 'Middle', 2000),
       ];
@@ -158,4 +161,27 @@ void main() {
 
 MediaItem _song(String id, String title, int? date) {
   return MediaItem(id: id, title: title, extras: {'date': date});
+}
+
+LibrarySongsController _librarySongsController() {
+  return LibrarySongsController(
+    downloadRepository: _FakeDownloadRepository(),
+    libraryRepository: _FakeLibraryRepository(),
+    songCacheRepository: _FakeSongCacheRepository(),
+  );
+}
+
+class _FakeDownloadRepository implements DownloadRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeSongCacheRepository implements SongCacheRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeLibraryRepository implements LibraryRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

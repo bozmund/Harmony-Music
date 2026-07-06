@@ -1,29 +1,31 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:harmonymusic/ui/screens/Home/home_screen_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:sidebar_with_animation/animated_side_bar.dart';
 
+import '../../app/providers/controller_providers.dart';
 import 'update_badged_settings_icon.dart';
 
-class SideNavBar extends StatelessWidget {
+class SideNavBar extends ConsumerWidget {
   const SideNavBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final size = MediaQuery.of(context).size;
     final isMobileOrTabScreen = size.width < 480;
-    final homeScreenController = Get.find<HomeScreenController>();
+    final homeScreenController = ref.watch(homeScreenControllerProvider);
     return Align(
       alignment: Alignment.topCenter,
       child: isMobileOrTabScreen
           ? SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 80),
               child: IntrinsicHeight(
-                child: Obx(
-                  () => NavigationRail(
+                child: AnimatedBuilder(
+                  animation: homeScreenController,
+                  builder: (context, _) => NavigationRail(
                     useIndicator: !isMobileOrTabScreen,
                     selectedIndex:
-                        homeScreenController.tabIndex.value, //_selectedIndex,
+                        homeScreenController.tabIndex, //_selectedIndex,
                     onDestinationSelected:
                         homeScreenController.onSideBarTabSelected,
                     minWidth: 60,

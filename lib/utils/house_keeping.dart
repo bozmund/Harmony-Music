@@ -1,52 +1,91 @@
 import 'dart:io';
 
-import 'package:get/get.dart';
-import '/models/media_Item_builder.dart';
+import '../domain/repositories/download_repository.dart';
+import '../domain/repositories/library_repository.dart';
+import '../domain/repositories/song_cache_repository.dart';
 import '/ui/screens/Library/library_controller.dart';
-import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/utils.dart';
 import 'helper.dart';
 
-Future<void> startHouseKeeping() async {
-  await removeExpiredSongsUrlFromDb();
+Future<void> startHouseKeeping({
+  required SongCacheRepository songCacheRepository,
+  required DownloadRepository downloadRepository,
+  required LibraryRepository libraryRepository,
+  required LibrarySongsController librarySongsController,
+}) async {
+  await removeExpiredSongsUrlFromDb(
+    songCacheRepository: songCacheRepository,
+    downloadRepository: downloadRepository,
+    libraryRepository: libraryRepository,
+    librarySongsController: librarySongsController,
+  );
 }
 
-Future<void> removeExpiredSongsUrlFromDb() async {
+Future<void> removeExpiredSongsUrlFromDb({
+  required SongCacheRepository songCacheRepository,
+  required DownloadRepository downloadRepository,
+  required LibraryRepository libraryRepository,
+  required LibrarySongsController librarySongsController,
+}) async {
   try {
-    final songsUrlCacheBox = Hive.box("SongsUrlCache");
-    final songsUrlCacheKeysList =
-        songsUrlCacheBox.keys.whereType<String>().toList();
-    for (var i = 0; i < songsUrlCacheKeysList.length; i++) {
-      final songUrlKey = songsUrlCacheKeysList[i];
-      final streamData = songsUrlCacheBox.get(songUrlKey)[1];
-      if (streamData == null ||
-          streamData.runtimeType == String ||
-          (streamData != null && isExpired(url: streamData['url'] as String))) {
-        await songsUrlCacheBox.delete(songUrlKey);
+    final entries = await songCacheRepository.getAllStreamCacheEntries();
+    for (final entry in entries.entries) {
+      final songUrlKey = entry.key;
+      if (shouldDeleteStreamCacheEntry(entry.value)) {
+        await songCacheRepository.deleteStreamCacheEntry(songUrlKey);
       }
     }
   } catch (e) {
     printERROR("Error in removeExpiredSongsUrlFromDb: $e");
   } finally {
-    await removeDeletedOfflineSongsFromDb();
+    await removeDeletedOfflineSongsFromDb(
+      downloadRepository: downloadRepository,
+      libraryRepository: libraryRepository,
+      librarySongsController: librarySongsController,
+    );
   }
 }
 
-Future<void> removeDeletedOfflineSongsFromDb() async {
+bool shouldDeleteStreamCacheEntry(dynamic cacheValue) {
+  if (cacheValue is Map) {
+    final audioEntries = [
+      cacheValue['lowQualityAudio'],
+      cacheValue['highQualityAudio'],
+    ];
+    final urls = <String>[];
+    for (final audio in audioEntries) {
+      final url = audio is Map ? audio['url'] : null;
+      if (url is! String) return true;
+      urls.add(url);
+    }
+    return urls.every((url) => isExpired(url: url));
+  }
+
+  if (cacheValue is List && cacheValue.isNotEmpty) {
+    final streamData = cacheValue.length > 1 ? cacheValue[1] : null;
+    final url = streamData is Map ? streamData['url'] : null;
+    return url is! String || isExpired(url: url);
+  }
+
+  return true;
+}
+
+Future<void> removeDeletedOfflineSongsFromDb({
+  required DownloadRepository downloadRepository,
+  required LibraryRepository libraryRepository,
+  required LibrarySongsController librarySongsController,
+}) async {
   final supportDir = (await getApplicationSupportDirectory()).path;
   try {
-    final songDownloadsBox = Hive.box("SongDownloads");
-    final downloadedSongs = songDownloadsBox.values.toList();
-    final LibrarySongsController librarySongsController =
-        Get.find<LibrarySongsController>();
-    for (var i = 0; i < downloadedSongs.length; i++) {
-      final songKey = downloadedSongs[i]['videoId'];
-      final songUrl = downloadedSongs[i]['url'];
+    final downloadedSongs = await libraryRepository.getDownloadedSongs();
+    for (final downloadedSong in downloadedSongs) {
+      final songKey = downloadedSong.id;
+      final songUrl = downloadedSong.extras?['url'];
+      if (songUrl is! String) continue;
       if (await File(songUrl).exists() == false) {
-        await songDownloadsBox.delete(songKey);
-        await librarySongsController.removeSong(
-            MediaItemBuilder.fromJson(downloadedSongs[i]), true);
+        await downloadRepository.deleteDownloadedSong(songKey);
+        await librarySongsController.removeSong(downloadedSong, true);
         final thumbNailPath = "$supportDir/thumbnails/$songKey.png";
         if (await File(thumbNailPath).exists()) {
           await File(thumbNailPath).delete();

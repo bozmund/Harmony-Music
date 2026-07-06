@@ -1,6 +1,8 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  exclude:
+    - third_party/**/test/**
   errors:
     unawaited_futures: error
     discarded_futures: error

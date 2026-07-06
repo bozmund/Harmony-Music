@@ -1,42 +1,54 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
-import 'package:hive/hive.dart';
+import 'package:flutter/material.dart';
 
+import '../domain/repositories/library_repository.dart';
+import '../domain/repositories/playlist_repository.dart';
 import '../models/album.dart';
-import '../models/media_Item_builder.dart';
 import '../models/playlist.dart';
 import '../services/app_contracts.dart';
 import '../ui/widgets/sort_widget.dart';
+import '../utils/observable_state.dart';
 
 /// An abstract base class for managing playlist and album screens in the application.
 /// This class provides a set of methods and properties to handle various operations
 /// such as fetching album/playlist details, managing songs, and performing additional operations.
-abstract class PlaylistAlbumScreenControllerBase extends GetxController {
+abstract class PlaylistAlbumScreenControllerBase extends ChangeNotifier {
+  PlaylistAlbumScreenControllerBase({
+    required this.musicServices,
+    required this.playlistRepository,
+    required this.libraryRepository,
+  });
+
   /// Instance used to interact with music-related services.
-  final MusicServiceContract musicServices = Get.find<MusicServiceContract>();
+  final MusicServiceContract musicServices;
+  final PlaylistRepository playlistRepository;
+  final LibraryRepository libraryRepository;
   int _loadGeneration = 0;
+  bool _closed = false;
 
   /// Observable boolean indicating whether the album is offline.
-  final RxBool isOffline = false.obs;
+  final isOffline = ObservableValue(false);
 
   /// Observable list of songs represented as [MediaItem].
-  final RxList<MediaItem> songList = <MediaItem>[].obs;
+  final songList = ObservableList<MediaItem>();
 
   /// Observable boolean indicating whether the content has been fetched.
-  final RxBool isContentFetched = false.obs;
+  final isContentFetched = ObservableValue(false);
 
   /// Observable boolean indicating whether the album/playlist is added to the library.
-  final RxBool isAddedToLibrary = false.obs;
+  final isAddedToLibrary = ObservableValue(false);
 
   /// Observable double representing the scroll offset.
-  final RxDouble scrollOffset = 0.0.obs;
+  final scrollOffset = ObservableValue(0.0);
 
   /// Observable boolean indicating whether the app bar title is visible.
-  final RxBool appBarTitleVisible = false.obs;
+  final appBarTitleVisible = ObservableValue(false);
 
   /// Observable boolean indicating whether the album/playlist is downloaded.
-  final RxBool isDownloaded = false.obs;
+  final isDownloaded = ObservableValue(false);
 
   /// Checks if the album/playlist is added to the library.
   ///
@@ -51,11 +63,20 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
 
   @protected
   bool isAsyncLoadActive(int generation) =>
-      !isClosed && generation == _loadGeneration;
+      !_closed && generation == _loadGeneration;
 
   @protected
   void cancelAsyncLoads() {
     _loadGeneration++;
+  }
+
+  @protected
+  bool get isClosed => _closed;
+
+  @protected
+  void closeController() {
+    _closed = true;
+    cancelAsyncLoads();
   }
 
   /// Fetches the details of an album.
@@ -74,27 +95,39 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   ///
   /// [id] - The unique identifier of the album/playlist.
   Future<void> fetchSongsFromDatabase(String id, {int? generation}) async {
-    final box = await Hive.openBox(id);
-    final songs = box.values
-        .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
-        .whereType<MediaItem>()
-        .toList();
-    if (id != "SongDownloads") await box.close();
+    final songs = switch (id) {
+      "SongDownloads" => await libraryRepository.getDownloadedSongs(),
+      "SongsCache" => await libraryRepository.getCachedSongs(),
+      "LIBFAV" => await libraryRepository.getFavoriteSongs(),
+      "LIBRP" => await libraryRepository.getRecentlyPlayedSongs(),
+      "LIBFAV_NOT_DOWNLOADED" =>
+        await libraryRepository.getFavoriteNotDownloadedSongs(),
+      "LIBIMPORT_DUPLICATES" =>
+        await libraryRepository.getImportDuplicateSongs(),
+      "LIBIMPORT_REVIEW" => await libraryRepository.getImportReviewSongs(),
+      _ => await playlistRepository.getPlaylistSongs(id),
+    };
     if (generation != null && !isAsyncLoadActive(generation)) return;
     songList.value = id == "LIBRP" ? songs.reversed.toList() : songs;
+    notifyListeners();
     checkDownloadStatus();
   }
 
   /// Checks the download status of the album/playlist.
   void checkDownloadStatus() {
-    bool downloaded = true;
-    for (MediaItem item in songList) {
-      if (!Hive.box("SongDownloads").containsKey(item.id)) {
+    unawaited(_updateDownloadStatus());
+  }
+
+  Future<void> _updateDownloadStatus() async {
+    var downloaded = true;
+    for (final item in songList) {
+      if (!await libraryRepository.isDownloaded(item.id)) {
         downloaded = false;
         break;
       }
     }
     isDownloaded.value = downloaded;
+    notifyListeners();
   }
 
   /// Adds or removes content from the library.

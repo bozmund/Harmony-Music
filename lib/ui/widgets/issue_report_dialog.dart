@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:harmonymusic/services/app_platform_service.dart';
 
 import 'common_dialog_widget.dart';
@@ -11,7 +10,11 @@ import 'common_dialog_widget.dart';
 const _issueReportEndpoint = String.fromEnvironment('ISSUE_REPORT_ENDPOINT');
 const _manualIssueUrl = 'https://github.com/bozmund/Harmony-Music/issues/new';
 
-class IssueReportDialogController extends GetxController {
+class IssueReportDialogController extends ChangeNotifier {
+  IssueReportDialogController({this.extraDiagnosticsBuilder});
+
+  final Future<Map<String, dynamic>?> Function()? extraDiagnosticsBuilder;
+
   final titleController = TextEditingController();
   final descriptionController = TextEditingController();
   final stepsController = TextEditingController();
@@ -20,30 +23,34 @@ class IssueReportDialogController extends GetxController {
   final contactController = TextEditingController();
   final debugDetailsController = TextEditingController();
 
-  final isSubmitting = false.obs;
-  final error = RxnString();
-  final submitted = false.obs;
+  bool isSubmitting = false;
+  String? error;
+  bool submitted = false;
 
-  Future<void> submit() async {
-    if (isSubmitting.value) return;
+  Future<void> submit(Locale locale) async {
+    if (isSubmitting) return;
 
-    error.value = null;
-    submitted.value = false;
+    error = null;
+    submitted = false;
+    notifyListeners();
 
     if (titleController.text.trim().isEmpty ||
         descriptionController.text.trim().isEmpty) {
-      error.value = "Title and description are required.";
+      error = "Title and description are required.";
+      notifyListeners();
       return;
     }
 
     if (_issueReportEndpoint.isEmpty) {
-      error.value = "Issue reporting endpoint is not configured.";
+      error = "Issue reporting endpoint is not configured.";
+      notifyListeners();
       return;
     }
 
-    isSubmitting.value = true;
+    isSubmitting = true;
+    notifyListeners();
     try {
-      final payload = await _buildPayload();
+      final payload = await _buildPayload(locale);
       await Dio().post(
         _issueReportEndpoint,
         data: payload,
@@ -53,16 +60,17 @@ class IssueReportDialogController extends GetxController {
               status != null && status >= 200 && status < 300,
         ),
       );
-      submitted.value = true;
+      submitted = true;
     } catch (e) {
-      error.value = "Could not submit issue. You can open GitHub manually.";
+      error = "Could not submit issue. You can open GitHub manually.";
     } finally {
-      isSubmitting.value = false;
+      isSubmitting = false;
+      notifyListeners();
     }
   }
 
-  Future<void> openManualIssue() async {
-    final payload = await _buildPayload();
+  Future<void> openManualIssue(Locale locale) async {
+    final payload = await _buildPayload(locale);
     final uri = Uri.parse(_manualIssueUrl).replace(
       queryParameters: {
         'labels': 'bug',
@@ -73,18 +81,22 @@ class IssueReportDialogController extends GetxController {
     await AppPlatformService.openUrl(uri.toString());
   }
 
-  Future<Map<String, dynamic>> _buildPayload() async {
+  Future<Map<String, dynamic>> _buildPayload(Locale locale) async {
     final info = await AppPlatformService.getAppInfo();
-    final diagnostics = {
+    final diagnostics = <String, dynamic>{
       'appName': info.appName,
       'packageName': info.packageName,
       'version': info.version,
       'buildNumber': info.buildNumber,
       'platform': Platform.operatingSystem,
       'platformVersion': Platform.operatingSystemVersion,
-      'locale': Get.locale?.toString() ?? Platform.localeName,
+      'locale': locale.toString(),
       'timestamp': DateTime.now().toUtc().toIso8601String(),
     };
+    final extraDiagnostics = await extraDiagnosticsBuilder?.call();
+    if (extraDiagnostics != null && extraDiagnostics.isNotEmpty) {
+      diagnostics.addAll(extraDiagnostics);
+    }
 
     return {
       'title': titleController.text.trim(),
@@ -127,7 +139,7 @@ ${const JsonEncoder.withIndent('  ').convert(diagnostics)}
   }
 
   @override
-  void onClose() {
+  void dispose() {
     titleController.dispose();
     descriptionController.dispose();
     stepsController.dispose();
@@ -135,19 +147,38 @@ ${const JsonEncoder.withIndent('  ').convert(diagnostics)}
     actualController.dispose();
     contactController.dispose();
     debugDetailsController.dispose();
-    super.onClose();
+    super.dispose();
   }
 }
 
-class IssueReportDialog extends StatelessWidget {
-  const IssueReportDialog({super.key});
+class IssueReportDialog extends StatefulWidget {
+  const IssueReportDialog({super.key, this.extraDiagnosticsBuilder});
+
+  final Future<Map<String, dynamic>?> Function()? extraDiagnosticsBuilder;
+
+  @override
+  State<IssueReportDialog> createState() => _IssueReportDialogState();
+}
+
+class _IssueReportDialogState extends State<IssueReportDialog> {
+  late final IssueReportDialogController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = IssueReportDialogController(
+      extraDiagnosticsBuilder: widget.extraDiagnosticsBuilder,
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.isRegistered<IssueReportDialogController>()
-        ? Get.find<IssueReportDialogController>()
-        : Get.put(IssueReportDialogController());
-
     return CommonDialog(
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -155,8 +186,9 @@ class IssueReportDialog extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Obx(
-            () => SingleChildScrollView(
+          child: AnimatedBuilder(
+            animation: controller,
+            builder: (context, _) => SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,20 +238,20 @@ class IssueReportDialog extends StatelessWidget {
                     maxLines: 4,
                     minHeight: 112,
                   ),
-                  if (controller.isSubmitting.value) ...[
+                  if (controller.isSubmitting) ...[
                     const SizedBox(height: 8),
                     const LinearProgressIndicator(),
                   ],
-                  if (controller.error.value != null) ...[
+                  if (controller.error != null) ...[
                     const SizedBox(height: 10),
                     Text(
-                      controller.error.value!,
+                      controller.error!,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Theme.of(context).colorScheme.error,
                       ),
                     ),
                   ],
-                  if (controller.submitted.value) ...[
+                  if (controller.submitted) ...[
                     const SizedBox(height: 10),
                     Text(
                       "Issue submitted. Thank you!",
@@ -233,27 +265,29 @@ class IssueReportDialog extends StatelessWidget {
                     children: [
                       TextButton(
                         style: _issueDialogButtonStyle(context),
-                        onPressed: controller.isSubmitting.value
+                        onPressed: controller.isSubmitting
                             ? null
-                            : () => Get.back(),
-                        child: Text(
-                          controller.submitted.value ? "Close" : "Cancel",
-                        ),
+                            : () => Navigator.of(context).pop(),
+                        child: Text(controller.submitted ? "Close" : "Cancel"),
                       ),
                       const SizedBox(width: 8),
                       TextButton(
                         style: _issueDialogButtonStyle(context),
-                        onPressed: controller.isSubmitting.value
+                        onPressed: controller.isSubmitting
                             ? null
-                            : controller.openManualIssue,
+                            : () => controller.openManualIssue(
+                                Localizations.localeOf(context),
+                              ),
                         child: const Text("Open GitHub"),
                       ),
                       const SizedBox(width: 8),
                       TextButton(
                         style: _issueDialogButtonStyle(context),
-                        onPressed: controller.isSubmitting.value
+                        onPressed: controller.isSubmitting
                             ? null
-                            : controller.submit,
+                            : () => controller.submit(
+                                Localizations.localeOf(context),
+                              ),
                         child: const Text("Submit"),
                       ),
                     ],

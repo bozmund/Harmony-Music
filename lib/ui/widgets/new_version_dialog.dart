@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
+import '../../app/providers/controller_providers.dart';
 import '../../utils/helper.dart';
-import '../screens/Home/home_screen_controller.dart';
 import '../screens/Settings/settings_screen_controller.dart';
 import 'common_dialog_widget.dart';
 
-class NewVersionDialog extends StatelessWidget {
+class NewVersionDialog extends ConsumerWidget {
   const NewVersionDialog({
     super.key,
     required this.updateInfo,
@@ -17,11 +18,14 @@ class NewVersionDialog extends StatelessWidget {
   final bool disableStartupPopupOnUpdateTap;
 
   @override
-  Widget build(BuildContext context) {
-    final settingsController = Get.find<SettingsScreenController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsController = ref.watch(settingsScreenControllerProvider);
+    final homeController = ref.watch(homeScreenControllerProvider);
     return CommonDialog(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: Get.height * 0.8),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -41,10 +45,15 @@ class NewVersionDialog extends StatelessWidget {
                 child: FittedBox(
                   child: FloatingActionButton(
                     onPressed: () async {
-                      await _handleUpdateTap(settingsController);
+                      await _handleUpdateTap(
+                        settingsController,
+                        homeController.disableStartupUpdatePopup,
+                      );
                     },
-                    child: Obx(
-                      () => settingsController.isUpdateDownloading.value
+                    child: AnimatedBuilder(
+                      animation: settingsController,
+                      builder: (context, _) =>
+                          settingsController.isUpdateDownloading.value
                           ? const SizedBox.square(
                               dimension: 28,
                               child: CircularProgressIndicator(strokeWidth: 3),
@@ -55,36 +64,38 @@ class NewVersionDialog extends StatelessWidget {
                 ),
               ),
             ),
-            Obx(() {
-              if (!settingsController.isUpdateDownloading.value) {
-                return const SizedBox(height: 20);
-              }
-              final progress =
-                  (settingsController.updateDownloadProgress.value * 100)
-                      .clamp(0, 100)
-                      .round();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Text(
-                  "Downloading update $progress%",
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              );
-            }),
+            AnimatedBuilder(
+              animation: settingsController,
+              builder: (context, _) {
+                if (!settingsController.isUpdateDownloading.value) {
+                  return const SizedBox(height: 20);
+                }
+                final progress =
+                    (settingsController.updateDownloadProgress.value * 100)
+                        .clamp(0, 100)
+                        .round();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Text(
+                    "Downloading update $progress%",
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                );
+              },
+            ),
             Center(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  GetX<HomeScreenController>(
-                    builder: (controller) {
-                      return Checkbox(
-                        value: controller.showVersionDialog.isFalse,
-                        onChanged: (val) {
-                          controller.onChangeVersionVisibility(val ?? false);
-                        },
-                        shape: const CircleBorder(),
-                      );
-                    },
+                  AnimatedBuilder(
+                    animation: homeController,
+                    builder: (context, _) => Checkbox(
+                      value: !homeController.showVersionDialog,
+                      onChanged: (val) {
+                        homeController.onChangeVersionVisibility(val ?? false);
+                      },
+                      shape: const CircleBorder(),
+                    ),
                   ),
                   Flexible(child: Text("dontShowInfoAgain".tr)),
                 ],
@@ -92,8 +103,9 @@ class NewVersionDialog extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 20, top: 6),
-              child: Obx(
-                () => Wrap(
+              child: AnimatedBuilder(
+                animation: settingsController,
+                builder: (context, _) => Wrap(
                   alignment: WrapAlignment.center,
                   spacing: 12,
                   runSpacing: 8,
@@ -102,7 +114,10 @@ class NewVersionDialog extends StatelessWidget {
                       label: "download".tr,
                       enabled: !settingsController.isUpdateDownloading.value,
                       onTap: () async {
-                        await _handleUpdateTap(settingsController);
+                        await _handleUpdateTap(
+                          settingsController,
+                          homeController.disableStartupUpdatePopup,
+                        );
                       },
                     ),
                     _DialogActionButton(
@@ -121,9 +136,10 @@ class NewVersionDialog extends StatelessWidget {
 
   Future<void> _handleUpdateTap(
     SettingsScreenController settingsController,
+    VoidCallback disableStartupPopup,
   ) async {
     if (disableStartupPopupOnUpdateTap) {
-      Get.find<HomeScreenController>().disableStartupUpdatePopup();
+      disableStartupPopup();
     }
     await settingsController.downloadAndInstallUpdate(updateInfo);
   }

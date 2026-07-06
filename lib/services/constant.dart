@@ -30,6 +30,9 @@ class BoxNames {
   static const String libraryArtists = 'LibraryArtists';
   static const String librarySearches = 'LibrarySearches';
   static const String songsUrlCache = 'SongsUrlCache';
+  static const String blacklistedPlaylist = 'blacklistedPlaylist';
+  static const String searchQuery = 'searchQuery';
+  static const String lyrics = 'lyrics';
 }
 
 class PrefKeys {
@@ -70,6 +73,7 @@ class PrefKeys {
   static const String currentAppLanguageCode = 'currentAppLanguageCode';
   static const String libraryFirstTab = 'libraryFirstTab';
   static const String updateChannel = 'updateChannel';
+  static const String answeredReleasePrompts = 'answeredReleasePrompts';
   static const String batteryOptimizationPromptShown =
       'batteryOptimizationPromptShown';
   static const String playbackMode = 'playbackMode';

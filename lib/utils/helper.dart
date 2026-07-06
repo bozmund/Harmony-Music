@@ -1,30 +1,44 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
 
 import '/services/app_contracts.dart';
 import '/services/constant.dart';
+import '/services/crash_diagnostics_service.dart';
 import '/ui/navigator.dart';
 import '/ui/widgets/sort_widget.dart';
 
+const _maxDebugLogChars = 2000;
+
 void printERROR(dynamic text, {String tag = "Harmony Music"}) {
   if (kReleaseMode) return;
-  debugPrint("\x1B[31m[$tag]: $text\x1B[0m");
+  final safeText = _safeLogText(text);
+  CrashDiagnosticsService.instance.recordLog('error', tag, safeText);
+  debugPrint("\x1B[31m[$tag]: $safeText\x1B[0m");
 }
 
 void printWarning(dynamic text, {String tag = 'Harmony Music'}) {
   if (kReleaseMode) return;
-  debugPrint("\x1B[33m[$tag]: $text\x1B[34m");
+  final safeText = _safeLogText(text);
+  CrashDiagnosticsService.instance.recordLog('warning', tag, safeText);
+  debugPrint("\x1B[33m[$tag]: $safeText\x1B[34m");
 }
 
 void printINFO(dynamic text, {String tag = 'Harmony Music'}) {
   if (kReleaseMode) return;
-  debugPrint("\x1B[32m[$tag]: $text\x1B[34m");
+  final safeText = _safeLogText(text);
+  CrashDiagnosticsService.instance.recordLog('info', tag, safeText);
+  debugPrint("\x1B[32m[$tag]: $safeText\x1B[34m");
+}
+
+String _safeLogText(dynamic text) {
+  final value = text?.toString() ?? '';
+  if (value.length <= _maxDebugLogChars) return value;
+  return '${value.substring(0, _maxDebugLogChars)}...<truncated ${value.length - _maxDebugLogChars} chars>';
 }
 
 String? getCurrentRouteName() {
   String? currentPath;
-  Get.nestedKey(ScreenNavigationSetup.id)?.currentState?.popUntil((route) {
+  ScreenNavigationSetup.navigatorKey.currentState?.popUntil((route) {
     currentPath = route.settings.name;
     return true;
   });
@@ -190,17 +204,11 @@ Future<UpdateInfo?> newVersionCheck(
   String currentVersion, {
   UpdateChannel channel = UpdateChannel.stable,
 }) async {
-  if (Get.isRegistered<UpdateServiceContract>()) {
-    return Get.find<UpdateServiceContract>().checkNewVersion(
-      currentVersion,
-      channel: channel,
-    );
-  }
-  return const GithubUpdateService().checkNewVersion(
-    currentVersion,
-    channel: channel,
-  );
+  return (newVersionCheckOverride ?? const GithubUpdateService())
+      .checkNewVersion(currentVersion, channel: channel);
 }
+
+UpdateServiceContract? newVersionCheckOverride;
 
 class GithubUpdateService implements UpdateServiceContract {
   const GithubUpdateService();
@@ -332,13 +340,3 @@ int _compareSemanticVersions(String a, String b) {
   return 0;
 }
 
-String getTimeString(Duration time) {
-  final minutes = time.inMinutes.remainder(Duration.minutesPerHour).toString();
-  final seconds = time.inSeconds
-      .remainder(Duration.secondsPerMinute)
-      .toString()
-      .padLeft(2, '0');
-  return time.inHours > 0
-      ? "${time.inHours}:${minutes.padLeft(2, "0")}:$seconds"
-      : "$minutes:$seconds";
-}

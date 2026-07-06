@@ -1,8 +1,9 @@
-import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/app/providers/app_service_registration.dart';
+import 'package:harmonymusic/app/providers/repository_providers.dart';
+import 'package:harmonymusic/app/providers/service_providers.dart';
 import 'package:harmonymusic/main.dart' as app;
-import 'package:harmonymusic/services/app_contracts.dart';
 import 'package:integration_test/integration_test.dart';
 
 import 'support/fakes.dart';
@@ -13,21 +14,26 @@ void main() {
   testWidgets('app boots with mocked external service boundaries', (
     tester,
   ) async {
-    Get.testMode = true;
-    Get.reset();
-
     await app.initHive();
-    app.setAppInitPrefs();
+    final container = ProviderContainer(
+      overrides: [
+        audioHandlerProvider.overrideWithValue(FakeAudioHandler()),
+        musicServiceContractProvider.overrideWithValue(FakeMusicService()),
+        updateServiceContractProvider.overrideWithValue(
+          const FakeUpdateService(),
+        ),
+        appPlatformContractProvider.overrideWithValue(FakeAppPlatform()),
+        filePickerContractProvider.overrideWithValue(FakeFilePicker()),
+      ],
+    );
+    addTearDown(container.dispose);
 
-    Get.put<AudioHandler>(FakeAudioHandler(), permanent: true);
-    Get.put<MusicServiceContract>(FakeMusicService(), permanent: true);
-    Get.put<DownloaderContract>(FakeDownloader(), permanent: true);
-    Get.put<UpdateServiceContract>(const FakeUpdateService(), permanent: true);
-    Get.put<AppPlatformContract>(FakeAppPlatform(), permanent: true);
-    Get.put<FilePickerContract>(FakeFilePicker(), permanent: true);
+    await app.setAppInitPrefs(container.read(settingsRepositoryProvider));
+    registerAppServices(container);
 
-    await app.startApplicationServices();
-    await tester.pumpWidget(const app.MyApp());
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: const app.MyApp()),
+    );
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 2));
 

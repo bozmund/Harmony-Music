@@ -1,4 +1,4 @@
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
 class PlayingFrom {
   PlayingFromType type;
@@ -26,4 +26,3 @@ class PlayingFrom {
 }
 
 enum PlayingFromType { ALBUM, PLAYLIST, SELECTION, ARTIST }
-

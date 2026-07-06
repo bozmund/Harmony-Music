@@ -2,12 +2,13 @@ import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 
 class AnimatedScreenTransition extends StatelessWidget {
-  const AnimatedScreenTransition(
-      {super.key,
-      this.enabled = true,
-      this.resverse = false,
-      this.horizontalTransition = false,
-      required this.child});
+  const AnimatedScreenTransition({
+    super.key,
+    this.enabled = true,
+    this.resverse = false,
+    this.horizontalTransition = false,
+    required this.child,
+  });
   final bool enabled;
   final bool resverse;
   final Widget child;
@@ -41,11 +42,21 @@ class AnimatedScreenTransition extends StatelessWidget {
         return DualTransitionBuilder(
           animation: primaryAnimation,
           forwardBuilder: (context, animation, child) => SlideTransition(
-            position: forwardTween.animate(CurvedAnimation(parent: primaryAnimation, curve: Curves.easeOutCubic)),
+            position: forwardTween.animate(
+              CurvedAnimation(
+                parent: primaryAnimation,
+                curve: Curves.easeOutCubic,
+              ),
+            ),
             child: child,
           ),
           reverseBuilder: (context, animation, child) => SlideTransition(
-            position: reverseTween.animate(CurvedAnimation(parent: secondaryAnimation, curve: Curves.easeOutCubic)),
+            position: reverseTween.animate(
+              CurvedAnimation(
+                parent: secondaryAnimation,
+                curve: Curves.easeOutCubic,
+              ),
+            ),
             child: child,
           ),
           child: child,

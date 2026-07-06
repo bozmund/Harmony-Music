@@ -1,7 +1,9 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
+import '../../app/providers/controller_providers.dart';
 import '/models/album.dart';
 import '../../models/artist.dart';
 import '../../models/playing_from.dart';
@@ -12,7 +14,7 @@ import 'image_widget.dart';
 import 'song_list_tile.dart';
 import 'song_info_bottom_sheet.dart';
 
-class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
+class ListWidget extends ConsumerWidget with RemoveSongFromPlaylistMixin {
   const ListWidget(
     this.items,
     this.title,
@@ -38,7 +40,8 @@ class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
   final Artist? artist;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerController = ref.read(playerControllerProvider);
     if (items.isEmpty) {
       return Expanded(
         child: Center(
@@ -59,11 +62,12 @@ class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
                 artist: artist,
                 sc: scrollController,
                 isArtistSongs: isArtistSongs,
+                playerController: playerController,
               ),
             )
           : SizedBox(
               height: items.length * 75.0,
-              child: listViewSongVid(items),
+              child: listViewSongVid(items, playerController: playerController),
             );
     } else if (title.contains("playlists")) {
       return listViewPlaylists(items, sc: scrollController);
@@ -88,8 +92,8 @@ class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
     Artist? artist,
     bool isArtistSongs = false,
     ScrollController? sc,
+    required PlayerController playerController,
   }) {
-    final playerController = Get.find<PlayerController>();
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 200, top: 0),
       addRepaintBoundaries: false,
@@ -195,9 +199,10 @@ class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
       itemBuilder: (context, index) => ListTile(
         visualDensity: const VisualDensity(horizontal: -2, vertical: 2),
         onTap: () async {
-          await Get.toNamed(
+          final navigator = ScreenNavigationSetup.navigatorKey.currentState;
+          if (navigator == null) return;
+          await navigator.pushNamed(
             ScreenNavigationSetup.artistScreen,
-            id: ScreenNavigationSetup.id,
             arguments: [false, artists[index]],
           );
         },
@@ -227,16 +232,16 @@ class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
   }) {
     return InkWell(
       onTap: () async {
+        final navigator = ScreenNavigationSetup.navigatorKey.currentState;
+        if (navigator == null) return;
         if (album != null) {
-          await Get.toNamed(
+          await navigator.pushNamed(
             ScreenNavigationSetup.albumScreen,
-            id: ScreenNavigationSetup.id,
             arguments: (album, album.browseId),
           );
         } else {
-          await Get.toNamed(
+          await navigator.pushNamed(
             ScreenNavigationSetup.playlistScreen,
-            id: ScreenNavigationSetup.id,
             arguments: [playlist, playlist.playlistId],
           );
         }

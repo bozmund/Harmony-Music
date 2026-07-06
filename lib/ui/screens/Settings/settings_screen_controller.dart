@@ -4,17 +4,24 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:audio_service/audio_service.dart';
+import '../../../domain/repositories/playlist_repository.dart';
+import '../../../domain/repositories/settings_repository.dart';
+import '../../../domain/repositories/storage_admin_repository.dart';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:harmonymusic/services/app_platform_service.dart';
 import 'package:harmonymusic/services/permission_service.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../app/navigation/app_navigator.dart';
+import '../../../app/providers/app_locale_provider.dart';
 import '../../../utils/update_check_flag_file.dart';
+import '../../../utils/runtime_platform.dart';
+import '../../../utils/observable_state.dart';
+import '../../../utils/lang_mapping.dart';
 import '/services/piped_service.dart';
 import '../Library/library_controller.dart';
 import '../../widgets/new_version_dialog.dart';
@@ -36,62 +43,97 @@ class DeveloperSettingValue {
   final String value;
 }
 
-class SettingsScreenController extends GetxController
+class SettingsScreenController extends ChangeNotifier
     with WidgetsBindingObserver {
+  SettingsScreenController({
+    required AudioHandler audioHandler,
+    required PlaylistRepository playlistRepository,
+    required SettingsRepository settingsRepository,
+    required StorageAdminRepository storageAdminRepository,
+    required MusicServiceContract musicService,
+    required HomeScreenController Function() homeScreenController,
+    required PlayerController Function() playerController,
+    required ThemeController Function() themeController,
+    required PipedServices Function() pipedServices,
+    required AppLocaleController appLocaleController,
+  }) : _audioHandler = audioHandler,
+       _playlistRepository = playlistRepository,
+       _settingsRepository = settingsRepository,
+       _storageAdminRepository = storageAdminRepository,
+       _musicService = musicService,
+       _homeScreenController = homeScreenController,
+       _playerController = playerController,
+       _themeController = themeController,
+       _pipedServices = pipedServices,
+       _appLocaleController = appLocaleController;
+
+  final AudioHandler _audioHandler;
+  final PlaylistRepository _playlistRepository;
+  final SettingsRepository _settingsRepository;
+  final StorageAdminRepository _storageAdminRepository;
+  final MusicServiceContract _musicService;
+  final HomeScreenController Function() _homeScreenController;
+  final PlayerController Function() _playerController;
+  final ThemeController Function() _themeController;
+  final PipedServices Function() _pipedServices;
+  final AppLocaleController _appLocaleController;
+  SettingsRepository get settingsRepository => _settingsRepository;
+  StorageAdminRepository get storageAdminRepository => _storageAdminRepository;
   late String _supportDir;
-  final cacheSongs = false.obs;
-  final setBox = Hive.box(BoxNames.appPrefs);
-  final themeModeType = ThemeType.dynamic.obs;
-  final skipSilenceEnabled = false.obs;
-  final loudnessNormalizationEnabled = false.obs;
-  final noOfHomeScreenContent = 3.obs;
-  final streamingQuality = AudioQuality.High.obs;
-  final playbackMode = PlaybackMode.classic.obs;
-  final playbackPreloadRange = 0.obs;
-  final playerUi = 0.obs;
-  final slidableActionEnabled = true.obs;
-  final isIgnoringBatteryOptimizations = false.obs;
-  final autoOpenPlayer = false.obs;
-  final discoverContentType = "BOLI".obs;
-  final isNewVersionAvailable = false.obs;
-  final updateInfo = Rxn<UpdateInfo>();
-  final updateChannel = UpdateChannel.rolling.obs;
-  final isUpdateDownloading = false.obs;
-  final updateDownloadProgress = 0.0.obs;
-  final updateDownloadError = "".obs;
-  final isLinkedWithPiped = false.obs;
-  final stopPlaybackOnSwipeAway = false.obs;
-  final currentAppLanguageCode = "en".obs;
-  final downloadLocationPath = "".obs;
-  final exportLocationPath = "".obs;
-  final downloadingFormat = "opus".obs;
-  final autoDownloadFavoriteSongEnabled = false.obs;
-  final isTransitionAnimationDisabled = false.obs;
-  final isBottomNavBarEnabled = true.obs;
-  final backgroundPlayEnabled = true.obs;
-  final keepScreenAwake = false.obs;
-  final restorePlaybackSession = false.obs;
-  final cacheHomeScreenData = true.obs;
-  final developerSettingsEnabled = false.obs;
-  final developerSettingValues = <DeveloperSettingValue>[].obs;
+  final cacheSongs = ObservableValue(false);
+  final themeModeType = ObservableValue(ThemeType.dynamic);
+  final skipSilenceEnabled = ObservableValue(false);
+  final loudnessNormalizationEnabled = ObservableValue(false);
+  final noOfHomeScreenContent = ObservableValue(3);
+  final streamingQuality = ObservableValue(AudioQuality.High);
+  final playbackMode = ObservableValue(PlaybackMode.classic);
+  final playbackPreloadRange = ObservableValue(0);
+  final playerUi = ObservableValue(0);
+  final slidableActionEnabled = ObservableValue(true);
+  final isIgnoringBatteryOptimizations = ObservableValue(false);
+  final autoOpenPlayer = ObservableValue(false);
+  final discoverContentType = ObservableValue("BOLI");
+  final isNewVersionAvailable = ObservableValue(false);
+  final updateInfo = ObservableNullable<UpdateInfo>();
+  final updateChannel = ObservableValue(UpdateChannel.stable);
+  final isUpdateDownloading = ObservableValue(false);
+  final updateDownloadProgress = ObservableValue(0.0);
+  final updateDownloadError = ObservableValue("");
+  final isLinkedWithPiped = ObservableValue(false);
+  final stopPlaybackOnSwipeAway = ObservableValue(false);
+  final currentAppLanguageCode = ObservableValue("en");
+  final downloadLocationPath = ObservableValue("");
+  final exportLocationPath = ObservableValue("");
+  final downloadingFormat = ObservableValue("opus");
+  final autoDownloadFavoriteSongEnabled = ObservableValue(false);
+  final isTransitionAnimationDisabled = ObservableValue(false);
+  final isBottomNavBarEnabled = ObservableValue(true);
+  final backgroundPlayEnabled = ObservableValue(true);
+  final keepScreenAwake = ObservableValue(false);
+  final restorePlaybackSession = ObservableValue(false);
+  final cacheHomeScreenData = ObservableValue(true);
+  final developerSettingsEnabled = ObservableValue(false);
+  final developerSettingValues = ObservableList<DeveloperSettingValue>();
   final currentVersion =
       "V${(BuildInfo.version.isEmpty ? '5.9.2' : BuildInfo.version).split('+').first.split('-').first}";
 
-  final libraryFirstTab = 0.obs;
+  final libraryFirstTab = ObservableValue(0);
 
-  @override
-  Future<void> onInit() async {
+  var _initialized = false;
+
+  Future<void> init() async {
+    if (_initialized) return;
+    _initialized = true;
     WidgetsBinding.instance.addObserver(this);
     await _setInitValue();
     await _createInAppSongDownDir();
     await clearCachedUpdateApks();
-    super.onInit();
   }
 
   @override
-  void onClose() {
+  void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    super.onClose();
+    super.dispose();
   }
 
   @override
@@ -110,17 +152,30 @@ class SettingsScreenController extends GetxController
 
   String get supportDirPath => _supportDir;
 
+  bool _updateChannelRevealPending = false;
+
+  /// The release prompt navigates to Settings after the user picks a
+  /// channel; the settings screen consumes this one-shot flag to open the
+  /// section containing the update-channel setting.
+  void requestUpdateChannelReveal() {
+    _updateChannelRevealPending = true;
+  }
+
+  bool consumeUpdateChannelReveal() {
+    final pending = _updateChannelRevealPending;
+    _updateChannelRevealPending = false;
+    return pending;
+  }
+
   Future<UpdateInfo?> checkNewVersion() async {
-    updateChannel.value =
-        (setBox.get(PrefKeys.updateChannel) ?? 'rolling') == 'rolling'
-        ? UpdateChannel.rolling
-        : UpdateChannel.stable;
+    updateChannel.value = _settingsRepository.getUpdateChannel();
     final info = await newVersionCheck(
       currentVersion,
       channel: selectedUpdateChannel,
     );
     updateInfo.value = info;
     isNewVersionAvailable.value = info != null;
+    notifyListeners();
     return info;
   }
 
@@ -133,7 +188,7 @@ class SettingsScreenController extends GetxController
 
     if (isUpdateDownloading.value) return;
     if (update == null ||
-        !GetPlatform.isAndroid ||
+        !RuntimePlatform.isAndroid ||
         !_isApkUrl(update.downloadUrl)) {
       await AppPlatformService.openUrl(fallbackUrl);
       return;
@@ -142,6 +197,7 @@ class SettingsScreenController extends GetxController
     isUpdateDownloading.value = true;
     updateDownloadProgress.value = 0;
     updateDownloadError.value = "";
+    notifyListeners();
 
     try {
       final updateDir = await _updateCacheDir();
@@ -158,6 +214,7 @@ class SettingsScreenController extends GetxController
         onReceiveProgress: (received, total) {
           if (total <= 0) return;
           updateDownloadProgress.value = received / total;
+          notifyListeners();
         },
       );
 
@@ -167,23 +224,28 @@ class SettingsScreenController extends GetxController
       }
 
       updateDownloadProgress.value = 1;
+      notifyListeners();
       await AppPlatformService.installApk(apkPath);
     } on PlatformException catch (e) {
       if (e.code == "INSTALL_PERMISSION_REQUIRED") {
         updateDownloadError.value =
             e.message ?? "Allow install permission, then tap update again.";
+        notifyListeners();
         _showUpdateMessage(updateDownloadError.value);
       } else {
         updateDownloadError.value = "Update install failed. Opening browser.";
+        notifyListeners();
         _showUpdateMessage(updateDownloadError.value);
         await AppPlatformService.openUrl(fallbackUrl);
       }
     } catch (e) {
       updateDownloadError.value = "Update download failed. Opening browser.";
+      notifyListeners();
       _showUpdateMessage(updateDownloadError.value);
       await AppPlatformService.openUrl(fallbackUrl);
     } finally {
       isUpdateDownloading.value = false;
+      notifyListeners();
     }
   }
 
@@ -217,7 +279,7 @@ class SettingsScreenController extends GetxController
   }
 
   void _showUpdateMessage(String message) {
-    final context = Get.context;
+    final context = AppNavigator.context;
     if (context == null) return;
     ScaffoldMessenger.of(
       context,
@@ -234,100 +296,83 @@ class SettingsScreenController extends GetxController
   }
 
   Future<void> _setInitValue() async {
-    final isDesktop = GetPlatform.isDesktop;
-    final appLang = setBox.get(PrefKeys.currentAppLanguageCode) ?? "en";
-    currentAppLanguageCode.value = appLang == "zh_Hant"
-        ? "zh-TW"
-        : appLang == "zh_Hans"
-        ? "zh-CN"
-        : appLang;
-    updateChannel.value =
-        (setBox.get(PrefKeys.updateChannel) ?? 'rolling') == 'rolling'
-        ? UpdateChannel.rolling
-        : UpdateChannel.stable;
+    final isDesktop = RuntimePlatform.isDesktop;
+    final appLang = _normalizeAppLanguageCode(
+      _settingsRepository.getLanguageCode(),
+    );
+    currentAppLanguageCode.value = appLang;
+    updateChannel.value = _settingsRepository.getUpdateChannel();
     isBottomNavBarEnabled.value = isDesktop
         ? false
-        : (setBox.get(PrefKeys.isBottomNavBarEnabled) ?? true);
-    noOfHomeScreenContent.value =
-        setBox.get(PrefKeys.noOfHomeScreenContent) ?? 3;
-    isTransitionAnimationDisabled.value =
-        setBox.get(PrefKeys.isTransitionAnimationDisabled) ?? false;
-    cacheSongs.value = setBox.get(PrefKeys.cacheSongs) ?? false;
+        : _settingsRepository.getBottomNavBarEnabled();
+    noOfHomeScreenContent.value = _settingsRepository
+        .getNoOfHomeScreenContent();
+    isTransitionAnimationDisabled.value = _settingsRepository
+        .getTransitionAnimationDisabled();
+    cacheSongs.value = _settingsRepository.getCacheSongs();
     themeModeType.value =
-        ThemeType.values[setBox.get(PrefKeys.themeModeType) ?? 0];
+        ThemeType.values[_settingsRepository.getThemeModeType()];
     skipSilenceEnabled.value = isDesktop
         ? false
-        : setBox.get(PrefKeys.skipSilenceEnabled);
+        : _settingsRepository.getSkipSilenceEnabled();
     loudnessNormalizationEnabled.value = isDesktop
         ? false
-        : (setBox.get(PrefKeys.loudnessNormalizationEnabled) ?? false);
-    autoOpenPlayer.value = setBox.get(PrefKeys.autoOpenPlayer) ?? true;
-    restorePlaybackSession.value =
-        setBox.get(PrefKeys.restorePlaybackSession) ?? false;
-    cacheHomeScreenData.value =
-        setBox.get(PrefKeys.cacheHomeScreenData) ?? true;
-    developerSettingsEnabled.value =
-        setBox.get(PrefKeys.developerSettingsEnabled) ?? false;
-    if (developerSettingsEnabled.isTrue) {
+        : _settingsRepository.getLoudnessNormalizationEnabled();
+    autoOpenPlayer.value = _settingsRepository.getAutoOpenPlayer();
+    restorePlaybackSession.value = _settingsRepository
+        .getRestorePlaybackSession();
+    cacheHomeScreenData.value = _settingsRepository.getCacheHomeScreenData();
+    developerSettingsEnabled.value = _settingsRepository
+        .getDeveloperSettingsEnabled();
+    if (developerSettingsEnabled.value) {
       refreshDeveloperSettingValues();
     }
     streamingQuality.value =
-        AudioQuality.values[setBox.get(PrefKeys.streamingQuality) ?? 1];
-    final storedPlaybackMode = setBox.get(PrefKeys.playbackMode) ?? 0;
-    playbackMode.value =
-        storedPlaybackMode is int &&
-            storedPlaybackMode >= 0 &&
-            storedPlaybackMode < PlaybackMode.values.length
-        ? PlaybackMode.values[storedPlaybackMode]
-        : PlaybackMode.classic;
-    playbackPreloadRange.value =
-        ((setBox.get(PrefKeys.playbackPreloadRange) ?? 0) as int)
-            .clamp(0, 5)
-            .toInt();
+        AudioQuality.values[_settingsRepository.getStreamingQualityIndex()];
+    playbackMode.value = _settingsRepository.getPlaybackMode();
+    playbackPreloadRange.value = _settingsRepository.getPlaybackPreloadRange();
     if (playbackMode.value == PlaybackMode.preloaded &&
         playbackPreloadRange.value == 0) {
       playbackPreloadRange.value = 1;
-      await setBox.put(PrefKeys.playbackPreloadRange, 1);
+      await _settingsRepository.setPlaybackPreloadRange(1);
     }
-    playerUi.value = isDesktop ? 0 : (setBox.get(PrefKeys.playerUi) ?? 0);
-    backgroundPlayEnabled.value =
-        setBox.get(PrefKeys.backgroundPlayEnabled) ?? true;
+    playerUi.value = isDesktop ? 0 : _settingsRepository.getPlayerUi();
+    backgroundPlayEnabled.value = _settingsRepository
+        .getBackgroundPlayEnabled();
     keepScreenAwake.value =
-        setBox.get(PrefKeys.keepScreenAwake) ?? GetPlatform.isDesktop
+        _settingsRepository.getKeepScreenAwake(RuntimePlatform.isDesktop)
         ? true
         : false;
     final downloadPath =
-        setBox.get(PrefKeys.downloadLocationPath) ??
+        _settingsRepository.getDownloadLocationPath() ??
         await _createInAppSongDownDir();
     downloadLocationPath.value =
         (isDesktop && downloadPath.contains("emulated"))
         ? await _createInAppSongDownDir()
         : downloadPath;
 
-    exportLocationPath.value =
-        setBox.get(PrefKeys.exportLocationPath) ?? "/storage/emulated/0/Music";
-    downloadingFormat.value = setBox.get(PrefKeys.downloadingFormat) ?? "opus";
-    discoverContentType.value =
-        setBox.get(PrefKeys.discoverContentType) ?? "BOLI";
-    slidableActionEnabled.value =
-        setBox.get(PrefKeys.slidableActionEnabled) ?? true;
-    if (setBox.containsKey(PrefKeys.piped)) {
-      isLinkedWithPiped.value = setBox.get(PrefKeys.piped)['isLoggedIn'];
-    }
-    stopPlaybackOnSwipeAway.value =
-        setBox.get('stopPlaybackOnSwipeAway') ?? false;
-    if (GetPlatform.isAndroid) {
+    exportLocationPath.value = _settingsRepository.getExportLocationPath();
+    downloadingFormat.value = _settingsRepository.getDownloadingFormat();
+    discoverContentType.value = _settingsRepository.getDiscoverContentType();
+    slidableActionEnabled.value = _settingsRepository
+        .getSlidableActionEnabled();
+    isLinkedWithPiped.value =
+        _settingsRepository.getPiped()?['isLoggedIn'] == true;
+    stopPlaybackOnSwipeAway.value = _settingsRepository
+        .getStopPlaybackOnSwipeAway();
+    if (RuntimePlatform.isAndroid) {
       await refreshIgnoringBatteryOptimizations();
       await _requestIgnoringBatteryOptimizationsOnInstall();
     }
-    autoDownloadFavoriteSongEnabled.value =
-        setBox.get(PrefKeys.autoDownloadFavoriteSongEnabled) ?? false;
+    autoDownloadFavoriteSongEnabled.value = _settingsRepository
+        .getAutoDownloadFavoriteSongEnabled();
     final normalizedLibraryFirstTab =
         SettingsScreenController.normalizeLibraryFirstTab(
-          setBox.get(PrefKeys.libraryFirstTab),
+          _settingsRepository.getLibraryFirstTab(),
         );
     libraryFirstTab.value = normalizedLibraryFirstTab;
-    await setBox.put(PrefKeys.libraryFirstTab, normalizedLibraryFirstTab);
+    await _settingsRepository.setLibraryFirstTab(normalizedLibraryFirstTab);
+    notifyListeners();
   }
 
   Future<void> checkUpdate(BuildContext context) async {
@@ -336,8 +381,10 @@ class SettingsScreenController extends GetxController
     );
     final info = await checkNewVersion();
     if (info != null) {
-      await Get.dialog(
-        NewVersionDialog(
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => NewVersionDialog(
           updateInfo: info,
           disableStartupPopupOnUpdateTap: true,
         ),
@@ -356,18 +403,20 @@ class SettingsScreenController extends GetxController
         ? UpdateChannel.rolling
         : UpdateChannel.stable;
     updateChannel.value = next;
-    await setBox.put(PrefKeys.updateChannel, next.name);
+    await _settingsRepository.setUpdateChannel(next);
+    notifyListeners();
     if (updateCheckFlag) await checkNewVersion();
   }
 
   Future<void> setDeveloperSettingsEnabled(bool value) async {
     developerSettingsEnabled.value = value;
-    await setBox.put(PrefKeys.developerSettingsEnabled, value);
+    await _settingsRepository.setDeveloperSettingsEnabled(value);
     if (value) {
       refreshDeveloperSettingValues();
     } else {
       developerSettingValues.clear();
     }
+    notifyListeners();
   }
 
   void refreshDeveloperSettingValues() {
@@ -388,7 +437,9 @@ class SettingsScreenController extends GetxController
       ),
       DeveloperSettingValue(
         "update.newVersionVisibility",
-        _formatDeveloperValue(setBox.get(PrefKeys.newVersionVisibility)),
+        _formatDeveloperValue(
+          _settingsRepository.getNewVersionVisibility(updateCheckFlag),
+        ),
       ),
       DeveloperSettingValue("update.channel", updateChannel.value.name),
       DeveloperSettingValue(
@@ -401,19 +452,21 @@ class SettingsScreenController extends GetxController
       ),
     ];
 
-    final appPrefs = setBox.keys.toList()
+    final appPrefs = _settingsRepository.developerValues();
+    final keys = appPrefs.keys.toList()
       ..sort((a, b) => a.toString().compareTo(b.toString()));
-    for (final key in appPrefs) {
+    for (final key in keys) {
       final keyName = key.toString();
       values.add(
         DeveloperSettingValue(
           "appPrefs.$keyName",
-          _formatDeveloperValue(setBox.get(key), key: keyName),
+          _formatDeveloperValue(appPrefs[key], key: keyName),
         ),
       );
     }
 
     developerSettingValues.assignAll(values);
+    notifyListeners();
   }
 
   Map<String, dynamic>? _updateInfoForDeveloperView() {
@@ -477,76 +530,83 @@ class SettingsScreenController extends GetxController
   }
 
   Future<void> setAppLanguage(String? val) async {
-    await Get.updateLocale(Locale(val!));
-    Get.find<MusicServiceContract>().hlCode = val;
-    (Get.find<HomeScreenController>().loadContentFromNetwork(silent: true),);
-    currentAppLanguageCode.value = val;
-    await setBox.put(PrefKeys.currentAppLanguageCode, val);
+    final languageCode = _normalizeAppLanguageCode(val);
+    _appLocaleController.setLanguageCode(languageCode);
+    _musicService.hlCode = languageCode;
+    (_homeScreenController().loadContentFromNetwork(silent: true),);
+    currentAppLanguageCode.value = languageCode;
+    await _settingsRepository.setLanguageCode(languageCode);
+    notifyListeners();
+  }
+
+  String _normalizeAppLanguageCode(String? languageCode) {
+    return langMap.containsKey(languageCode) ? languageCode! : 'en';
   }
 
   Future<void> setContentNumber(int? no) async {
     noOfHomeScreenContent.value = no!;
-    await setBox.put(PrefKeys.noOfHomeScreenContent, no);
+    await _settingsRepository.setNoOfHomeScreenContent(no);
+    notifyListeners();
   }
 
   void setStreamingQuality(dynamic val) {
-    (setBox.put(PrefKeys.streamingQuality, AudioQuality.values.indexOf(val)),);
+    unawaited(
+      _settingsRepository.setStreamingQualityIndex(
+        AudioQuality.values.indexOf(val),
+      ),
+    );
     streamingQuality.value = val;
-    if (Get.isRegistered<AudioHandler>()) {
-      unawaited(Get.find<AudioHandler>().customAction("preloadConfigChanged"));
-    }
+    unawaited(_audioHandler.customAction("preloadConfigChanged"));
+    notifyListeners();
   }
 
   Future<void> setPlaybackMode(PlaybackMode? mode) async {
     final selectedMode = mode ?? PlaybackMode.classic;
-    await setBox.put(PrefKeys.playbackMode, selectedMode.index);
+    await _settingsRepository.setPlaybackMode(selectedMode);
     playbackMode.value = selectedMode;
     if (selectedMode == PlaybackMode.classic) {
       playbackPreloadRange.value = 0;
-      await setBox.put(PrefKeys.playbackPreloadRange, 0);
+      await _settingsRepository.setPlaybackPreloadRange(0);
     } else if (playbackPreloadRange.value == 0) {
       playbackPreloadRange.value = 1;
-      await setBox.put(PrefKeys.playbackPreloadRange, 1);
+      await _settingsRepository.setPlaybackPreloadRange(1);
     }
-    if (Get.isRegistered<AudioHandler>()) {
-      await Get.find<AudioHandler>().customAction("updatePlaybackMode", {
-        "mode": selectedMode.index,
-      });
-      await Get.find<AudioHandler>().customAction(
-        "updatePlaybackPreloadRange",
-        {"range": playbackPreloadRange.value},
-      );
-    }
+    await _audioHandler.customAction("updatePlaybackMode", {
+      "mode": selectedMode.index,
+    });
+    await _audioHandler.customAction("updatePlaybackPreloadRange", {
+      "range": playbackPreloadRange.value,
+    });
+    notifyListeners();
   }
 
   Future<void> setPlaybackPreloadRange(int? value) async {
     final range = (value ?? 0).clamp(0, 5).toInt();
-    await setBox.put(PrefKeys.playbackPreloadRange, range);
+    await _settingsRepository.setPlaybackPreloadRange(range);
     playbackPreloadRange.value = range;
     if (range > 0 && playbackMode.value != PlaybackMode.preloaded) {
       await setPlaybackMode(PlaybackMode.preloaded);
     }
-    if (Get.isRegistered<AudioHandler>()) {
-      await Get.find<AudioHandler>().customAction(
-        "updatePlaybackPreloadRange",
-        {"range": range},
-      );
-    }
+    await _audioHandler.customAction("updatePlaybackPreloadRange", {
+      "range": range,
+    });
+    notifyListeners();
   }
 
   Future<void> setPlayerUi(dynamic val) async {
-    final playerCon = Get.find<PlayerController>();
-    await setBox.put(PrefKeys.playerUi, val);
+    final playerCon = _playerController();
+    await _settingsRepository.setPlayerUi(val);
     if (val == 1 && playerCon.gesturePlayerStateAnimationController == null) {
       playerCon.initGesturePlayerStateAnimationController();
     }
 
     playerUi.value = val;
+    notifyListeners();
   }
 
   Future<void> enableBottomNavBar(bool val) async {
-    final homeScrCon = Get.find<HomeScreenController>();
-    final playerCon = Get.find<PlayerController>();
+    final homeScrCon = _homeScreenController();
+    final playerCon = _playerController();
     if (val) {
       homeScrCon.onSideBarTabSelected(3);
       isBottomNavBarEnabled.value = true;
@@ -554,22 +614,27 @@ class SettingsScreenController extends GetxController
       isBottomNavBarEnabled.value = false;
       homeScrCon.onSideBarTabSelected(5);
     }
-    if (!Get.find<PlayerController>().initFlagForPlayer) {
-      playerCon.playerPanelMinHeight.value = val
-          ? 75.0
-          : 75.0 + Get.mediaQuery.viewPadding.bottom;
+    if (!_playerController().initFlagForPlayer) {
+      final appContext = AppNavigator.context;
+      final bottomPadding = appContext == null
+          ? 0.0
+          : MediaQuery.of(appContext).viewPadding.bottom;
+      playerCon.playerPanelMinHeight.value = val ? 75.0 : 75.0 + bottomPadding;
     }
-    await setBox.put(PrefKeys.isBottomNavBarEnabled, val);
+    await _settingsRepository.setBottomNavBarEnabled(val);
+    notifyListeners();
   }
 
   Future<void> toggleSlidableAction(bool val) async {
-    await setBox.put(PrefKeys.slidableActionEnabled, val);
+    await _settingsRepository.setSlidableActionEnabled(val);
     slidableActionEnabled.value = val;
+    notifyListeners();
   }
 
   Future<void> changeDownloadingFormat(String? val) async {
-    await setBox.put(PrefKeys.downloadingFormat, val);
     downloadingFormat.value = val!;
+    await _settingsRepository.setDownloadingFormat(val);
+    notifyListeners();
   }
 
   Future<void> setExportedLocation() async {
@@ -584,8 +649,9 @@ class SettingsScreenController extends GetxController
       return;
     }
 
-    await setBox.put(PrefKeys.exportLocationPath, pickedFolderPath);
+    await _settingsRepository.setExportLocationPath(pickedFolderPath);
     exportLocationPath.value = pickedFolderPath;
+    notifyListeners();
   }
 
   Future<void> setDownloadLocation() async {
@@ -600,13 +666,15 @@ class SettingsScreenController extends GetxController
       return;
     }
 
-    await setBox.put(PrefKeys.downloadLocationPath, pickedFolderPath);
+    await _settingsRepository.setDownloadLocationPath(pickedFolderPath);
     downloadLocationPath.value = pickedFolderPath;
+    notifyListeners();
   }
 
   Future<void> disableTransitionAnimation(bool val) async {
-    await setBox.put(PrefKeys.isTransitionAnimationDisabled, val);
+    await _settingsRepository.setTransitionAnimationDisabled(val);
     isTransitionAnimationDisabled.value = val;
+    notifyListeners();
   }
 
   Future<void> clearImagesCache() async {
@@ -623,83 +691,76 @@ class SettingsScreenController extends GetxController
 
   Future<void> resetDownloadLocation() async {
     final defaultPath = "$_supportDir/Music";
-    await setBox.put(PrefKeys.downloadLocationPath, defaultPath);
+    await _settingsRepository.setDownloadLocationPath(defaultPath);
     downloadLocationPath.value = defaultPath;
+    notifyListeners();
   }
 
   Future<void> onThemeChange(dynamic val) async {
-    (setBox.put(PrefKeys.themeModeType, ThemeType.values.indexOf(val)),);
+    unawaited(
+      _settingsRepository.setThemeModeType(ThemeType.values.indexOf(val)),
+    );
     themeModeType.value = val;
-    await Get.find<ThemeController>().changeThemeModeType(val);
+    await _themeController().changeThemeModeType(val);
+    notifyListeners();
   }
 
   Future<void> onContentChange(dynamic value) async {
-    await setBox.put(PrefKeys.discoverContentType, value);
+    await _settingsRepository.setDiscoverContentType(value);
     discoverContentType.value = value;
-    await Get.find<HomeScreenController>().changeDiscoverContent(value);
+    await _homeScreenController().changeDiscoverContent(value);
+    notifyListeners();
   }
 
   Future<void> toggleCachingSongsValue(bool value) async {
-    await setBox.put(PrefKeys.cacheSongs, value);
+    await _settingsRepository.setCacheSongs(value);
     cacheSongs.value = value;
+    notifyListeners();
   }
 
   Future<void> toggleSkipSilence(bool val) async {
-    await Get.find<PlayerController>().toggleSkipSilence(val);
-    await setBox.put(PrefKeys.skipSilenceEnabled, val);
+    await _playerController().toggleSkipSilence(val);
+    await _settingsRepository.setSkipSilenceEnabled(val);
     skipSilenceEnabled.value = val;
+    notifyListeners();
   }
 
   Future<void> toggleLoudnessNormalization(bool val) async {
-    await Get.find<PlayerController>().toggleLoudnessNormalization(val);
-    await setBox.put(PrefKeys.loudnessNormalizationEnabled, val);
+    await _playerController().toggleLoudnessNormalization(val);
+    await _settingsRepository.setLoudnessNormalizationEnabled(val);
     loudnessNormalizationEnabled.value = val;
+    notifyListeners();
   }
 
   Future<void> toggleRestorePlaybackSession(bool val) async {
-    await setBox.put(PrefKeys.restorePlaybackSession, val);
+    await _settingsRepository.setRestorePlaybackSession(val);
     restorePlaybackSession.value = val;
+    notifyListeners();
   }
 
   Future<void> toggleCacheHomeScreenData(bool val) async {
-    await setBox.put(PrefKeys.cacheHomeScreenData, val);
+    await _settingsRepository.setCacheHomeScreenData(val);
     cacheHomeScreenData.value = val;
     if (!val) {
-      (
-        Hive.openBox(BoxNames.homeScreenData).then((box) async {
-          await box.clear();
-          await box.close();
-        }),
-      );
+      await _storageAdminRepository.clearBoxes([BoxNames.homeScreenData]);
     } else {
-      await Hive.openBox(BoxNames.homeScreenData);
-      (Get.find<HomeScreenController>().cachedHomeScreenData(updateAll: true),);
+      (_homeScreenController().cachedHomeScreenData(updateAll: true),);
     }
+    notifyListeners();
   }
 
   Future<void> resetRecoverableAppState() async {
-    final homeScreenData = await Hive.openBox(BoxNames.homeScreenData);
-    await homeScreenData.clear();
+    await _storageAdminRepository.clearPlaybackAndCacheData();
 
-    final prevSessionData = await Hive.openBox(BoxNames.prevSessionData);
-    await prevSessionData.clear();
-    await Hive.box(BoxNames.songsUrlCache).clear();
-    await setBox.delete(PrefKeys.homeScreenDataTime);
+    final homeController = _homeScreenController();
+    homeController.resetRecoverableNavigationState();
 
-    final homeController = Get.find<HomeScreenController>();
-    homeController.tabIndex.value = 0;
-    homeController.isHomeScreenOnTop.value = true;
-    homeController.networkError.value = false;
-    homeController.isContentFetched.value = false;
-
-    final nestedNavigator = Get.nestedKey(
-      ScreenNavigationSetup.id,
-    )?.currentState;
+    final nestedNavigator = ScreenNavigationSetup.navigatorKey.currentState;
     nestedNavigator?.popUntil(
       (route) => route.settings.name == ScreenNavigationSetup.homeScreen,
     );
 
-    final playerController = Get.find<PlayerController>();
+    final playerController = _playerController();
     if (playerController.playerPanelController.isAttached &&
         playerController.playerPanelController.isPanelOpen) {
       await playerController.playerPanelController.close();
@@ -713,7 +774,7 @@ class SettingsScreenController extends GetxController
   }
 
   Future<void> exportDeveloperClonePackage() async {
-    if (!GetPlatform.isAndroid) return;
+    if (!RuntimePlatform.isAndroid) return;
     if (!await PermissionService.getExtStoragePermission()) {
       return;
     }
@@ -774,7 +835,7 @@ class SettingsScreenController extends GetxController
   }
 
   Future<void> importDeveloperClonePackage() async {
-    if (!GetPlatform.isAndroid) return;
+    if (!RuntimePlatform.isAndroid) return;
     if (!await PermissionService.getExtStoragePermission()) {
       return;
     }
@@ -836,23 +897,24 @@ class SettingsScreenController extends GetxController
   }
 
   Future<void> toggleAutoDownloadFavoriteSong(bool val) async {
-    await setBox.put(PrefKeys.autoDownloadFavoriteSongEnabled, val);
+    await _settingsRepository.setAutoDownloadFavoriteSongEnabled(val);
     autoDownloadFavoriteSongEnabled.value = val;
+    notifyListeners();
   }
 
   Future<void> toggleBackgroundPlay(bool val) async {
-    await setBox.put(PrefKeys.backgroundPlayEnabled, val);
+    await _settingsRepository.setBackgroundPlayEnabled(val);
     backgroundPlayEnabled.value = val;
+    notifyListeners();
   }
 
   Future<void> toggleKeepScreenAwake(bool val) async {
-    await setBox.put(PrefKeys.keepScreenAwake, val);
+    await _settingsRepository.setKeepScreenAwake(val);
     keepScreenAwake.value = val;
     try {
       if (val) {
         // enable wakelock immediately if music is playing
-        if (Get.find<PlayerController>().buttonState.value ==
-            PlayButtonState.playing) {
+        if (_playerController().buttonState.value == PlayButtonState.playing) {
           await AppPlatformService.setKeepScreenAwake(true);
         }
       } else {
@@ -861,12 +923,13 @@ class SettingsScreenController extends GetxController
     } catch (e) {
       // ignore if player/controller not available
     }
+    notifyListeners();
   }
 
   Future<void> openBatteryOptimizationSettings() async {
-    if (!GetPlatform.isAndroid) return;
+    if (!RuntimePlatform.isAndroid) return;
 
-    await setBox.put(PrefKeys.batteryOptimizationPromptShown, true);
+    await _settingsRepository.setBatteryOptimizationPromptShown(true);
     final isIgnoring = await Permission.ignoreBatteryOptimizations.isGranted;
     if (isIgnoring) {
       await openAppSettings();
@@ -877,33 +940,36 @@ class SettingsScreenController extends GetxController
   }
 
   Future<void> refreshIgnoringBatteryOptimizations() async {
-    if (!GetPlatform.isAndroid) return;
+    if (!RuntimePlatform.isAndroid) return;
     isIgnoringBatteryOptimizations.value =
         await Permission.ignoreBatteryOptimizations.isGranted;
+    notifyListeners();
   }
 
   Future<void> _requestIgnoringBatteryOptimizationsOnInstall() async {
-    if (setBox.get(PrefKeys.batteryOptimizationPromptShown) == true ||
-        isIgnoringBatteryOptimizations.isTrue) {
+    if (_settingsRepository.getBatteryOptimizationPromptShown() ||
+        isIgnoringBatteryOptimizations.value) {
       return;
     }
 
-    await setBox.put(PrefKeys.batteryOptimizationPromptShown, true);
+    await _settingsRepository.setBatteryOptimizationPromptShown(true);
     await Permission.ignoreBatteryOptimizations.request();
     await refreshIgnoringBatteryOptimizations();
   }
 
   Future<void> toggleAutoOpenPlayer(bool val) async {
-    await setBox.put(PrefKeys.autoOpenPlayer, val);
+    await _settingsRepository.setAutoOpenPlayer(val);
     autoOpenPlayer.value = val;
+    notifyListeners();
   }
 
   Future<void> setFirstLibraryTab(int index) async {
     final normalizedIndex = SettingsScreenController.normalizeLibraryFirstTab(
       index,
     );
-    await setBox.put(PrefKeys.libraryFirstTab, normalizedIndex);
+    await _settingsRepository.setLibraryFirstTab(normalizedIndex);
     libraryFirstTab.value = normalizedIndex;
+    notifyListeners();
   }
 
   static int normalizeLibraryFirstTab(dynamic value) {
@@ -914,32 +980,30 @@ class SettingsScreenController extends GetxController
   }
 
   Future<void> unlinkPiped() async {
-    await Get.find<PipedServices>().logout();
+    await _pipedServices().logout();
     isLinkedWithPiped.value = false;
-    Get.find<LibraryPlaylistsController>().removePipedPlaylists();
-    final box = await Hive.openBox('blacklistedPlaylist');
-    await box.clear();
-    ScaffoldMessenger.of(Get.context!).showSnackBar(
-      snackbar(Get.context!, "unlinkAlert".tr, size: SanckBarSize.MEDIUM),
-    );
-    await box.close();
+    LibraryPlaylistsControllerRegistry.current?.removePipedPlaylists();
+    await _playlistRepository.clearBlacklistedPlaylistIds();
+    _showSettingsSnack("unlinkAlert".tr);
+    notifyListeners();
   }
 
   Future<void> resetAppSettingsToDefault() async {
-    await setBox.clear();
+    await _settingsRepository.clearAll();
   }
 
   Future<void> toggleStopPlaybackOnSwipeAway(bool val) async {
-    await setBox.put('stopPlaybackOnSwipeAway', val);
+    await _settingsRepository.setStopPlaybackOnSwipeAway(val);
     stopPlaybackOnSwipeAway.value = val;
+    notifyListeners();
   }
 
   Future<void> closeAllDatabases() async {
-    await Hive.close();
+    await _storageAdminRepository.closeAll();
   }
 
   Future<String> get dbDir async {
-    if (GetPlatform.isDesktop) {
+    if (RuntimePlatform.isDesktop) {
       return "$supportDirPath/db";
     } else {
       return (await getApplicationDocumentsDirectory()).path;
@@ -964,9 +1028,7 @@ class SettingsScreenController extends GetxController
       'searchQuery',
       'lyrics',
     ]) {
-      if (Hive.isBoxOpen(boxName)) {
-        await Hive.box(boxName).flush();
-      }
+      await _storageAdminRepository.flushBox(boxName);
     }
   }
 
@@ -1030,59 +1092,14 @@ class SettingsScreenController extends GetxController
     final oldMusicPath = "$sourceSupportPath/Music";
     final newMusicPath = "$targetSupportPath/Music";
 
-    final downloadsBox = await Hive.openBox(BoxNames.songDownloads);
-    for (final key in downloadsBox.keys.toList()) {
-      final song = downloadsBox.get(key);
-      if (song is! Map) continue;
-
-      final updatedSong = Map<dynamic, dynamic>.from(song);
-      updatedSong['url'] = _rewriteClonePath(
-        updatedSong['url'],
-        oldMusicPath,
-        newMusicPath,
-      );
-
-      final streamInfo = updatedSong['streamInfo'];
-      if (streamInfo is List && streamInfo.length > 1 && streamInfo[1] is Map) {
-        final streamInfoData = Map<dynamic, dynamic>.from(streamInfo[1]);
-        streamInfoData['url'] = _rewriteClonePath(
-          streamInfoData['url'],
-          oldMusicPath,
-          newMusicPath,
-        );
-        final updatedStreamInfo = List<dynamic>.from(streamInfo);
-        updatedStreamInfo[1] = streamInfoData;
-        updatedSong['streamInfo'] = updatedStreamInfo;
-      }
-
-      await downloadsBox.put(key, updatedSong);
-    }
-
-    final appPrefsBox = await Hive.openBox(BoxNames.appPrefs);
-    final downloadPath = appPrefsBox.get(PrefKeys.downloadLocationPath);
-    final updatedDownloadPath = _rewriteClonePath(
-      downloadPath,
-      oldMusicPath,
-      newMusicPath,
+    await _storageAdminRepository.rewriteClonePaths(
+      oldMusicPath: oldMusicPath,
+      newMusicPath: newMusicPath,
     );
-    if (updatedDownloadPath != downloadPath) {
-      await appPrefsBox.put(PrefKeys.downloadLocationPath, updatedDownloadPath);
-    }
-
-    await downloadsBox.flush();
-    await appPrefsBox.flush();
-  }
-
-  dynamic _rewriteClonePath(dynamic value, String oldPath, String newPath) {
-    if (value is! String) return value;
-    if (value.startsWith(oldPath)) {
-      return value.replaceFirst(oldPath, newPath);
-    }
-    return value;
   }
 
   void _showSettingsSnack(String message) {
-    final context = Get.context;
+    final context = AppNavigator.context;
     if (context == null) return;
     ScaffoldMessenger.of(
       context,

@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
 
 import 'app_contracts.dart';
 import 'constant.dart';
@@ -125,10 +124,10 @@ class DefaultAppPlatformService implements AppPlatformContract {
 class AppPlatformService {
   AppPlatformService._();
 
+  static AppPlatformContract? override;
+
   static AppPlatformContract get _service =>
-      Get.isRegistered<AppPlatformContract>()
-      ? Get.find<AppPlatformContract>()
-      : const DefaultAppPlatformService();
+      override ?? const DefaultAppPlatformService();
 
   static Future<AppPlatformInfo> getAppInfo() => _service.getAppInfo();
 

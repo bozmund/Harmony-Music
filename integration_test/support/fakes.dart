@@ -1,6 +1,5 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:file_selector/file_selector.dart';
-import 'package:get/get.dart';
 import 'package:harmonymusic/models/album.dart';
 import 'package:harmonymusic/models/playlist.dart';
 import 'package:harmonymusic/services/app_contracts.dart';
@@ -21,7 +20,7 @@ MediaItem testSong({
   );
 }
 
-class FakeMusicService extends GetxService implements MusicServiceContract {
+class FakeMusicService implements MusicServiceContract {
   String languageCode = 'en';
 
   final songOne = testSong();
@@ -194,31 +193,6 @@ class FakeMusicService extends GetxService implements MusicServiceContract {
   }
 }
 
-class FakeDownloader extends GetxService implements DownloaderContract {
-  @override
-  MediaItem? currentSong;
-  final downloaded = <String>[];
-  final cancelled = <String>[];
-
-  @override
-  Future<void> download(MediaItem? song, {List<MediaItem>? songList}) async {
-    currentSong =
-        song ?? (songList == null || songList.isEmpty ? null : songList.first);
-    downloaded.addAll((songList ?? [?song]).map((e) => e.id));
-  }
-
-  @override
-  Future<void> downloadPlaylist(String playlistId, List<MediaItem> songList) {
-    downloaded.addAll(songList.map((e) => e.id));
-    return Future.value();
-  }
-
-  @override
-  void cancelSongDownload(MediaItem song) {
-    cancelled.add(song.id);
-  }
-}
-
 class FakeUpdateService implements UpdateServiceContract {
   const FakeUpdateService({this.rollingSha = 'remote-sha'});
 
@@ -303,6 +277,11 @@ class FakeFilePicker implements FilePickerContract {
   }) async {
     final path = filePath;
     return path == null ? null : XFile(path);
+  }
+
+  @override
+  Future<String?> pickLargeFilePath({required List<String> extensions}) async {
+    return filePath;
   }
 
   @override

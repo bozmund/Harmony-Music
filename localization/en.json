@@ -281,5 +281,11 @@
     "keepScreenOnWhilePlayingDes": "If enabled, the device screen will stay awake while music is playing",
     "checkUpdate": "Check for updates",
     "upToDate": "App is up to date",
-    "checkingUpdate": "Checking for updates..."
+    "checkingUpdate": "Checking for updates...",
+    "chooseUpdateChannel": "Choose your update channel",
+    "chooseUpdateChannelDes": "Harmony Music now offers two update channels. Pick how you want to receive updates — you can change this anytime in Settings.",
+    "stableChannelOption": "Stable (recommended)",
+    "stableChannelOptionDes": "Tested, versioned releases. Fewer updates, more reliable.",
+    "rollingChannelOption": "Rolling",
+    "rollingChannelOptionDes": "Every new build from development. Newest features first, but may be less stable."
 }

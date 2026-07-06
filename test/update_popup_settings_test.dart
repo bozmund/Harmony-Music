@@ -32,7 +32,7 @@ void main() {
       final checkBlock = _methodBlock(homeController, '_checkNewVersion');
 
       expect(checkBlock, contains('isStartupUpdatePopupEnabled()'));
-      expect(checkBlock, contains('if (showVersionDialog.isTrue)'));
+      expect(checkBlock, contains('if (showVersionDialog)'));
       expect(checkBlock, contains('settingsController.checkNewVersion()'));
     });
 
@@ -46,8 +46,8 @@ void main() {
         'onChangeVersionVisibility',
       );
 
-      expect(helperBlock, contains('PrefKeys.newVersionVisibility'));
-      expect(helperBlock, contains('showVersionDialog.value = enabled'));
+      expect(helperBlock, contains('setNewVersionVisibility'));
+      expect(helperBlock, contains('showVersionDialog = enabled'));
       expect(checkboxBlock, contains('setStartupUpdatePopupEnabled(!val)'));
     });
 
@@ -69,7 +69,11 @@ void main() {
           updateDialog,
           contains('disableStartupPopupOnUpdateTap = false'),
         );
-        expect(updateDialog, contains('disableStartupUpdatePopup()'));
+        expect(
+          updateDialog,
+          contains('homeController.disableStartupUpdatePopup'),
+        );
+        expect(updateDialog, contains('disableStartupPopup();'));
       },
     );
 

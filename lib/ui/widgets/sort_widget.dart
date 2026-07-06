@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/app/providers/repository_providers.dart';
 import 'package:harmonymusic/ui/screens/Library/library_controller.dart';
 
 import 'additional_operation_dialog.dart';
@@ -27,7 +29,7 @@ Set<SortType> buildSortTypeSet([
   return requiredSortTypes;
 }
 
-class SortWidget extends StatelessWidget {
+class SortWidget extends StatefulWidget {
   /// Additional operations - Delete Multiple songs, Rearrange offline playlist, Add Multiple songs to playlist
   const SortWidget({
     super.key,
@@ -52,6 +54,7 @@ class SortWidget extends StatelessWidget {
     this.initialSortType = SortType.name,
     this.initialIsAscending = true,
     required this.onSort,
+    this.onMounted,
   });
 
   /// unique identifier for each sort-widget
@@ -76,6 +79,53 @@ class SortWidget extends StatelessWidget {
   final bool isImportFeatureRequired;
   final SortType initialSortType;
   final bool initialIsAscending;
+
+  /// Fired once after this sort widget attaches. A freshly mounted sort
+  /// widget always starts with the search bar closed and empty, so screens
+  /// whose controller outlives the widget (the library tabs) use this to
+  /// drop a filter left over from a previous visit — otherwise the list
+  /// stays filtered with no visible search text.
+  final VoidCallback? onMounted;
+
+  @override
+  State<SortWidget> createState() => _SortWidgetState();
+}
+
+class _SortWidgetState extends State<SortWidget> {
+  late final SortWidgetController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = SortWidgetController(
+      initialSortType: widget.initialSortType,
+      initialIsAscending: widget.initialIsAscending,
+    );
+    SortWidgetRegistry.register(widget.tag, controller);
+    if (widget.onMounted != null) {
+      // Deferred past the first frame: the callback may notify listeners,
+      // which is not allowed while the surrounding build is still running.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onMounted!();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SortWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tag != widget.tag) {
+      SortWidgetRegistry.unregister(oldWidget.tag, controller);
+      SortWidgetRegistry.register(widget.tag, controller);
+    }
+  }
+
+  @override
+  void dispose() {
+    SortWidgetRegistry.unregister(widget.tag, controller);
+    controller.dispose();
+    super.dispose();
+  }
 
   Future<void> _showImportDialog(BuildContext context) async {
     await showDialog(
@@ -120,8 +170,8 @@ class SortWidget extends StatelessWidget {
                 icon: const Icon(Icons.file_open),
                 label: Text("selectFile".tr),
                 onPressed: () async {
-                  await Get.find<LibraryPlaylistsController>()
-                      .importPlaylistFromJson(context);
+                  await LibraryPlaylistsControllerRegistry.current
+                      ?.importPlaylistFromJson(context);
                   if (!context.mounted) return;
                   Navigator.pop(context);
                   Navigator.pop(context);
@@ -145,33 +195,27 @@ class SortWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(
-      SortWidgetController(
-        initialSortType: initialSortType,
-        initialIsAscending: initialIsAscending,
-      ),
-      tag: tag,
-    );
-    final canSaveLibrarySearch = tag == "LibSongSort";
+    final canSaveLibrarySearch = widget.tag == "LibSongSort";
     return Padding(
       padding: const EdgeInsets.only(top: 10.0),
       child: SizedBox(
         height: 40,
-        child: Obx(
-          () => Stack(
+        child: AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) => Stack(
             children: [
-              if (controller.isSearchingEnabled.isFalse)
+              if (!controller.isSearchingEnabled)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Padding(
-                      padding: EdgeInsets.only(left: titleLeftPadding),
+                      padding: EdgeInsets.only(left: widget.titleLeftPadding),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(itemCountTitle),
-                          if (itemIcon != null)
+                          Text(widget.itemCountTitle),
+                          if (widget.itemIcon != null)
                             Icon(
                               Icons.music_note,
                               size: 15,
@@ -180,71 +224,67 @@ class SortWidget extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Obx(
-                      () => _customIconButton(
-                        isSelected: controller.sortType.value == SortType.name,
-                        icon: Icons.sort_by_alpha,
-                        tooltip: "sortByName".tr,
-                        onPressed: () {
-                          controller.onSortByName(onSort);
-                        },
-                      ),
+                    _customIconButton(
+                      context,
+                      isSelected: controller.sortType == SortType.name,
+                      icon: Icons.sort_by_alpha,
+                      tooltip: "sortByName".tr,
+                      onPressed: () {
+                        controller.onSortByName(widget.onSort);
+                      },
                     ),
-                    requiredSortTypes.contains(SortType.date)
-                        ? Obx(
-                            () => _customIconButton(
-                              isSelected:
-                                  controller.sortType.value == SortType.date,
-                              icon: Icons.calendar_month,
-                              tooltip: "sortByDate".tr,
-                              onPressed: () {
-                                controller.onSortByDate(onSort);
-                              },
-                            ),
+                    widget.requiredSortTypes.contains(SortType.date)
+                        ? _customIconButton(
+                            context,
+                            isSelected: controller.sortType == SortType.date,
+                            icon: Icons.calendar_month,
+                            tooltip: "sortByDate".tr,
+                            onPressed: () {
+                              controller.onSortByDate(widget.onSort);
+                            },
                           )
                         : const SizedBox.shrink(),
-                    requiredSortTypes.contains(SortType.duration)
-                        ? Obx(
-                            () => _customIconButton(
-                              isSelected:
-                                  controller.sortType.value ==
-                                  SortType.duration,
-                              tooltip: "sortByDuration".tr,
-                              icon: Icons.timer,
-                              onPressed: () {
-                                controller.onSortByDuration(onSort);
-                              },
-                            ),
+                    widget.requiredSortTypes.contains(SortType.duration)
+                        ? _customIconButton(
+                            context,
+                            isSelected:
+                                controller.sortType == SortType.duration,
+                            tooltip: "sortByDuration".tr,
+                            icon: Icons.timer,
+                            onPressed: () {
+                              controller.onSortByDuration(widget.onSort);
+                            },
                           )
                         : const SizedBox.shrink(),
                     const Expanded(child: SizedBox()),
-                    Obx(
-                      () => _customIconButton(
-                        icon: controller.isAscending.value
-                            ? Icons.arrow_downward
-                            : Icons.arrow_upward,
-                        tooltip: "sortAscendNDescend".tr,
-                        onPressed: () {
-                          controller.onAscendNDescend(onSort);
-                        },
-                      ),
+                    _customIconButton(
+                      context,
+                      icon: controller.isAscending
+                          ? Icons.arrow_downward
+                          : Icons.arrow_upward,
+                      tooltip: "sortAscendNDescend".tr,
+                      onPressed: () {
+                        controller.onAscendNDescend(widget.onSort);
+                      },
                     ),
-                    if (isImportFeatureRequired)
+                    if (widget.isImportFeatureRequired)
                       _customIconButton(
+                        context,
                         icon: Icons.import_contacts,
                         tooltip: "importPlaylist".tr,
                         onPressed: () => _showImportDialog(context),
                       ),
-                    if (isSearchFeatureRequired)
+                    if (widget.isSearchFeatureRequired)
                       _customIconButton(
+                        context,
                         icon: Icons.search,
                         tooltip: "search".tr,
                         onPressed: () {
-                          onSearchStart!(tag);
+                          widget.onSearchStart!(widget.tag);
                           controller.toggleSearch();
                         },
                       ),
-                    if (isAdditionalOperationRequired)
+                    if (widget.isAdditionalOperationRequired)
                       PopupMenuButton(
                         child: const Icon(Icons.more_vert, size: 20),
                         // Callback that sets the selected popup menu item.
@@ -253,21 +293,21 @@ class SortWidget extends StatelessWidget {
                             context: context,
                             builder: (context) => AdditionalOperationDialog(
                               operationMode: mode,
-                              screenController: screenController,
+                              screenController: widget.screenController,
                               controller: controller,
                             ),
                           );
 
                           controller.setActiveMode(mode);
-                          startAdditionalOperation!(controller, mode);
+                          widget.startAdditionalOperation!(controller, mode);
                         },
                         itemBuilder: (BuildContext context) => <PopupMenuEntry>[
-                          if (isPlaylistRearrangeFeatureRequired)
+                          if (widget.isPlaylistRearrangeFeatureRequired)
                             PopupMenuItem(
                               value: OperationMode.arrange,
                               child: Text("reArrangePlaylist".tr),
                             ),
-                          if (isSongDeletionFeatureRequired)
+                          if (widget.isSongDeletionFeatureRequired)
                             PopupMenuItem(
                               value: OperationMode.delete,
                               child: Text("removeMultiple".tr),
@@ -281,7 +321,7 @@ class SortWidget extends StatelessWidget {
                     const SizedBox(width: 15),
                   ],
                 ),
-              if (controller.isSearchingEnabled.value)
+              if (controller.isSearchingEnabled)
                 Container(
                   height: 40,
                   padding: const EdgeInsets.only(left: 5, right: 20),
@@ -296,7 +336,7 @@ class SortWidget extends StatelessWidget {
                       textAlignVertical: TextAlignVertical.center,
                       autofocus: true,
                       onChanged: (value) {
-                        onSearch!(value, tag);
+                        widget.onSearch!(value, widget.tag);
                       },
                       cursorColor: Theme.of(
                         context,
@@ -306,7 +346,7 @@ class SortWidget extends StatelessWidget {
                         contentPadding: const EdgeInsets.all(8),
                         filled: true,
                         border: const OutlineInputBorder(),
-                        hintText: tag.startsWith("Lib")
+                        hintText: widget.tag.startsWith("Lib")
                             ? "searchHint".tr
                             : "search".tr,
                         suffixIconColor: Theme.of(
@@ -326,16 +366,20 @@ class SortWidget extends StatelessWidget {
                                       .text
                                       .trim();
                                   if (query.isEmpty) return;
-                                  final isSearchControllerRegistered =
-                                      Get.isRegistered<
-                                        LibrarySearchesController
-                                      >();
-                                  if (!isSearchControllerRegistered) {
-                                    Get.put(LibrarySearchesController());
-                                  }
-                                  await Get.find<LibrarySearchesController>()
-                                      .saveSearch(query);
-                                  Get.snackbar("searchSaved".tr, query);
+                                  await ProviderScope.containerOf(
+                                        context,
+                                        listen: false,
+                                      )
+                                      .read(libraryRepositoryProvider)
+                                      .addSearch(query);
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "${"searchSaved".tr}: $query",
+                                      ),
+                                    ),
+                                  );
                                 },
                               ),
                             IconButton(
@@ -343,7 +387,7 @@ class SortWidget extends StatelessWidget {
                               iconSize: 20,
                               icon: const Icon(Icons.cancel),
                               onPressed: () {
-                                onSearchClose!(tag);
+                                widget.onSearchClose!(widget.tag);
                                 controller.toggleSearch();
                               },
                             ),
@@ -360,7 +404,8 @@ class SortWidget extends StatelessWidget {
     );
   }
 
-  Widget _customIconButton({
+  Widget _customIconButton(
+    BuildContext context, {
     required IconData icon,
     required String tooltip,
     bool? isSelected,
@@ -370,8 +415,8 @@ class SortWidget extends StatelessWidget {
       icon: Icon(icon),
       padding: const EdgeInsets.all(0),
       color: isSelected == null || isSelected == true
-          ? Theme.of(Get.context!).textTheme.bodySmall!.color
-          : Theme.of(Get.context!).colorScheme.secondary,
+          ? Theme.of(context).textTheme.bodySmall!.color
+          : Theme.of(context).colorScheme.secondary,
       iconSize: 20,
       splashRadius: 20,
       visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
@@ -381,59 +426,83 @@ class SortWidget extends StatelessWidget {
   }
 }
 
-class SortWidgetController extends GetxController {
+class SortWidgetRegistry {
+  static final _controllers = <String, SortWidgetController>{};
+
+  static void register(String tag, SortWidgetController controller) {
+    _controllers[tag] = controller;
+  }
+
+  static void unregister(String tag, SortWidgetController controller) {
+    if (_controllers[tag] == controller) {
+      _controllers.remove(tag);
+    }
+  }
+
+  static SortWidgetController? maybeOf(String? tag) =>
+      tag == null ? null : _controllers[tag];
+}
+
+class SortWidgetController extends ChangeNotifier {
   SortWidgetController({
     SortType initialSortType = SortType.name,
     bool initialIsAscending = true,
-  }) : sortType = initialSortType.obs,
-       isAscending = initialIsAscending.obs;
+  }) : sortType = initialSortType,
+       isAscending = initialIsAscending;
 
-  final Rx<SortType> sortType;
-  final RxBool isAscending;
-  final isSearchingEnabled = false.obs;
-  final isRearrangingEnabled = false.obs;
-  final isDeletionEnabled = false.obs;
-  final isAddToPlaylistEnabled = false.obs;
-  final isAllSelected = false.obs;
-  TextEditingController textEditingController = TextEditingController();
+  SortType sortType;
+  bool isAscending;
+  bool isSearchingEnabled = false;
+  bool isRearrangingEnabled = false;
+  bool isDeletionEnabled = false;
+  bool isAddToPlaylistEnabled = false;
+  bool isAllSelected = false;
+  final TextEditingController textEditingController = TextEditingController();
 
   void setActiveMode(OperationMode mode) {
-    isAddToPlaylistEnabled.value = OperationMode.addToPlaylist == mode;
-    isDeletionEnabled.value = OperationMode.delete == mode;
-    isRearrangingEnabled.value = OperationMode.arrange == mode;
+    isAddToPlaylistEnabled = OperationMode.addToPlaylist == mode;
+    isDeletionEnabled = OperationMode.delete == mode;
+    isRearrangingEnabled = OperationMode.arrange == mode;
+    notifyListeners();
   }
 
   void toggleSelectAll(bool val) {
-    isAllSelected.value = val;
+    isAllSelected = val;
+    notifyListeners();
   }
 
   void onSortByName(Function onSort) {
-    sortType.value = SortType.name;
-    onSort(sortType.value, isAscending.value);
+    sortType = SortType.name;
+    notifyListeners();
+    onSort(sortType, isAscending);
   }
 
   void onSortByDuration(Function onSort) {
-    sortType.value = SortType.duration;
-    onSort(sortType.value, isAscending.value);
+    sortType = SortType.duration;
+    notifyListeners();
+    onSort(sortType, isAscending);
   }
 
   void onSortByDate(Function onSort) {
-    sortType.value = SortType.date;
-    onSort(sortType.value, isAscending.value);
+    sortType = SortType.date;
+    notifyListeners();
+    onSort(sortType, isAscending);
   }
 
   void onAscendNDescend(Function onSort) {
-    isAscending.value = !isAscending.value;
-    onSort(sortType.value, isAscending.value);
+    isAscending = !isAscending;
+    notifyListeners();
+    onSort(sortType, isAscending);
   }
 
   void toggleSearch() {
-    isSearchingEnabled.value = !isSearchingEnabled.value;
+    isSearchingEnabled = !isSearchingEnabled;
+    notifyListeners();
   }
 
   @override
-  void onClose() {
+  void dispose() {
     textEditingController.dispose();
-    super.onClose();
+    super.dispose();
   }
 }

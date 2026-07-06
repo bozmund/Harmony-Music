@@ -4,20 +4,21 @@ import 'dart:ui';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:harmonymusic/ui/player/components/background_image.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
+import '../../../app/providers/controller_providers.dart';
 import '../../widgets/song_info_bottom_sheet.dart';
 import '../../utils/theme_controller.dart';
-import '../player_controller.dart';
 
-class GesturePlayer extends StatelessWidget {
+class GesturePlayer extends ConsumerWidget {
   const GesturePlayer({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final PlayerController playerController = Get.find<PlayerController>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerController = ref.read(playerControllerProvider);
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Stack(
       children: [
         GestureDetector(
@@ -44,14 +45,15 @@ class GesturePlayer extends StatelessWidget {
                 playerController.currentSong.value!,
                 calledFromPlayer: true,
               ),
-            ).whenComplete(() => Get.delete<SongInfoController>());
+            );
           },
         ),
         IgnorePointer(
           child: Align(
             child: Center(
-              child: Obx(
-                () => FadeTransition(
+              child: AnimatedBuilder(
+                animation: playerController.gesturePlayerVisibleState,
+                builder: (context, _) => FadeTransition(
                   opacity: playerController.gesturePlayerStateAnimation!,
                   child: playerController.gesturePlayerVisibleState.value == 2
                       ? const SizedBox.shrink()
@@ -67,43 +69,49 @@ class GesturePlayer extends StatelessWidget {
             ),
           ),
         ),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: Get.mediaQuery.padding.bottom != 0
-                  ? Get.mediaQuery.padding.bottom + 10
-                  : 20,
-              left: 20,
-              right: 20,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(10),
+        AnimatedBuilder(
+          animation: Listenable.merge([
+            playerController.currentSong,
+            playerController.currentQueue,
+            playerController.isCurrentSongFav,
+            playerController.isShuffleModeEnabled,
+            playerController.isLoopModeEnabled,
+            playerController.isQueueLoopModeEnabled,
+          ]),
+          builder: (context, _) => Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: bottomPadding != 0 ? bottomPadding + 10 : 20,
+                left: 20,
+                right: 20,
               ),
-              constraints: const BoxConstraints(maxWidth: 500),
-              height: 142,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 10,
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Obx(() {
-                                    return Marquee(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                constraints: const BoxConstraints(maxWidth: 500),
+                height: 142,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 10,
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Marquee(
                                       delay: const Duration(milliseconds: 300),
                                       duration: const Duration(seconds: 10),
                                       id: "${playerController.currentSong.value}_title",
@@ -125,62 +133,53 @@ class GesturePlayer extends StatelessWidget {
                                               ).primaryColor.complementaryColor,
                                             ),
                                       ),
-                                    );
-                                  }),
-                                  const SizedBox(height: 7),
-                                  GetX<PlayerController>(
-                                    builder: (controller) {
-                                      return Marquee(
-                                        delay: const Duration(
-                                          milliseconds: 300,
-                                        ),
-                                        duration: const Duration(seconds: 10),
-                                        id: "${playerController.currentSong.value}_subtitle",
-                                        child: Text(
-                                          playerController.currentSong.value !=
-                                                  null
-                                              ? controller
-                                                    .currentSong
-                                                    .value!
-                                                    .artist!
-                                              : "NA",
-                                          textAlign: TextAlign.start,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleSmall!
-                                              .copyWith(
-                                                color: Theme.of(context)
-                                                    .primaryColor
-                                                    .complementaryColor,
-                                                fontWeight: FontWeight.normal,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(
-                              width: 75,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  IconButton(
-                                    splashRadius: 10,
-                                    iconSize: 20,
-                                    visualDensity: const VisualDensity(
-                                      horizontal: -4,
-                                      vertical: -4,
                                     ),
-                                    onPressed: playerController.toggleFavourite,
-                                    icon: Obx(
-                                      () => Icon(
-                                        playerController
-                                                .isCurrentSongFav
-                                                .isFalse
+                                    const SizedBox(height: 7),
+                                    Marquee(
+                                      delay: const Duration(milliseconds: 300),
+                                      duration: const Duration(seconds: 10),
+                                      id: "${playerController.currentSong.value}_subtitle",
+                                      child: Text(
+                                        playerController.currentSong.value !=
+                                                null
+                                            ? playerController
+                                                  .currentSong
+                                                  .value!
+                                                  .artist!
+                                            : "NA",
+                                        textAlign: TextAlign.start,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall!
+                                            .copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).primaryColor.complementaryColor,
+                                              fontWeight: FontWeight.normal,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(
+                                width: 75,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    IconButton(
+                                      splashRadius: 10,
+                                      iconSize: 20,
+                                      visualDensity: const VisualDensity(
+                                        horizontal: -4,
+                                        vertical: -4,
+                                      ),
+                                      onPressed:
+                                          playerController.toggleFavourite,
+                                      icon: Icon(
+                                        !playerController.isCurrentSongFav.value
                                             ? Icons.favorite_border
                                             : Icons.favorite,
                                         color: Theme.of(
@@ -188,13 +187,11 @@ class GesturePlayer extends StatelessWidget {
                                         ).textTheme.titleMedium!.color,
                                       ),
                                     ),
-                                  ),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      Obx(() {
-                                        return IconButton(
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
+                                      children: [
+                                        IconButton(
                                           splashRadius: 10,
                                           visualDensity: const VisualDensity(
                                             horizontal: -4,
@@ -221,23 +218,21 @@ class GesturePlayer extends StatelessWidget {
                                                       .color!
                                                       .withValues(alpha: 0.2),
                                           ),
-                                        );
-                                      }),
-                                      IconButton(
-                                        iconSize: 18,
-                                        splashRadius: 10,
-                                        visualDensity: const VisualDensity(
-                                          horizontal: -4,
-                                          vertical: -4,
                                         ),
-                                        onPressed: () {
-                                          unawaited(
-                                            playerController
-                                                .toggleShuffleMode(),
-                                          );
-                                        },
-                                        icon: Obx(
-                                          () => Icon(
+                                        IconButton(
+                                          iconSize: 18,
+                                          splashRadius: 10,
+                                          visualDensity: const VisualDensity(
+                                            horizontal: -4,
+                                            vertical: -4,
+                                          ),
+                                          onPressed: () {
+                                            unawaited(
+                                              playerController
+                                                  .toggleShuffleMode(),
+                                            );
+                                          },
+                                          icon: Icon(
                                             Icons.shuffle,
                                             color:
                                                 playerController
@@ -253,18 +248,17 @@ class GesturePlayer extends StatelessWidget {
                                                       .withValues(alpha: 0.2),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        GetX<PlayerController>(
-                          builder: (controller) {
-                            return ProgressBar(
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          AnimatedBuilder(
+                            animation: playerController.progressBarStatus,
+                            builder: (context, _) => ProgressBar(
                               thumbRadius: 6,
                               baseBarColor: Theme.of(
                                 context,
@@ -286,16 +280,23 @@ class GesturePlayer extends StatelessWidget {
                                       context,
                                     ).primaryColor.complementaryColor,
                                   ),
-                              progress:
-                                  controller.progressBarStatus.value.current,
-                              total: controller.progressBarStatus.value.total,
-                              buffered:
-                                  controller.progressBarStatus.value.buffered,
-                              onSeek: controller.requestSeek,
-                            );
-                          },
-                        ),
-                      ],
+                              progress: playerController
+                                  .progressBarStatus
+                                  .value
+                                  .current,
+                              total: playerController
+                                  .progressBarStatus
+                                  .value
+                                  .total,
+                              buffered: playerController
+                                  .progressBarStatus
+                                  .value
+                                  .buffered,
+                              onSeek: playerController.requestSeek,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -307,10 +308,7 @@ class GesturePlayer extends StatelessWidget {
         Align(
           alignment: Alignment.bottomCenter,
           child: AbsorbPointer(
-            child: SizedBox(
-              height: Get.mediaQuery.padding.bottom + 20,
-              child: Container(),
-            ),
+            child: SizedBox(height: bottomPadding + 20, child: Container()),
           ),
         ),
       ],

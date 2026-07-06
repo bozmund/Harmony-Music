@@ -14,29 +14,24 @@ class Artist {
   final String? subscribers;
   final String thumbnailUrl;
   factory Artist.fromJson(dynamic json) => Artist(
-      name: json['artist'],
-      browseId: json['browseId'],
-      radioId: json['radioId'],
-      subscribers: (json['subscribers']) == null
-          ? ""
-          : json['subscribers'].runtimeType.toString() == "String"
-              ? json['subscribers']
-              : json['subscribers']['text'],
-      thumbnailUrl: Thumbnail(json["thumbnails"][0]["url"]).high);
+    name: json['artist'],
+    browseId: json['browseId'],
+    radioId: json['radioId'],
+    subscribers: (json['subscribers']) == null
+        ? ""
+        : json['subscribers'].runtimeType.toString() == "String"
+        ? json['subscribers']
+        : json['subscribers']['text'],
+    thumbnailUrl: Thumbnail(json["thumbnails"][0]["url"]).high,
+  );
 
   Map<String, dynamic> toJson() => {
-        'artist': name,
-        'browseId': browseId,
-        'radioId': radioId,
-        'subscribers': subscribers,
-        'thumbnails': [
-          {'url': thumbnailUrl}
-        ]
-      };
-}
-
-class ArtistContent {
-  ArtistContent(this.content, {this.title = "Artists"});
-  final List<Artist> content;
-  final String title;
+    'artist': name,
+    'browseId': browseId,
+    'radioId': radioId,
+    'subscribers': subscribers,
+    'thumbnails': [
+      {'url': thumbnailUrl},
+    ],
+  };
 }

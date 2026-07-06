@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:harmonymusic/ui/screens/Home/home_screen_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
+import '../../app/providers/controller_providers.dart';
 import 'update_badged_settings_icon.dart';
 
-class BottomNavBar extends StatelessWidget {
+class BottomNavBar extends ConsumerWidget {
   const BottomNavBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final homeScreenController = Get.find<HomeScreenController>();
-    return Obx(
-      () => NavigationBar(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final homeScreenController = ref.watch(homeScreenControllerProvider);
+    return AnimatedBuilder(
+      animation: homeScreenController,
+      builder: (context, _) => NavigationBar(
         onDestinationSelected: homeScreenController.onBottonBarTabSelected,
-        selectedIndex: homeScreenController.tabIndex.toInt(),
+        selectedIndex: homeScreenController.tabIndex,
         backgroundColor: Theme.of(context).primaryColor,
         indicatorColor: Theme.of(context).colorScheme.secondary,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -21,27 +23,27 @@ class BottomNavBar extends StatelessWidget {
           NavigationDestination(
             selectedIcon: const Icon(Icons.home),
             icon: const Icon(Icons.home_outlined),
-            label: modifyNgetlabel('home'.tr),
+            label: modifyNGetLabel('home'.tr),
           ),
           NavigationDestination(
             icon: const Icon(Icons.search),
-            label: modifyNgetlabel('search'.tr),
+            label: modifyNGetLabel('search'.tr),
           ),
           NavigationDestination(
             icon: const Icon(Icons.library_music),
-            label: modifyNgetlabel('library'.tr),
+            label: modifyNGetLabel('library'.tr),
           ),
           NavigationDestination(
             selectedIcon: const UpdateBadgedSettingsIcon(icon: Icons.settings),
             icon: const UpdateBadgedSettingsIcon(icon: Icons.settings_outlined),
-            label: modifyNgetlabel('settings'.tr),
+            label: modifyNGetLabel('settings'.tr),
           ),
         ],
       ),
     );
   }
 
-  String modifyNgetlabel(String label) {
+  String modifyNGetLabel(String label) {
     if (label.length > 9) {
       return "${label.substring(0, 8)}..";
     }

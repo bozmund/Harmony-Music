@@ -3,15 +3,15 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../screens/Settings/settings_screen_controller.dart';
+import '../../app/providers/controller_providers.dart';
 import '/models/artist.dart';
 import '../../models/album.dart';
 import '../../models/playlist.dart';
 
-class ImageWidget extends StatelessWidget {
+class ImageWidget extends ConsumerWidget {
   const ImageWidget({
     super.key,
     this.song,
@@ -29,7 +29,9 @@ class ImageWidget extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsController = ref.watch(settingsScreenControllerProvider);
+    final decodeHeight = _decodeHeightFor(context);
     String imageUrl = song != null
         ? song!.artUri.toString()
         : playlist != null
@@ -64,8 +66,9 @@ class ImageWidget extends StatelessWidget {
       child: offlineAvailable
           ? Image.file(
               File(
-                "${Get.find<SettingsScreenController>().supportDirPath}/thumbnails/${song!.id}.png",
+                "${settingsController.supportDirPath}/thumbnails/${song!.id}.png",
               ),
+              cacheHeight: decodeHeight,
               height: size,
               width: size,
               fit: BoxFit.cover,
@@ -73,7 +76,7 @@ class ImageWidget extends StatelessWidget {
           : CachedNetworkImage(
               height: size,
               width: size,
-              memCacheHeight: (song != null && !isPlayerArtImage) ? 140 : null,
+              memCacheHeight: decodeHeight,
               //memCacheWidth: (song != null && !isPlayerArtImage)? 140 : null,
               //cacheKey: cacheKey,
               imageUrl: imageUrl,
@@ -119,5 +122,14 @@ class ImageWidget extends StatelessWidget {
                   ),
             ),
     );
+  }
+
+  int _decodeHeightFor(BuildContext context) {
+    if (song != null && !isPlayerArtImage) return 140;
+
+    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    final physicalHeight = (size * devicePixelRatio).round();
+    final maxHeight = isPlayerArtImage ? 900 : 480;
+    return physicalHeight.clamp(140, maxHeight).toInt();
   }
 }

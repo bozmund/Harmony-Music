@@ -1,26 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:harmonymusic/ui/player/player_controller.dart';
 
+import '../../../app/providers/controller_providers.dart';
 import '../../widgets/loader.dart';
 
 /// A button that animates between a play and pause icon.
 ///
 /// It also shows a loading indicator when the audio is in a loading state.
-class AnimatedPlayButton extends StatefulWidget {
+class AnimatedPlayButton extends ConsumerStatefulWidget {
   /// size of the icon.
   final double iconSize;
 
   const AnimatedPlayButton({super.key, this.iconSize = 40.0});
 
   @override
-  State<AnimatedPlayButton> createState() => _AnimatedPlayButtonState();
+  ConsumerState<AnimatedPlayButton> createState() => _AnimatedPlayButtonState();
 }
 
-class _AnimatedPlayButtonState extends State<AnimatedPlayButton>
+class _AnimatedPlayButtonState extends ConsumerState<AnimatedPlayButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Worker _buttonStateWorker;
+  PlayerController? _playerController;
 
   @override
   void initState() {
@@ -31,13 +34,18 @@ class _AnimatedPlayButtonState extends State<AnimatedPlayButton>
       duration: const Duration(milliseconds: 300),
     );
 
-    final playerController = Get.find<PlayerController>();
+    final playerController = ref.read(playerControllerProvider);
     final initialState = playerController.buttonState.value;
     _controller.value = initialState == PlayButtonState.playing ? 1.0 : 0.0;
+    _playerController = playerController;
+    playerController.buttonState.addListener(_syncAnimationFromController);
+  }
 
-    _buttonStateWorker = ever<PlayButtonState>(
-      playerController.buttonState,
-      _syncAnimationWithButtonState,
+  void _syncAnimationFromController() {
+    final playerController = _playerController;
+    if (playerController == null) return;
+    unawaited(
+      _syncAnimationWithButtonState(playerController.buttonState.value),
     );
   }
 
@@ -60,15 +68,17 @@ class _AnimatedPlayButtonState extends State<AnimatedPlayButton>
 
   @override
   void dispose() {
-    _buttonStateWorker.dispose();
+    _playerController?.buttonState.removeListener(_syncAnimationFromController);
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GetX<PlayerController>(
-      builder: (controller) {
+    final controller = ref.read(playerControllerProvider);
+    return AnimatedBuilder(
+      animation: controller.buttonState,
+      builder: (context, _) {
         final buttonState = controller.buttonState.value;
         final isPlaying = buttonState == PlayButtonState.playing;
         final isLoading = buttonState == PlayButtonState.loading;

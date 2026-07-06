@@ -1,45 +1,61 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 
-import '/utils/app_link_controller.dart' show ProcessLink;
+import '../../../domain/repositories/search_history_repository.dart';
 import '/services/app_contracts.dart';
+import '/ui/player/player_controller.dart';
+import '/utils/app_link_controller.dart' show ProcessLink;
 
-class SearchScreenController extends GetxController with ProcessLink {
+class SearchScreenController extends ChangeNotifier with ProcessLink {
+  SearchScreenController({
+    required SearchHistoryRepository searchHistoryRepository,
+    required MusicServiceContract musicService,
+    required PlayerController playerController,
+  }) : _searchHistoryRepository = searchHistoryRepository,
+       _musicServices = musicService,
+       _playerController = playerController {
+    unawaited(_init());
+  }
+
+  final SearchHistoryRepository _searchHistoryRepository;
+  final MusicServiceContract _musicServices;
+  final PlayerController _playerController;
+  @override
+  MusicServiceContract get musicService => _musicServices;
+  @override
+  PlayerController get playerController => _playerController;
   final textInputController = TextEditingController();
-  final musicServices = Get.find<MusicServiceContract>();
-  final suggestionList = [].obs;
-  final historyQueryList = [].obs;
-  late Box<dynamic> queryBox;
-  final urlPasted = false.obs;
+  List<String> suggestionList = [];
+  List<String> historyQueryList = [];
+  bool urlPasted = false;
 
   // Desktop search bar related
   final focusNode = FocusNode();
-  final isSearchBarInFocus = false.obs;
+  bool isSearchBarInFocus = false;
 
-  @override
-  onInit() {
-    _init();
-    super.onInit();
-  }
-
-  _init() async {
-    if (GetPlatform.isDesktop) {
-      focusNode.addListener(() {
-        isSearchBarInFocus.value = focusNode.hasFocus;
-      });
-    }
-    queryBox = await Hive.openBox("searchQuery");
-    historyQueryList.value = queryBox.values.toList().reversed.toList();
+  Future<void> _init() async {
+    focusNode.addListener(() {
+      isSearchBarInFocus = focusNode.hasFocus;
+      notifyListeners();
+    });
+    historyQueryList = (await _searchHistoryRepository.getQueries()).reversed
+        .cast<String>()
+        .toList();
+    notifyListeners();
   }
 
   Future<void> onChanged(String text) async {
     if (text.contains("https://")) {
-      urlPasted.value = true;
+      urlPasted = true;
+      notifyListeners();
       return;
     }
-    urlPasted.value = false;
-    suggestionList.value = await musicServices.getSearchSuggestion(text);
+    urlPasted = false;
+    suggestionList = List<String>.from(
+      await _musicServices.getSearchSuggestion(text),
+    );
+    notifyListeners();
   }
 
   Future<void> suggestionInput(String txt) async {
@@ -52,13 +68,14 @@ class SearchScreenController extends GetxController with ProcessLink {
 
   Future<void> addToHistoryQueryList(String txt) async {
     if (historyQueryList.length > 9) {
-      final queryForRemoval = queryBox.getAt(0);
-      await queryBox.deleteAt(0);
-      historyQueryList.removeWhere((element) => element == queryForRemoval);
+      final queryForRemoval = historyQueryList.last;
+      historyQueryList = historyQueryList
+          .where((element) => element != queryForRemoval)
+          .toList();
     }
     if (!historyQueryList.contains(txt)) {
-      await queryBox.add(txt);
-      historyQueryList.insert(0, txt);
+      await _searchHistoryRepository.addQuery(txt, maxEntries: 10);
+      historyQueryList = [txt, ...historyQueryList];
     }
 
     //reset current query and suggestionList
@@ -66,22 +83,22 @@ class SearchScreenController extends GetxController with ProcessLink {
   }
 
   void reset() {
-    urlPasted.value = false;
+    urlPasted = false;
     textInputController.text = "";
-    suggestionList.clear();
+    suggestionList = [];
+    notifyListeners();
   }
 
   Future<void> removeQueryFromHistory(String txt) async {
-    final index = queryBox.values.toList().indexOf(txt);
-    await queryBox.deleteAt(index);
-    historyQueryList.remove(txt);
+    await _searchHistoryRepository.deleteQuery(txt);
+    historyQueryList = historyQueryList.where((query) => query != txt).toList();
+    notifyListeners();
   }
 
   @override
-  Future<void> dispose() async {
+  void dispose() {
     focusNode.dispose();
     textInputController.dispose();
-    await queryBox.close();
     super.dispose();
   }
 }

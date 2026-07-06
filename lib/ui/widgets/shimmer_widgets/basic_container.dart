@@ -9,7 +9,9 @@ class BasicShimmerContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radius), color: Colors.white54),
+        borderRadius: BorderRadius.circular(radius),
+        color: Colors.white54,
+      ),
       height: size.height,
       width: size.width,
     );

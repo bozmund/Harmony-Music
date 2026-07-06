@@ -1,34 +1,88 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:harmonymusic/utils/get_localization.dart';
 
+import '../../../app/providers/controller_providers.dart';
+import '../../../app/providers/repository_providers.dart';
+import '../../../app/providers/service_providers.dart';
+import '../../../utils/runtime_platform.dart';
 import '/ui/screens/Artists/artist_screen_v2.dart';
-import '/ui/screens/Settings/settings_screen_controller.dart';
 import '../../widgets/animated_screen_transition.dart';
 import '../../widgets/loader.dart';
 import '../../widgets/separate_tab_item_widget.dart';
 import '../../../services/app_platform_service.dart';
-import '/ui/player/player_controller.dart';
 import '/ui/widgets/image_widget.dart';
 import '../../navigator.dart';
 import '../../widgets/snackbar.dart';
 import 'artist_screen_controller.dart';
 
-class ArtistScreen extends StatelessWidget {
+class ArtistScreen extends ConsumerStatefulWidget {
   const ArtistScreen({super.key});
 
   @override
+  ConsumerState<ArtistScreen> createState() => _ArtistScreenState();
+}
+
+class _ArtistScreenState extends ConsumerState<ArtistScreen>
+    with SingleTickerProviderStateMixin {
+  late final String tag;
+  ArtistScreenController? _artistScreenController;
+
+  @override
+  void initState() {
+    super.initState();
+    tag = widget.key.hashCode.toString();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_artistScreenController != null) return;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final controller = ArtistScreenController(
+      musicService: container.read(musicServiceContractProvider),
+      libraryRepository: container.read(libraryRepositoryProvider),
+      settingsScreenController: container.read(
+        settingsScreenControllerProvider,
+      ),
+      homeScreenController: container.read(homeScreenControllerProvider),
+    );
+    ArtistScreenControllerRegistry.register(tag, controller);
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is! List) {
+      throw StateError('ArtistScreen requires list route arguments');
+    }
+    controller.initialize(
+      isIdOnly: args[0] as bool,
+      artist: args[1],
+      isDesktopLayout: RuntimePlatform.isDesktop,
+      vsync: this,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.ready());
+    _artistScreenController = controller;
+  }
+
+  @override
+  void dispose() {
+    final controller = _artistScreenController;
+    if (controller != null) {
+      ArtistScreenControllerRegistry.unregister(tag, controller);
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final playerController = Get.find<PlayerController>();
-    final tag = key.hashCode.toString();
-    final ArtistScreenController artistScreenController =
-        Get.isRegistered<ArtistScreenController>(tag: tag)
-        ? Get.find<ArtistScreenController>(tag: tag)
-        : Get.put(ArtistScreenController(), tag: tag);
+    final playerController = ref.read(playerControllerProvider);
+    final settingsController = ref.watch(settingsScreenControllerProvider);
+    final artistScreenController = _artistScreenController!;
     return Scaffold(
-      floatingActionButton: Obx(
-        () => Padding(
+      floatingActionButton: AnimatedBuilder(
+        animation: playerController.playerPanelMinHeight,
+        builder: (context, _) => Padding(
           padding: EdgeInsets.only(
             bottom: playerController.playerPanelMinHeight.value,
           ),
@@ -54,10 +108,12 @@ class ArtistScreen extends StatelessWidget {
                     );
                     return;
                   }
-                  unawaited(playerController.startRadio(
-                    null,
-                    playlistId: artistScreenController.artist_.radioId,
-                  ));
+                  unawaited(
+                    playerController.startRadio(
+                      null,
+                      playlistId: artistScreenController.artist_.radioId,
+                    ),
+                  );
                 },
                 child: const Icon(Icons.sensors),
               ),
@@ -66,8 +122,8 @@ class ArtistScreen extends StatelessWidget {
         ),
       ),
       body:
-          GetPlatform.isDesktop ||
-              Get.find<SettingsScreenController>().isBottomNavBarEnabled.value
+          RuntimePlatform.isDesktop ||
+              settingsController.isBottomNavBarEnabled.value
           ? ArtistScreenBN(
               artistScreenController: artistScreenController,
               tag: tag,
@@ -79,8 +135,9 @@ class ArtistScreen extends StatelessWidget {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.only(bottom: 80),
                     child: IntrinsicHeight(
-                      child: Obx(
-                        () => NavigationRail(
+                      child: AnimatedBuilder(
+                        animation: artistScreenController,
+                        builder: (context, _) => NavigationRail(
                           onDestinationSelected:
                               artistScreenController.onDestinationSelected,
                           minWidth: 60,
@@ -94,7 +151,11 @@ class ArtistScreen extends StatelessWidget {
                           leading: Column(
                             children: [
                               SizedBox(
-                                height: context.isLandscape ? 20.0 : 45.0,
+                                height:
+                                    MediaQuery.orientationOf(context) ==
+                                        Orientation.landscape
+                                    ? 20.0
+                                    : 45.0,
                               ),
                               IconButton(
                                 icon: Icon(
@@ -104,35 +165,34 @@ class ArtistScreen extends StatelessWidget {
                                   ).textTheme.titleMedium!.color,
                                 ),
                                 onPressed: () {
-                                  Get.nestedKey(
-                                    ScreenNavigationSetup.id,
-                                  )!.currentState!.pop();
+                                  ScreenNavigationSetup
+                                      .navigatorKey
+                                      .currentState
+                                      ?.pop();
                                 },
                               ),
                               const SizedBox(height: 10),
                             ],
                           ),
                           labelType: NavigationRailLabelType.all,
-                          selectedIndex: artistScreenController
-                              .navigationRailCurrentIndex
-                              .value,
+                          selectedIndex:
+                              artistScreenController.navigationRailCurrentIndex,
                         ),
                       ),
                     ),
                   ),
                 ),
                 Expanded(
-                  child: Obx(
-                    () => AnimatedScreenTransition(
-                      enabled: Get.find<SettingsScreenController>()
+                  child: AnimatedBuilder(
+                    animation: artistScreenController,
+                    builder: (context, _) => AnimatedScreenTransition(
+                      enabled: settingsController
                           .isTransitionAnimationDisabled
-                          .isFalse,
+                          .value,
                       resverse: artistScreenController.isTabTransitionReversed,
                       child: Center(
                         key: ValueKey<int>(
-                          artistScreenController
-                              .navigationRailCurrentIndex
-                              .value,
+                          artistScreenController.navigationRailCurrentIndex,
                         ),
                         child: Body(tag: tag),
                       ),
@@ -160,13 +220,14 @@ class Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ArtistScreenController artistScreenController =
-        Get.find<ArtistScreenController>(tag: tag);
+        ArtistScreenControllerRegistry.maybeOf(tag)!;
 
-    final tabIndex = artistScreenController.navigationRailCurrentIndex.value;
+    final tabIndex = artistScreenController.navigationRailCurrentIndex;
 
     if (tabIndex == 0) {
-      return Obx(
-        () => artistScreenController.isArtistContentFetched.isTrue
+      return AnimatedBuilder(
+        animation: artistScreenController,
+        builder: (context, _) => artistScreenController.isArtistContentFetched
             ? AboutArtist(artistScreenController: artistScreenController)
             : const Center(child: LoadingIndicator()),
       );
@@ -179,30 +240,36 @@ class Body extends StatelessWidget {
         "Albums",
         "Singles",
       ][tabIndex];
-      return Obx(() {
-        if (artistScreenController.isSeparatedArtistContentFetched.isFalse &&
-            artistScreenController.navigationRailCurrentIndex.value != 0) {
-          return const Center(child: LoadingIndicator());
-        }
-        return SeparateTabItemWidget(
-          artistControllerTag: tag,
-          isResultWidget: false,
-          items: separatedContent.containsKey(currentTabName)
-              ? separatedContent[currentTabName]['results']
-              : [],
-          title: currentTabName,
-          topPadding: context.isLandscape ? 50.0 : 80.0,
-          scrollController: currentTabName == "Songs"
-              ? artistScreenController.songScrollController
-              : currentTabName == "Videos"
-              ? artistScreenController.videoScrollController
-              : currentTabName == "Albums"
-              ? artistScreenController.albumScrollController
-              : currentTabName == "Singles"
-              ? artistScreenController.singlesScrollController
-              : null,
-        );
-      });
+      return AnimatedBuilder(
+        animation: artistScreenController,
+        builder: (context, _) {
+          if (!artistScreenController.isSeparatedArtistContentFetched &&
+              artistScreenController.navigationRailCurrentIndex != 0) {
+            return const Center(child: LoadingIndicator());
+          }
+          return SeparateTabItemWidget(
+            artistControllerTag: tag,
+            isResultWidget: false,
+            items: separatedContent.containsKey(currentTabName)
+                ? separatedContent[currentTabName]['results']
+                : [],
+            title: currentTabName,
+            topPadding:
+                MediaQuery.orientationOf(context) == Orientation.landscape
+                ? 50.0
+                : 80.0,
+            scrollController: currentTabName == "Songs"
+                ? artistScreenController.songScrollController
+                : currentTabName == "Videos"
+                ? artistScreenController.videoScrollController
+                : currentTabName == "Albums"
+                ? artistScreenController.albumScrollController
+                : currentTabName == "Singles"
+                ? artistScreenController.singlesScrollController
+                : null,
+          );
+        },
+      );
     }
   }
 }
@@ -225,7 +292,7 @@ class AboutArtist extends StatelessWidget {
         padding: const EdgeInsets.all(8.0),
         child: SingleChildScrollView(
           padding: padding,
-          child: artistScreenController.isArtistContentFetched.value
+          child: artistScreenController.isArtistContentFetched
               ? Column(
                   children: [
                     SizedBox(
@@ -245,9 +312,10 @@ class AboutArtist extends StatelessWidget {
                               children: [
                                 InkWell(
                                   onTap: () async {
-                                    final bool add = artistScreenController
-                                        .isAddedToLibrary
-                                        .isFalse;
+                                    final bool add =
+                                        artistScreenController
+                                            .isAddedToLibrary ==
+                                        false;
                                     await artistScreenController
                                         .addNRemoveFromLibrary(add: add)
                                         .then((value) {
@@ -270,16 +338,15 @@ class AboutArtist extends StatelessWidget {
                                           }
                                         });
                                   },
-                                  child: Obx(
-                                    () =>
-                                        artistScreenController
+                                  child: AnimatedBuilder(
+                                    animation: artistScreenController,
+                                    builder: (context, _) =>
+                                        !artistScreenController
                                             .isArtistContentFetched
-                                            .isFalse
                                         ? const SizedBox.shrink()
                                         : Icon(
-                                            artistScreenController
+                                            !artistScreenController
                                                     .isAddedToLibrary
-                                                    .isFalse
                                                 ? Icons.bookmark_add
                                                 : Icons.bookmark_added,
                                           ),

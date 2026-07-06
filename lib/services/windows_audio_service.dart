@@ -1,20 +1,17 @@
 import 'dart:async';
 
-import 'package:get/get.dart';
 import 'package:harmonymusic/utils/helper.dart';
 import 'package:smtc_windows/smtc_windows.dart';
 
 import '../ui/player/player_controller.dart';
 
-class WindowsAudioService extends GetxService {
-  late SMTCWindows smtc;
-  final playerController = Get.find<PlayerController>();
-
-  @override
-  void onInit() {
+class WindowsAudioService {
+  WindowsAudioService(this.playerController) {
     _initService();
-    super.onInit();
   }
+
+  late SMTCWindows smtc;
+  final PlayerController playerController;
 
   _initService() {
     smtc = SMTCWindows(enabled: false);
@@ -79,11 +76,8 @@ class WindowsAudioService extends GetxService {
     });
   }
 
-  @override
-  void onClose() {
-    // GetX expects a sync lifecycle hook; run cleanup async without dropping errors.
+  void dispose() {
     unawaited(_disposeSmtc());
-    super.onClose();
   }
 
   Future<void> _disposeSmtc() async {
