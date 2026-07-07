@@ -171,6 +171,37 @@ void main() {
       ).readAsStringSync();
       expect(source, contains('setsScreenMode: false'));
     });
+
+    test(
+      'resume reapply re-asserts the mode twice to survive the '
+      'window-focus race',
+      () {
+        final source = File(
+          'lib/services/system_ui_mode_service.dart',
+        ).readAsStringSync();
+        final start = source.indexOf('Future<void> reapplyCurrentMode()');
+        expect(start, greaterThan(-1));
+        final body = source.substring(start, source.indexOf('\n  }', start));
+
+        // Two forced applies with a real-world gap in between: a resume can
+        // land before Android actually restores window focus, so a single
+        // early SystemChrome call can get silently overridden once focus
+        // returns. Re-asserting after a short delay covers that window
+        // without depending on exact platform timing.
+        final firstApply = body.indexOf('_scheduleApply(force: true)');
+        final delay = body.indexOf(
+          'Future.delayed(reapplySettleDelay)',
+          firstApply,
+        );
+        final secondApply = body.indexOf(
+          '_scheduleApply(force: true)',
+          delay,
+        );
+        expect(firstApply, greaterThan(-1));
+        expect(delay, greaterThan(firstApply));
+        expect(secondApply, greaterThan(delay));
+      },
+    );
   });
 
   group('app text colors', () {

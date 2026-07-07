@@ -285,7 +285,18 @@ class _LibraryTabBar extends StatelessWidget {
       ),
       tabs: getOrderedTabKeys(
         firstTabIndex,
-      ).map((key) => Tab(text: key.tr)).toList(),
+      )
+          .map(
+            (key) => Tab(
+              height: 50,
+              child: Text(
+                key.tr,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 }

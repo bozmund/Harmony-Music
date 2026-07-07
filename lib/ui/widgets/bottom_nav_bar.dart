@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:harmonymusic/utils/get_localization.dart';
 
 import '../../app/providers/controller_providers.dart';
+import 'bottom_nav_bar_dimensions.dart';
 import 'update_badged_settings_icon.dart';
 
 class BottomNavBar extends ConsumerWidget {
@@ -14,6 +15,7 @@ class BottomNavBar extends ConsumerWidget {
     return AnimatedBuilder(
       animation: homeScreenController,
       builder: (context, _) => NavigationBar(
+        height: compactBottomNavBarHeight,
         onDestinationSelected: homeScreenController.onBottonBarTabSelected,
         selectedIndex: homeScreenController.tabIndex,
         backgroundColor: Theme.of(context).primaryColor,

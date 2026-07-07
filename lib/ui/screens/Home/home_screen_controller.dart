@@ -504,10 +504,6 @@ class HomeScreenController extends ChangeNotifier {
     _notifyHomeChanged();
   }
 
-  void disableStartupUpdatePopup() {
-    setStartupUpdatePopupEnabled(false);
-  }
-
   void onChangeVersionVisibility(bool val) {
     setStartupUpdatePopupEnabled(!val);
   }

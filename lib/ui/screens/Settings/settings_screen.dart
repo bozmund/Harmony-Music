@@ -35,9 +35,10 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsController = ref.watch(settingsScreenControllerProvider);
     final playerController = ref.read(playerControllerProvider);
-    // One-shot: set when the release prompt sends the user here to see
-    // where the update channel lives; opens the App Info section.
-    final revealUpdateChannel = settingsController.consumeUpdateChannelReveal();
+    // One-shot: set when something (the release channel prompt, or
+    // disabling the update popup) sends the user here to see the update
+    // controls; opens the App Info section.
+    final revealUpdateSection = settingsController.consumeUpdateSectionReveal();
     final topPadding =
         MediaQuery.orientationOf(context) == Orientation.landscape
         ? 50.0
@@ -967,7 +968,7 @@ class SettingsScreen extends ConsumerWidget {
                   CustomExpansionTile(
                     icon: Icons.info,
                     title: "appInfo".tr,
-                    initiallyExpanded: revealUpdateChannel,
+                    initiallyExpanded: revealUpdateSection,
                     childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(

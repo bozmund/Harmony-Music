@@ -69,7 +69,7 @@ class ReleasePromptDialog extends ConsumerWidget {
     unawaited(settingsController.changeUpdateChannel(channel.name));
     // Land the user on the Settings tab with the section containing the
     // update-channel setting opened, so they see where to change it later.
-    settingsController.requestUpdateChannelReveal();
+    settingsController.requestUpdateSectionReveal();
     homeController.openSettingsTab();
   }
 }

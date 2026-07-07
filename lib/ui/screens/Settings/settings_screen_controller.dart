@@ -154,18 +154,21 @@ class SettingsScreenController extends ChangeNotifier
 
   String get supportDirPath => _supportDir;
 
-  bool _updateChannelRevealPending = false;
+  bool _updateSectionRevealPending = false;
 
-  /// The release prompt navigates to Settings after the user picks a
-  /// channel; the settings screen consumes this one-shot flag to open the
-  /// section containing the update-channel setting.
-  void requestUpdateChannelReveal() {
-    _updateChannelRevealPending = true;
+  /// One-shot flag: something navigated to Settings and wants the App Info
+  /// section (which holds both "Check for updates" and "Update channel")
+  /// opened. Set by the 6.0.0 release prompt after a channel choice, and by
+  /// the new-version dialog when the user disables the startup popup — so
+  /// they land on where updates can be checked manually. The settings
+  /// screen consumes it once on build.
+  void requestUpdateSectionReveal() {
+    _updateSectionRevealPending = true;
   }
 
-  bool consumeUpdateChannelReveal() {
-    final pending = _updateChannelRevealPending;
-    _updateChannelRevealPending = false;
+  bool consumeUpdateSectionReveal() {
+    final pending = _updateSectionRevealPending;
+    _updateSectionRevealPending = false;
     return pending;
   }
 
@@ -386,10 +389,7 @@ class SettingsScreenController extends ChangeNotifier
       if (!context.mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (context) => NewVersionDialog(
-          updateInfo: info,
-          disableStartupPopupOnUpdateTap: true,
-        ),
+        builder: (context) => NewVersionDialog(updateInfo: info),
       );
     } else {
       if (!context.mounted) return;

@@ -35,7 +35,26 @@ class SystemUiModeService {
     }
   }
 
-  Future<void> reapplyCurrentMode() => _scheduleApply(force: true);
+  /// Re-asserts whichever mode is currently resolved (edge-to-edge, or
+  /// immersive while the player panel is open). Called on every app resume.
+  ///
+  /// On Android, the window can regain actual focus slightly *after* the
+  /// `resumed` lifecycle callback fires — most noticeably when returning
+  /// from the recents/task switcher, and more often in release builds where
+  /// the app reattaches faster than the OS settles the window. A
+  /// `SystemChrome.setEnabledSystemUIMode` call made in that gap can be
+  /// silently overridden once focus actually lands, which shows up as
+  /// edge-to-edge getting "stuck" back to showing system bars after resume.
+  /// Re-asserting once more shortly after covers that race without
+  /// depending on exact platform timing.
+  Future<void> reapplyCurrentMode() async {
+    await _scheduleApply(force: true);
+    await Future.delayed(reapplySettleDelay);
+    await _scheduleApply(force: true);
+  }
+
+  /// Gap before the second resume reapply; exposed for tests.
+  static const reapplySettleDelay = Duration(milliseconds: 300);
 
   Future<void> _scheduleApply({bool force = false}) {
     _pendingApply = _pendingApply.whenComplete(
