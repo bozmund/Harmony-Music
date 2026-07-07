@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../utils/insets.dart';
+
 class ScrollToHideWidget extends StatelessWidget {
   const ScrollToHideWidget({
     super.key,
@@ -10,7 +12,7 @@ class ScrollToHideWidget extends StatelessWidget {
   final bool isVisible;
 
   static double visibleHeight(BuildContext context) =>
-      80.0 + MediaQuery.of(context).viewPadding.bottom;
+      80.0 + bottomNavInset(context);
 
   @override
   Widget build(BuildContext context) {

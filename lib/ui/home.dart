@@ -6,6 +6,7 @@ import 'package:harmonymusic/utils/get_localization.dart';
 
 import '../app/providers/controller_providers.dart';
 import '../utils/helper.dart';
+import '../utils/insets.dart';
 import '../utils/runtime_platform.dart';
 import '../ui/navigator.dart';
 import '../ui/player/player.dart';
@@ -15,6 +16,7 @@ import 'widgets/bottom_nav_bar.dart';
 import 'widgets/scroll_to_hide.dart';
 import 'widgets/sliding_up_panel.dart';
 import 'widgets/snackbar.dart';
+import 'widgets/system_ui_mode_scope.dart';
 import 'widgets/up_next_queue.dart';
 
 class Home extends ConsumerStatefulWidget {
@@ -47,18 +49,19 @@ class _HomeState extends ConsumerState<Home> {
         !settingsScreenController.isBottomNavBarEnabled.value) {
       if (isWideScreen) {
         playerController.playerPanelMinHeight.value =
-            105 + mediaQuery.padding.bottom;
+            105 + bottomNavInset(context);
       } else {
         playerController.playerPanelMinHeight.value =
-            75 + mediaQuery.padding.bottom;
+            75 + bottomNavInset(context);
       }
     }
-    return CallbackShortcuts(
-      bindings: {
-        LogicalKeySet(LogicalKeyboardKey.space):
-            playerController.requestPlayPause,
-      },
-      child: AnimatedBuilder(
+    return SystemUiModeScope.edgeToEdge(
+      child: CallbackShortcuts(
+        bindings: {
+          LogicalKeySet(LogicalKeyboardKey.space):
+              playerController.requestPlayPause,
+        },
+        child: AnimatedBuilder(
         // Deliberately NOT listening to currentQueue here: rebuilding the
         // whole Scaffold on every queue mutation (shuffle, enqueue, radio
         // continuation) causes a visible hitch. The queue panel and the
@@ -128,55 +131,55 @@ class _HomeState extends ConsumerState<Home> {
                 return true;
               },
               child: Scaffold(
-            bottomNavigationBar:
-                settingsScreenController.isBottomNavBarEnabled.value
-                ? ScrollToHideWidget(
-                    isVisible:
-                        homeScreenController.isHomeScreenOnTop &&
-                        !playerController.playerPanelOpen.value,
-                    child: const BottomNavBar(),
-                  )
-                : null,
-            key: playerController.homeScaffoldKey,
-            endDrawer: RuntimePlatform.isDesktop || isWideScreen
-                ? Container(
-                    constraints: const BoxConstraints(maxWidth: 600),
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(10),
-                      ),
-                      border: Border(
-                        left: BorderSide(
-                          color: Theme.of(context).colorScheme.secondary,
+                bottomNavigationBar:
+                    settingsScreenController.isBottomNavBarEnabled.value
+                    ? ScrollToHideWidget(
+                        isVisible:
+                            homeScreenController.isHomeScreenOnTop &&
+                            !playerController.playerPanelOpen.value,
+                        child: const BottomNavBar(),
+                      )
+                    : null,
+                key: playerController.homeScaffoldKey,
+                endDrawer: RuntimePlatform.isDesktop || isWideScreen
+                    ? Container(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        decoration: BoxDecoration(
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(10),
+                          ),
+                          border: Border(
+                            left: BorderSide(
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                            top: BorderSide(
+                              color: Theme.of(context).colorScheme.secondary,
+                            ),
+                          ),
                         ),
-                        top: BorderSide(
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                      ),
-                    ),
-                    margin: const EdgeInsets.only(top: 5, bottom: 106),
-                    child: SizedBox(
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            height: 60,
-                            child: ColoredBox(
-                              color: Theme.of(context).canvasColor,
-                              child: Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 15.0,
-                                    right: 15,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      AnimatedBuilder(
-                                        animation:
-                                            playerController.currentQueue,
-                                        builder: (context, _) => Text(
-                                          "${playerController.currentQueue.length} ${"songs".tr}",
+                        margin: const EdgeInsets.only(top: 5, bottom: 106),
+                        child: SizedBox(
+                          child: Column(
+                            children: [
+                              SizedBox(
+                                height: 60,
+                                child: ColoredBox(
+                                  color: Theme.of(context).canvasColor,
+                                  child: Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 15.0,
+                                        right: 15,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          AnimatedBuilder(
+                                            animation:
+                                                playerController.currentQueue,
+                                            builder: (context, _) => Text(
+                                              "${playerController.currentQueue.length} ${"songs".tr}",
                                         ),
                                       ),
                                       Text(
@@ -293,6 +296,7 @@ class _HomeState extends ConsumerState<Home> {
             ),
           );
         },
+      ),
       ),
     );
   }

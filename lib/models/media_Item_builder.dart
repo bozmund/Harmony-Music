@@ -62,6 +62,26 @@ class MediaItemBuilder {
     return Duration(seconds: sec);
   }
 
+  static String displayDuration(MediaItem mediaItem) {
+    final length = mediaItem.extras?['length'];
+    if (length is String && length.trim().isNotEmpty) {
+      return length.trim();
+    }
+
+    final duration = mediaItem.duration;
+    if (duration == null) return "";
+
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:'
+          '${minutes.toString().padLeft(2, '0')}:'
+          '${seconds.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString()}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   static Map<String, dynamic> toJson(MediaItem mediaItem) => {
     "videoId": mediaItem.id,
     "title": mediaItem.title,

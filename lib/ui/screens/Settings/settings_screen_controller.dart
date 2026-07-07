@@ -16,6 +16,8 @@ import 'package:harmonymusic/services/permission_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../utils/insets.dart';
+
 import '../../../app/navigation/app_navigator.dart';
 import '../../../app/providers/app_locale_provider.dart';
 import '../../../utils/update_check_flag_file.dart';
@@ -618,7 +620,7 @@ class SettingsScreenController extends ChangeNotifier
       final appContext = AppNavigator.context;
       final bottomPadding = appContext == null
           ? 0.0
-          : MediaQuery.of(appContext).viewPadding.bottom;
+          : bottomNavInset(appContext);
       playerCon.playerPanelMinHeight.value = val ? 75.0 : 75.0 + bottomPadding;
     }
     await _settingsRepository.setBottomNavBarEnabled(val);

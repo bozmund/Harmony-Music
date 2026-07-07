@@ -3,15 +3,20 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:file_selector/file_selector.dart';
+import '/services/app_platform_service.dart';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 
+import '../../app/providers/controller_providers.dart';
 import '../screens/Library/library_controller.dart';
 import 'common_dialog_widget.dart';
 
 class ImportSpotifyPlaylistDialogController extends ChangeNotifier {
   ImportSpotifyPlaylistDialogController(this._libraryPlaylistsController);
+
+  static const spotifyDataPageUrl = 'https://www.spotify.com/account/privacy/';
 
   final LibraryPlaylistsController _libraryPlaylistsController;
   var isReading = false;
@@ -136,6 +141,10 @@ class ImportSpotifyPlaylistDialogController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> openSpotifyDataPage() async {
+    await AppPlatformService.openUrl(spotifyDataPageUrl);
+  }
+
   Future<_ParsedSpotifyExport> _parseSpotifyExport(File file) async {
     final extension = path.extension(file.path).toLowerCase();
     if (extension == '.json') {
@@ -155,10 +164,15 @@ class ImportSpotifyPlaylistDialogController extends ChangeNotifier {
           continue;
         }
 
-        final parsed = _parseSpotifyJson(
-          utf8.decode((archiveFile.content as List).cast<int>()),
-          strict: false,
-        );
+        final jsonString = _tryDecodeSpotifyArchiveJson(archiveFile);
+        if (jsonString == null) {
+          continue;
+        }
+
+        final parsed = _tryParseSpotifyJson(jsonString);
+        if (parsed == null) {
+          continue;
+        }
         playlists.addAll(parsed.playlists);
         unsupportedItems += parsed.unsupportedItemCount;
       }
@@ -174,6 +188,28 @@ class ImportSpotifyPlaylistDialogController extends ChangeNotifier {
 
   _ParsedSpotifyExport _parseSpotifyPlaylistJson(String jsonString) {
     return _parseSpotifyJson(jsonString);
+  }
+
+  String? _tryDecodeSpotifyArchiveJson(ArchiveFile archiveFile) {
+    try {
+      return utf8.decode((archiveFile.content as List).cast<int>());
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
+  _ParsedSpotifyExport? _tryParseSpotifyJson(String jsonString) {
+    try {
+      return _parseSpotifyJson(jsonString, strict: false);
+    } on FormatException {
+      return null;
+    } on SpotifyPlaylistImportException {
+      return null;
+    } on TypeError {
+      return null;
+    }
   }
 
   _ParsedSpotifyExport _parseSpotifyJson(
@@ -198,8 +234,10 @@ class ImportSpotifyPlaylistDialogController extends ChangeNotifier {
 
         final tracks = <SpotifyImportTrack>[];
         for (final item in items) {
-          final track = item is Map && item['track'] is Map
-              ? _parseSpotifyTrackMap(item['track'] as Map)
+          final track = item is Map
+              ? _parseSpotifyTrackMap(
+                  item['track'] is Map ? item['track'] : item,
+                )
               : null;
           if (track == null) {
             unsupportedItems++;
@@ -228,7 +266,7 @@ class ImportSpotifyPlaylistDialogController extends ChangeNotifier {
     if (libraryTracks.tracks.isNotEmpty) {
       playlists.add(
         SpotifyImportPlaylist(
-          name: "Spotify Library Songs",
+          name: "Spotify Liked Songs",
           description: "Imported Spotify saved library songs",
           tracks: libraryTracks.tracks,
         ),
@@ -332,23 +370,23 @@ class _ParsedSpotifyLibraryTracks {
   final int unsupportedItemCount;
 }
 
-class ImportSpotifyPlaylistDialog extends StatefulWidget {
+class ImportSpotifyPlaylistDialog extends ConsumerStatefulWidget {
   const ImportSpotifyPlaylistDialog({super.key});
 
   @override
-  State<ImportSpotifyPlaylistDialog> createState() =>
+  ConsumerState<ImportSpotifyPlaylistDialog> createState() =>
       _ImportSpotifyPlaylistDialogState();
 }
 
 class _ImportSpotifyPlaylistDialogState
-    extends State<ImportSpotifyPlaylistDialog> {
+    extends ConsumerState<ImportSpotifyPlaylistDialog> {
   late final ImportSpotifyPlaylistDialogController controller;
 
   @override
   void initState() {
     super.initState();
     controller = ImportSpotifyPlaylistDialogController(
-      LibraryPlaylistsControllerRegistry.current!,
+      ref.read(libraryPlaylistsControllerProvider),
     );
   }
 
@@ -361,17 +399,45 @@ class _ImportSpotifyPlaylistDialogState
   @override
   Widget build(BuildContext context) {
     return CommonDialog(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: AnimatedBuilder(
-          animation: controller,
-          builder: (context, _) => Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: AnimatedBuilder(
+            animation: controller,
+            builder: (context, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Text(
                 "Import Spotify export",
                 style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                "To import from Spotify, open Spotify's data/privacy page and "
+                "request your account data. Spotify will prepare a download "
+                "for you. When it is ready, download the ZIP file and choose "
+                "it here to import your liked songs and playlists at once.",
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "You can also choose a single Spotify Playlist JSON or Library "
+                "JSON file if you already extracted the ZIP.",
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: controller.isReading || controller.isImporting
+                      ? null
+                      : controller.openSpotifyDataPage,
+                  child: const Text("Open Spotify data page"),
+                ),
               ),
               const SizedBox(height: 14),
               Text(
@@ -468,7 +534,8 @@ class _ImportSpotifyPlaylistDialogState
                   ],
                 ],
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

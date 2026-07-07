@@ -10,7 +10,9 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 
 import 'package:flutter/physics.dart';
-import 'package:flutter/services.dart';
+
+import '../../services/system_ui_mode_service.dart';
+import 'system_ui_mode_scope.dart';
 
 enum SlideDirection { up, down }
 
@@ -201,7 +203,7 @@ class SlidingUpPanel extends StatefulWidget {
     this.defaultPanelState = PanelState.closed,
     this.header,
     this.footer,
-    this.setsScreenMode = true
+    this.setsScreenMode = true,
   }) : assert(panel != null || panelBuilder != null),
        assert(0 <= backdropOpacity && backdropOpacity <= 1.0),
        assert(snapPoint == null || 0 < snapPoint && snapPoint < 1.0);
@@ -211,7 +213,7 @@ class SlidingUpPanel extends StatefulWidget {
 }
 
 class _SlidingUpPanelState extends State<SlidingUpPanel>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with SingleTickerProviderStateMixin {
   late AnimationController _ac;
   late ScrollController _sc;
 
@@ -219,11 +221,12 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
   final VelocityTracker _vt = VelocityTracker.withKind(PointerDeviceKind.touch);
 
   bool _isPanelVisible = true;
+  late bool _systemUiModePanelOpen;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    _systemUiModePanelOpen = widget.defaultPanelState == PanelState.open;
 
     _ac =
         AnimationController(
@@ -236,12 +239,12 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
           widget.onPanelSlide?.call(_ac.value);
 
           if (_ac.value == 1.0) {
-            unawaited(_applyScreenUiMode(widget.setsScreenMode, SystemUiMode.immersive));
+            _setSystemUiModePanelOpen(true);
             widget.onPanelOpened?.call();
           }
 
           if (_ac.value == 0.0) {
-            unawaited(_applyScreenUiMode(widget.setsScreenMode, SystemUiMode.edgeToEdge));
+            _setSystemUiModePanelOpen(false);
             widget.onPanelClosed?.call();
           }
         });
@@ -256,20 +259,30 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
     widget.controller?._addState(this);
   }
 
-  Future<void> _applyScreenUiMode(bool applyMode, SystemUiMode mode) async {
-    if(applyMode) await SystemChrome.setEnabledSystemUIMode(mode);
+  void _setSystemUiModePanelOpen(bool open) {
+    if (_systemUiModePanelOpen == open) return;
+    setState(() {
+      _systemUiModePanelOpen = open;
+    });
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Android drops immersive mode when the screen turns off / the app is
-    // resumed (e.g. unlock with the player still open), so the panel that
-    // owns the screen mode reapplies it.
-    if (state == AppLifecycleState.resumed &&
-        widget.setsScreenMode &&
-        _isPanelOpen) {
-      unawaited(_applyScreenUiMode(true, SystemUiMode.immersive));
-    }
+  Widget _withSystemUiModeScope(Widget child) {
+    return SystemUiModeScope.immersive(
+      active: widget.setsScreenMode && _systemUiModePanelOpen,
+      priority: SystemUiModePriority.player,
+      child: child,
+    );
+  }
+
+  Widget _buildPanelContent() {
+    final panelContent =
+        widget.panel ??
+        widget.panelBuilder!(
+          _sc,
+          onListReorderStart,
+          onListReorderEnd,
+        );
+    return _withSystemUiModeScope(panelContent);
   }
 
   @override
@@ -378,13 +391,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
                                 : 0),
                         child: SizedBox(
                           height: widget.maxHeight,
-                          child:
-                              widget.panel ??
-                              widget.panelBuilder!(
-                                _sc,
-                                onListReorderStart,
-                                onListReorderEnd,
-                              ),
+                          child: _buildPanelContent(),
                         ),
                       ),
 
@@ -461,7 +468,6 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _ac.dispose();
     super.dispose();
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers/controller_providers.dart';
 import '../screens/Library/library_controller.dart';
 import 'common_dialog_widget.dart';
 import 'modified_text_field.dart';
@@ -50,23 +52,23 @@ class ImportYtMusicPlaylistDialogController extends ChangeNotifier {
   }
 }
 
-class ImportYtMusicPlaylistDialog extends StatefulWidget {
+class ImportYtMusicPlaylistDialog extends ConsumerStatefulWidget {
   const ImportYtMusicPlaylistDialog({super.key});
 
   @override
-  State<ImportYtMusicPlaylistDialog> createState() =>
+  ConsumerState<ImportYtMusicPlaylistDialog> createState() =>
       _ImportYtMusicPlaylistDialogState();
 }
 
 class _ImportYtMusicPlaylistDialogState
-    extends State<ImportYtMusicPlaylistDialog> {
+    extends ConsumerState<ImportYtMusicPlaylistDialog> {
   late final ImportYtMusicPlaylistDialogController controller;
 
   @override
   void initState() {
     super.initState();
     controller = ImportYtMusicPlaylistDialogController(
-      LibraryPlaylistsControllerRegistry.current!,
+      ref.read(libraryPlaylistsControllerProvider),
     );
   }
 

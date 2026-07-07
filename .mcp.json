@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "harmony-flutter-dart": {
+      "command": "node",
+      "args": [
+        "C:/MyRepositories/Harmony-Music/mcp/flutter_dart_server.js"
+      ]
+    }
+  }
+}

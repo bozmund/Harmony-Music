@@ -59,4 +59,23 @@ void main() {
       expect('clearStaleSearch'.allMatches(source).length, 4);
     });
   });
+
+  group('combined library tab bar offset', () {
+    test('reserves the nav bar footprint without a fudge factor', () {
+      final source = File(
+        'lib/ui/screens/Library/library_combined.dart',
+      ).readAsStringSync();
+      // The offset must equal the nav bar's real height (which already
+      // tracks the gesture/button inset via viewPadding), not that height
+      // plus a magic constant that left dead space above the mini player.
+      expect(
+        source,
+        contains('? ScrollToHideWidget.visibleHeight(context)'),
+      );
+      expect(
+        source.contains('ScrollToHideWidget.visibleHeight(context) + '),
+        isFalse,
+      );
+    });
+  });
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../utils/runtime_platform.dart';
+import '../../../utils/insets.dart';
 import '../../widgets/song_info_bottom_sheet.dart';
 import 'album_art_lyrics.dart';
 import 'background_image.dart';
@@ -24,7 +25,7 @@ class StandardPlayer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final size = MediaQuery.of(context).size;
     final mediaQuery = MediaQuery.of(context);
-    final bottomPadding = mediaQuery.padding.bottom;
+    final bottomPadding = bottomNavInset(context);
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
     final playerController = ref.read(playerControllerProvider);
 

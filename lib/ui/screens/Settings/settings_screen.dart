@@ -70,7 +70,7 @@ class SettingsScreen extends ConsumerWidget {
                   CustomExpansionTile(
                     title: "personalisation".tr,
                     icon: Icons.palette,
-                    children: [
+                    childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -249,7 +249,7 @@ class SettingsScreen extends ConsumerWidget {
                   CustomExpansionTile(
                     title: "content".tr,
                     icon: Icons.music_video,
-                    children: [
+                    childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -446,7 +446,7 @@ class SettingsScreen extends ConsumerWidget {
                   CustomExpansionTile(
                     title: "music&Playback".tr,
                     icon: Icons.music_note,
-                    children: [
+                    childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -717,7 +717,7 @@ class SettingsScreen extends ConsumerWidget {
                   CustomExpansionTile(
                     title: "download".tr,
                     icon: Icons.download,
-                    children: [
+                    childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -826,7 +826,7 @@ class SettingsScreen extends ConsumerWidget {
                   CustomExpansionTile(
                     title: "${"backup".tr} & ${"restore".tr}",
                     icon: Icons.restore,
-                    children: [
+                    childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -893,7 +893,7 @@ class SettingsScreen extends ConsumerWidget {
                   CustomExpansionTile(
                     title: "Import",
                     icon: Icons.playlist_add,
-                    children: [
+                    childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -933,7 +933,7 @@ class SettingsScreen extends ConsumerWidget {
                   CustomExpansionTile(
                     icon: Icons.miscellaneous_services,
                     title: "misc".tr,
-                    children: [
+                    childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -968,7 +968,7 @@ class SettingsScreen extends ConsumerWidget {
                     icon: Icons.info,
                     title: "appInfo".tr,
                     initiallyExpanded: revealUpdateChannel,
-                    children: [
+                    childrenBuilder: (context) => [
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -1085,7 +1085,7 @@ class _DeveloperSettingsInspector extends ConsumerWidget {
     return CustomExpansionTile(
       icon: Icons.developer_mode,
       title: "Developer settings",
-      children: [
+      childrenBuilder: (context) => [
         ListTile(
           contentPadding: const EdgeInsets.only(left: 5, right: 10),
           title: const Text("Refresh values"),

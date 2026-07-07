@@ -18,12 +18,14 @@ import '../../services/downloader.dart';
 import '../../services/playback_command_service.dart';
 import '../../utils/runtime_platform.dart';
 import '../../utils/observable_state.dart';
+import '../screens/Library/library_controller.dart';
 import '../screens/Playlist/playlist_screen_controller.dart';
 import '../widgets/snackbar.dart';
 import '/services/synced_lyrics_service.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
 import '../../services/windows_audio_service.dart';
 import '../../utils/helper.dart';
+import '../../utils/insets.dart';
 import '../screens/Home/home_screen_controller.dart';
 import '../widgets/sliding_up_panel.dart';
 import '/models/duration_state.dart';
@@ -612,12 +614,27 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   Future<void> _updateCurrentSongSideEffects(MediaItem mediaItem) async {
     await _checkFavFor(mediaItem);
     await _addToRP(mediaItem);
+    await _backfillLibraryDuration(mediaItem);
     if (currentSong.value?.id == mediaItem.id &&
         isRadioModeOn &&
         currentQueue.isNotEmpty &&
         mediaItem.id == currentQueue.last.id) {
       await _addRadioContinuation(radioInitiatorItem!);
     }
+  }
+
+  /// Some sources add a song to the library with no duration; the real
+  /// value only arrives once playback resolves the audio source. Persist it
+  /// then (and patch the on-screen list) so the library stops showing a
+  /// blank duration for that track.
+  Future<void> _backfillLibraryDuration(MediaItem mediaItem) async {
+    final duration = mediaItem.duration;
+    if (duration == null || duration <= Duration.zero) return;
+    await _libraryRepository.backfillSongDuration(mediaItem.id, duration);
+    LibrarySongsControllerRegistry.current?.applyResolvedDuration(
+      mediaItem.id,
+      duration,
+    );
   }
 
   void _listenForPlaylistChange() {
@@ -869,7 +886,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         : MediaQuery.of(appContext).size;
     final bottomPadding = appContext == null
         ? 0.0
-        : MediaQuery.of(appContext).viewPadding.bottom;
+        : bottomNavInset(appContext);
     final isWideScreen = screenSize.width > 800;
     final autoOpenPlayer = _settingsRepository.getAutoOpenPlayer();
     if (initFlagForPlayer || playerPanelMinHeight.value == 0) {

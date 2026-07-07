@@ -13,6 +13,7 @@ import '/ui/navigator.dart';
 import '/ui/player/player_controller.dart';
 import '../../../utils/update_check_flag_file.dart';
 import '../../../utils/helper.dart';
+import '../../../utils/insets.dart';
 import '/models/album.dart';
 import '/models/playlist.dart';
 import '/models/quick_picks.dart';
@@ -553,7 +554,7 @@ class HomeScreenController extends ChangeNotifier {
             () {
               final bottomPadding = AppNavigator.context == null
                   ? 0.0
-                  : MediaQuery.of(AppNavigator.context!).viewPadding.bottom;
+                  : bottomNavInset(AppNavigator.context!);
               playerCon.playerPanelMinHeight.value = 75.0 + bottomPadding;
             },
           );

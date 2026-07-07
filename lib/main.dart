@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -22,6 +21,7 @@ import 'services/crash_diagnostics_service.dart';
 import 'utils/app_link_controller.dart';
 import '/services/audio_handler.dart';
 import 'utils/runtime_platform.dart';
+import 'utils/insets.dart';
 import 'utils/update_check_flag_file.dart';
 
 late final ProviderContainer appProviderContainer;
@@ -144,7 +144,7 @@ class MyApp extends ConsumerWidget {
                 alignment: Alignment.bottomCenter,
                 child: Container(
                   color: Colors.transparent,
-                  height: mQuery.padding.bottom,
+                  height: bottomNavInset(context),
                   width: mQuery.size.width,
                 ),
               ),
@@ -193,16 +193,8 @@ class LifecycleHandler extends WidgetsBindingObserver {
       flush: state != AppLifecycleState.resumed,
     );
     if (state == AppLifecycleState.resumed) {
-      // Don't stomp the immersive mode owned by the open player panel
-      // (unlocking the phone with the big player on screen must bring back
-      // fullscreen, not edge-to-edge).
-      final playerPanel = appProviderContainer
-          .read(playerControllerProvider)
-          .playerPanelController;
-      final playerPanelOpen = playerPanel.isAttached && playerPanel.isPanelOpen;
-      await SystemChrome.setEnabledSystemUIMode(
-        playerPanelOpen ? SystemUiMode.immersive : SystemUiMode.edgeToEdge,
-      );
+      // SystemUiModeScope owns edge-to-edge / immersive restoration for the
+      // currently mounted app surfaces.
     } else if (state == AppLifecycleState.paused) {
       // Back on the home tab now minimizes (predictive-back standard) instead
       // of hard-exiting, so persist the session whenever we go to background.
