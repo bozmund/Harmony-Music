@@ -79,6 +79,9 @@ class PrefKeys {
   static const String playbackMode = 'playbackMode';
   static const String playbackPreloadRange = 'playbackPreloadRange';
   static const String developerSettingsEnabled = 'developerSettingsEnabled';
+  static const String heosBridgeIp = 'heosBridgeIp';
+  static const String heosPlayerId = 'heosPlayerId';
+  static const String heosPlayerName = 'heosPlayerName';
 }
 
 enum PlaybackMode { classic, preloaded }
@@ -104,4 +107,5 @@ class LogTags {
   static const String piped = 'Piped';
   static const String backup = 'Backup';
   static const String preload = 'Preload';
+  static const String heos = 'HEOS';
 }

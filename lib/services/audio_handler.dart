@@ -895,9 +895,7 @@ class MyAudioHandler extends BaseAudioHandler {
   Future<bool> _localSourceFileExists(String url) async {
     try {
       final uri = Uri.tryParse(url);
-      final path = uri != null && uri.scheme == 'file'
-          ? uri.toFilePath()
-          : url;
+      final path = uri != null && uri.scheme == 'file' ? uri.toFilePath() : url;
       return await File(path).exists();
     } catch (_) {
       return false;
@@ -1263,6 +1261,24 @@ class MyAudioHandler extends BaseAudioHandler {
     switch (name) {
       case 'playbackDebugSnapshot':
         return _handlerDebugSnapshot();
+
+      case 'resolveHeosStreamUrl':
+        final song = extras!['mediaItem'] as MediaItem;
+        final generateNewUrl = extras['newUrl'] == true;
+        final streamInfo = await checkNGetUrl(
+          song.id,
+          generateNewUrl: generateNewUrl,
+        );
+        if (!streamInfo.playable) {
+          return {'playable': false, 'statusMSG': streamInfo.statusMSG};
+        }
+        final audio = _heosCompatibleAudio(streamInfo);
+        return {
+          'playable': audio != null,
+          'statusMSG': audio == null ? 'No HEOS-compatible stream' : 'OK',
+          'url': audio?.url,
+          'audioCodec': audio?.audioCodec.name,
+        };
 
       case 'dispose':
         _stopCompletionWatchdog();
@@ -1710,6 +1726,18 @@ class MyAudioHandler extends BaseAudioHandler {
       default:
         break;
     }
+  }
+
+  Audio? _heosCompatibleAudio(HMStreamingData streamInfo) {
+    final candidates = [
+      streamInfo.highQualityAudio,
+      streamInfo.lowQualityAudio,
+      streamInfo.audio,
+    ];
+    for (final audio in candidates) {
+      if (audio?.audioCodec == Codec.mp4a) return audio;
+    }
+    return streamInfo.audio;
   }
 
   void _shuffleVisibleQueueFromIndex(int index) {

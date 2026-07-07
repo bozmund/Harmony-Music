@@ -98,6 +98,14 @@ abstract class SettingsRepository {
   Future<void> deleteHomeScreenDataTime();
   String? getRecentSongId();
   Future<void> setRecentSongId(String songId);
+  String? getHeosBridgeIp();
+  String? getHeosPlayerId();
+  String? getHeosPlayerName();
+  Future<void> setHeosSelection({
+    required String? bridgeIp,
+    required String? playerId,
+    required String? playerName,
+  });
   Future<void> seedDefaults(bool updateCheckFlag);
   Future<void> clearAll();
   Map<String, dynamic> developerValues();

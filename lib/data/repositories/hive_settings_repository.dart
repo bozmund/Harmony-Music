@@ -361,6 +361,38 @@ class HiveSettingsRepository implements SettingsRepository {
       _box.put(PrefKeys.recentSongId, songId);
 
   @override
+  String? getHeosBridgeIp() => _box.get(PrefKeys.heosBridgeIp);
+
+  @override
+  String? getHeosPlayerId() => _box.get(PrefKeys.heosPlayerId);
+
+  @override
+  String? getHeosPlayerName() => _box.get(PrefKeys.heosPlayerName);
+
+  @override
+  Future<void> setHeosSelection({
+    required String? bridgeIp,
+    required String? playerId,
+    required String? playerName,
+  }) async {
+    if (bridgeIp == null || bridgeIp.isEmpty) {
+      await _box.delete(PrefKeys.heosBridgeIp);
+    } else {
+      await _box.put(PrefKeys.heosBridgeIp, bridgeIp);
+    }
+    if (playerId == null || playerId.isEmpty) {
+      await _box.delete(PrefKeys.heosPlayerId);
+    } else {
+      await _box.put(PrefKeys.heosPlayerId, playerId);
+    }
+    if (playerName == null || playerName.isEmpty) {
+      await _box.delete(PrefKeys.heosPlayerName);
+    } else {
+      await _box.put(PrefKeys.heosPlayerName, playerName);
+    }
+  }
+
+  @override
   Future<void> seedDefaults(bool updateCheckFlag) async {
     if (_box.isEmpty) {
       await _box.putAll({

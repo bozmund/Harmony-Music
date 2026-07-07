@@ -238,14 +238,16 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
         )..addListener(() {
           widget.onPanelSlide?.call(_ac.value);
 
-          if (_ac.value == 1.0) {
+          if (_isPanelOpen) {
+            final wasOpen = _systemUiModePanelOpen;
             _setSystemUiModePanelOpen(true);
-            widget.onPanelOpened?.call();
+            if (!wasOpen) widget.onPanelOpened?.call();
           }
 
-          if (_ac.value == 0.0) {
+          if (_isPanelClosed) {
+            final wasOpen = _systemUiModePanelOpen;
             _setSystemUiModePanelOpen(false);
-            widget.onPanelClosed?.call();
+            if (wasOpen) widget.onPanelClosed?.call();
           }
         });
 
@@ -277,11 +279,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
   Widget _buildPanelContent() {
     final panelContent =
         widget.panel ??
-        widget.panelBuilder!(
-          _sc,
-          onListReorderStart,
-          onListReorderEnd,
-        );
+        widget.panelBuilder!(_sc, onListReorderStart, onListReorderEnd);
     return _withSystemUiModeScope(panelContent);
   }
 
