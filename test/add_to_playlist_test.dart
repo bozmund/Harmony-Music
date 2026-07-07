@@ -27,6 +27,7 @@ class TestPipedServices extends PipedServices {
   addToPlaylistHandler;
   final requestedMemberships = <String>[];
   final requestedAdds = <TestPlaylistAddRequest>[];
+  final requestedRemovals = <TestPlaylistRemoveRequest>[];
 
   @override
   bool get isLoggedIn => loggedIn;
@@ -49,6 +50,12 @@ class TestPipedServices extends PipedServices {
     if (handler == null) return Res(1);
     return handler(playlistId, videosId);
   }
+
+  @override
+  Future<Res> removeFromPlaylist(String playlistId, int index) async {
+    requestedRemovals.add(TestPlaylistRemoveRequest(playlistId, index));
+    return Res(1);
+  }
 }
 
 class TestPlaylistAddRequest {
@@ -56,6 +63,13 @@ class TestPlaylistAddRequest {
 
   final String playlistId;
   final List<String> videosId;
+}
+
+class TestPlaylistRemoveRequest {
+  const TestPlaylistRemoveRequest(this.playlistId, this.index);
+
+  final String playlistId;
+  final int index;
 }
 
 void main() {
@@ -87,11 +101,11 @@ void main() {
       controller.updatePlaylistMembership('playlist-a', ['song-1']);
 
       expect(
-        controller.isPlaylistDisabled('playlist-a', [_song('song-1')]),
+        controller.playlistContainsAllSongs('playlist-a', [_song('song-1')]),
         isTrue,
       );
       expect(
-        controller.isPlaylistDisabled('playlist-a', [
+        controller.playlistContainsAllSongs('playlist-a', [
           _song('song-1'),
           _song('song-2'),
         ]),
@@ -116,18 +130,18 @@ void main() {
       controller.markSongsAddedToPlaylist('playlist-a', [_song('song-1')]);
 
       expect(
-        controller.isPlaylistDisabled('playlist-a', [_song('song-1')]),
+        controller.playlistContainsAllSongs('playlist-a', [_song('song-1')]),
         isTrue,
       );
       expect(
-        controller.isPlaylistDisabled('playlist-b', [_song('song-1')]),
+        controller.playlistContainsAllSongs('playlist-b', [_song('song-1')]),
         isFalse,
       );
 
       controller.markSongsAddedToPlaylist('playlist-b', [_song('song-1')]);
 
       expect(
-        controller.isPlaylistDisabled('playlist-b', [_song('song-1')]),
+        controller.playlistContainsAllSongs('playlist-b', [_song('song-1')]),
         isTrue,
       );
     });
@@ -149,14 +163,14 @@ void main() {
       controller.updatePlaylistMembership('playlist-a', ['song-1']);
 
       expect(
-        controller.isPlaylistDisabled('playlist-a', [_song('song-1')]),
+        controller.playlistContainsAllSongs('playlist-a', [_song('song-1')]),
         isTrue,
       );
 
       controller.markSongsRemovedFromPlaylist('playlist-a', [_song('song-1')]);
 
       expect(
-        controller.isPlaylistDisabled('playlist-a', [_song('song-1')]),
+        controller.playlistContainsAllSongs('playlist-a', [_song('song-1')]),
         isFalse,
       );
     });
@@ -326,7 +340,7 @@ void main() {
           isTrue,
         );
         expect(
-          controller.isPlaylistDisabled(playlistId, [_song('song-1')]),
+          controller.playlistContainsAllSongs(playlistId, [_song('song-1')]),
           isTrue,
         );
       },
@@ -341,9 +355,147 @@ void main() {
         PlaylistAddStatus.added,
       );
       expect(
-        controller.isPlaylistDisabled(playlistId, [_song('song-1')]),
+        controller.playlistContainsAllSongs(playlistId, [_song('song-1')]),
         isTrue,
       );
+    });
+
+    test('tapping a local playlist that has the song removes it', () async {
+      final playlistId = nextBoxName('local_remove');
+      final controller = _controller();
+
+      // Seed: song is in the playlist.
+      expect(
+        await controller.addSongsToPlaylist([_song('song-1')], playlistId),
+        PlaylistAddStatus.added,
+      );
+      expect(
+        controller.playlistContainsAllSongs(playlistId, [_song('song-1')]),
+        isTrue,
+      );
+
+      final result = await controller.removeSongsFromPlaylist([
+        _song('song-1'),
+      ], playlistId);
+
+      expect(result, PlaylistRemoveStatus.removed);
+      // Row flips back to "addable", and the box no longer holds the song.
+      expect(
+        controller.playlistContainsAllSongs(playlistId, [_song('song-1')]),
+        isFalse,
+      );
+      final box = await Hive.openBox(playlistId);
+      final ids = box.values
+          .map((item) => item['videoId'])
+          .whereType<String>()
+          .toList();
+      expect(ids, isNot(contains('song-1')));
+    });
+
+    test(
+      'loadPlaylists eagerly resolves local membership so removal is visible',
+      () async {
+        final pipedServices = await _putPipedServices(TestPipedServices());
+        final playlistId = nextBoxName('eager_local');
+
+        // A local playlist already containing song-1.
+        final playlistBox = await Hive.openBox('LibraryPlaylists');
+        await playlistBox.put(
+          playlistId,
+          _localPlaylistJson(playlistId),
+        );
+        await playlistBox.close();
+        final songBox = await Hive.openBox(playlistId);
+        await songBox.add(MediaItemBuilder.toJson(_song('song-1')));
+        await songBox.close();
+
+        final controller = _controller(pipedServices: pipedServices);
+        await controller.loadPlaylists();
+
+        // Membership is known without the user tapping the row first, so the
+        // "already added — tap to remove" state can render immediately.
+        expect(controller.isPlaylistMembershipLoaded(playlistId), isTrue);
+        expect(
+          controller.playlistContainsAllSongs(playlistId, [_song('song-1')]),
+          isTrue,
+        );
+        // Local preload must not fire any piped membership requests.
+        expect(pipedServices.requestedMemberships, isEmpty);
+      },
+    );
+
+    test('removing a song the playlist does not have is a no-op', () async {
+      final playlistId = nextBoxName('local_remove_absent');
+      final controller = _controller();
+      controller.updatePlaylistMembership(playlistId, []);
+
+      final result = await controller.removeSongsFromPlaylist([
+        _song('song-1'),
+      ], playlistId);
+
+      expect(result, PlaylistRemoveStatus.skipped);
+    });
+
+    test('tapping a piped playlist removes the song by index', () async {
+      final pipedServices = await _putPipedServices(
+        TestPipedServices(
+          playlistSongsHandler: (_) async => [
+            _song('song-0'),
+            _song('song-1'),
+            _song('song-2'),
+          ],
+        ),
+      );
+      final controller = _controller(pipedServices: pipedServices)
+        ..playlistType.value = 'piped';
+      controller.updatePlaylistMembership('piped-a', [
+        'song-0',
+        'song-1',
+        'song-2',
+      ]);
+
+      final result = await controller.removeSongsFromPlaylist([
+        _song('song-1'),
+      ], 'piped-a');
+
+      expect(result, PlaylistRemoveStatus.removed);
+      expect(pipedServices.requestedRemovals, hasLength(1));
+      expect(pipedServices.requestedRemovals.single.playlistId, 'piped-a');
+      // song-1 sits at index 1 in the fetched order.
+      expect(pipedServices.requestedRemovals.single.index, 1);
+      expect(controller.playlistSongIds['piped-a'], {'song-0', 'song-2'});
+    });
+
+    test('piped multi-remove deletes highest index first', () async {
+      final pipedServices = await _putPipedServices(
+        TestPipedServices(
+          playlistSongsHandler: (_) async => [
+            _song('song-0'),
+            _song('song-1'),
+            _song('song-2'),
+          ],
+        ),
+      );
+      final controller = _controller(pipedServices: pipedServices)
+        ..playlistType.value = 'piped';
+      controller.updatePlaylistMembership('piped-a', [
+        'song-0',
+        'song-1',
+        'song-2',
+      ]);
+
+      final result = await controller.removeSongsFromPlaylist([
+        _song('song-0'),
+        _song('song-2'),
+      ], 'piped-a');
+
+      expect(result, PlaylistRemoveStatus.removed);
+      // Descending so the lower index stays valid: index 2 then index 0.
+      expect(
+        pipedServices.requestedRemovals.map((request) => request.index),
+        [2, 0],
+      );
+      expect(controller.playlistSongIds['piped-a'], {'song-1'});
     });
   });
 }
@@ -365,6 +517,15 @@ Playlist _playlist(String id) {
     playlistId: id,
     thumbnailUrl: Playlist.thumbPlaceholderUrl,
   );
+}
+
+Map<String, dynamic> _localPlaylistJson(String id) {
+  return Playlist(
+    title: id,
+    playlistId: id,
+    thumbnailUrl: Playlist.thumbPlaceholderUrl,
+    isCloudPlaylist: false,
+  ).toJson();
 }
 
 MediaItem _song(String id) {

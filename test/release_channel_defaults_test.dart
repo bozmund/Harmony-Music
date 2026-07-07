@@ -73,7 +73,7 @@ void main() {
           dialogSource.indexOf('markReleasePromptAnswered()');
       final channelIndex = dialogSource.indexOf('changeUpdateChannel(');
       final revealIndex =
-          dialogSource.indexOf('requestUpdateChannelReveal()');
+          dialogSource.indexOf('requestUpdateSectionReveal()');
       final settingsTabIndex = dialogSource.indexOf('openSettingsTab()');
       expect(answeredIndex, greaterThan(-1));
       expect(channelIndex, greaterThan(-1));
@@ -91,13 +91,13 @@ void main() {
         'lib/ui/screens/Settings/settings_screen.dart',
       ).readAsStringSync();
       final consumeIndex =
-          screenSource.indexOf('consumeUpdateChannelReveal()');
+          screenSource.indexOf('consumeUpdateSectionReveal()');
       expect(consumeIndex, greaterThan(-1));
       // The reveal flag must expand the App Info tile — the section that
       // contains the update-channel row.
       final appInfoIndex = screenSource.indexOf('"appInfo".tr');
       final revealTileIndex = screenSource.indexOf(
-        'initiallyExpanded: revealUpdateChannel',
+        'initiallyExpanded: revealUpdateSection',
         appInfoIndex,
       );
       final channelRowIndex = screenSource.indexOf("'Update channel'");

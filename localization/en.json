@@ -287,5 +287,7 @@
     "stableChannelOption": "Stable (recommended)",
     "stableChannelOptionDes": "Tested, versioned releases. Fewer updates, more reliable.",
     "rollingChannelOption": "Rolling",
-    "rollingChannelOptionDes": "Every new build from development. Newest features first, but may be less stable."
+    "rollingChannelOptionDes": "Every new build from development. Newest features first, but may be less stable.",
+    "tapToRemoveFromPlaylist": "Added — tap to remove",
+    "songRemovedFromPlaylistAlert": "Removed from playlist"
 }

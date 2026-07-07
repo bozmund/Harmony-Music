@@ -18,6 +18,8 @@ import 'snackbar.dart';
 
 enum PlaylistAddStatus { added, skipped, failed }
 
+enum PlaylistRemoveStatus { removed, skipped, failed }
+
 class AddToPlaylist extends ConsumerStatefulWidget {
   const AddToPlaylist(this.songItems, {super.key});
   final List<MediaItem> songItems;
@@ -46,6 +48,28 @@ class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
   void dispose() {
     addToPlaylistController.dispose();
     super.dispose();
+  }
+
+  String _addResultMessage(PlaylistAddStatus result) {
+    switch (result) {
+      case PlaylistAddStatus.added:
+        return "songAddedToPlaylistAlert".tr;
+      case PlaylistAddStatus.skipped:
+        return "songAlreadyExists".tr;
+      case PlaylistAddStatus.failed:
+        return "errorOccurredAlert".tr;
+    }
+  }
+
+  String _removeResultMessage(PlaylistRemoveStatus result) {
+    switch (result) {
+      case PlaylistRemoveStatus.removed:
+        return "songRemovedFromPlaylistAlert".tr;
+      case PlaylistRemoveStatus.skipped:
+        return "songAlreadyExists".tr;
+      case PlaylistRemoveStatus.failed:
+        return "errorOccurredAlert".tr;
+    }
   }
 
   @override
@@ -176,68 +200,69 @@ class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
                                         .isPlaylistMembershipLoading(
                                           playlist.playlistId,
                                         );
-                                final isDisabled =
+                                // Membership known and every selected song is
+                                // already in this playlist: tapping now
+                                // removes them instead of being a no-op.
+                                final containsAll =
                                     isMembershipLoaded &&
-                                    addToPlaylistController.isPlaylistDisabled(
-                                      playlist.playlistId,
-                                      widget.songItems,
-                                    );
-                                final isAdding = addToPlaylistController
+                                    addToPlaylistController
+                                        .playlistContainsAllSongs(
+                                          playlist.playlistId,
+                                          widget.songItems,
+                                        );
+                                final isBusy = addToPlaylistController
                                     .isPlaylistAdding(playlist.playlistId);
-                                final canAdd =
-                                    !isDisabled &&
-                                    !isAdding &&
-                                    !isMembershipLoading;
-                                return Opacity(
-                                  opacity: isDisabled ? 0.55 : 1,
-                                  child: Material(
-                                    type: MaterialType.transparency,
-                                    child: ListTile(
-                                      enabled: canAdd,
-                                      leading: isAdding || isMembershipLoading
-                                          ? const SizedBox.square(
-                                              dimension: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : Icon(
-                                              isDisabled
-                                                  ? Icons.check_circle
-                                                  : Icons.add_circle_outline,
+                                final canInteract =
+                                    !isBusy && !isMembershipLoading;
+                                return Material(
+                                  type: MaterialType.transparency,
+                                  child: ListTile(
+                                    enabled: canInteract,
+                                    leading: isBusy || isMembershipLoading
+                                        ? const SizedBox.square(
+                                            dimension: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
                                             ),
-                                      title: Text(playlist.title),
-                                      onTap: canAdd
-                                          ? () async {
-                                              final result =
-                                                  await addToPlaylistController
-                                                      .addSongsToPlaylist(
-                                                        widget.songItems,
-                                                        playlist.playlistId,
-                                                      );
-                                              if (!context.mounted) return;
-                                              final message =
-                                                  result ==
-                                                      PlaylistAddStatus.added
-                                                  ? "songAddedToPlaylistAlert"
-                                                        .tr
-                                                  : result ==
-                                                        PlaylistAddStatus
-                                                            .skipped
-                                                  ? "songAlreadyExists".tr
-                                                  : "errorOccurredAlert".tr;
-                                              ScaffoldMessenger.of(
+                                          )
+                                        : Icon(
+                                            containsAll
+                                                ? Icons.check_circle
+                                                : Icons.add_circle_outline,
+                                          ),
+                                    title: Text(playlist.title),
+                                    subtitle: containsAll
+                                        ? Text("tapToRemoveFromPlaylist".tr)
+                                        : null,
+                                    onTap: canInteract
+                                        ? () async {
+                                            final message = containsAll
+                                                ? _removeResultMessage(
+                                                    await addToPlaylistController
+                                                        .removeSongsFromPlaylist(
+                                                          widget.songItems,
+                                                          playlist.playlistId,
+                                                        ),
+                                                  )
+                                                : _addResultMessage(
+                                                    await addToPlaylistController
+                                                        .addSongsToPlaylist(
+                                                          widget.songItems,
+                                                          playlist.playlistId,
+                                                        ),
+                                                  );
+                                            if (!context.mounted) return;
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              snackbar(
                                                 context,
-                                              ).showSnackBar(
-                                                snackbar(
-                                                  context,
-                                                  message,
-                                                  size: SanckBarSize.MEDIUM,
-                                                ),
-                                              );
-                                            }
-                                          : null,
-                                    ),
+                                                message,
+                                                size: SanckBarSize.MEDIUM,
+                                              ),
+                                            );
+                                          }
+                                        : null,
                                   ),
                                 );
                               },
@@ -302,6 +327,12 @@ class AddToPlaylistController extends ChangeNotifier {
       );
     localPlaylists = playlists.toList();
     notifyListeners();
+    // Resolve local membership up front so each row can immediately show
+    // whether the song is already in the playlist (and offer to remove it).
+    // Local reads are cheap Hive lookups; piped stays lazy so we don't fire
+    // a network request per playlist just to open the dialog. Kicked off
+    // here and awaited at the end so it runs alongside the piped fetch.
+    final localMembershipsFuture = _preloadLocalMemberships();
     final res = await _pipedServices.getAllPlaylists();
     if (res.code == 1) {
       pipedPlaylists = res.response
@@ -318,6 +349,18 @@ class AddToPlaylistController extends ChangeNotifier {
           .toList();
     }
     notifyListeners();
+    await localMembershipsFuture;
+  }
+
+  Future<void> _preloadLocalMemberships() async {
+    await Future.wait(
+      localPlaylists.map(
+        (playlist) => ensurePlaylistMembershipLoaded(
+          playlist.playlistId,
+          playlistTypeOverride: "local",
+        ),
+      ),
+    );
   }
 
   Future<void> changePlaylistType(String val) async {
@@ -340,7 +383,9 @@ class AddToPlaylistController extends ChangeNotifier {
     return playlistSongIds.containsKey(playlistId);
   }
 
-  bool isPlaylistDisabled(String playlistId, List<MediaItem> songs) {
+  /// True when every one of [songs] is already in the playlist. Such a
+  /// playlist is not disabled — tapping it removes the songs (toggle).
+  bool playlistContainsAllSongs(String playlistId, List<MediaItem> songs) {
     return missingSongsForPlaylist(songs, playlistId).isEmpty;
   }
 
@@ -425,6 +470,84 @@ class AddToPlaylistController extends ChangeNotifier {
       additionInProgress.value = addingPlaylistIds.isNotEmpty;
       notifyListeners();
     }
+  }
+
+  /// Removes whichever of [songs] are currently in the playlist. Reuses the
+  /// same in-flight tracking (`addingPlaylistIds` / `additionInProgress`) as
+  /// adding, so the row shows a spinner and stays locked during removal too.
+  Future<PlaylistRemoveStatus> removeSongsFromPlaylist(
+    List<MediaItem> songs,
+    String playlistId,
+  ) async {
+    final selectedPlaylistType = playlistType.value;
+    final membershipLoaded = await ensurePlaylistMembershipLoaded(
+      playlistId,
+      playlistTypeOverride: selectedPlaylistType,
+    );
+    if (!membershipLoaded) {
+      return PlaylistRemoveStatus.failed;
+    }
+    final existingIds = playlistSongIds[playlistId] ?? <String>{};
+    final songsToRemove = songs
+        .where((song) => existingIds.contains(song.id))
+        .toList();
+    if (songsToRemove.isEmpty) {
+      return PlaylistRemoveStatus.skipped;
+    }
+
+    additionInProgress.value = true;
+    addingPlaylistIds.add(playlistId);
+    notifyListeners();
+    try {
+      if (selectedPlaylistType == "local") {
+        await _playlistRepository.removeSongsFromPlaylist(
+          playlistId,
+          songsToRemove,
+        );
+        markSongsRemovedFromPlaylist(playlistId, songsToRemove);
+        return PlaylistRemoveStatus.removed;
+      } else {
+        final removed = await _removePipedSongs(playlistId, songsToRemove);
+        if (removed.isEmpty) return PlaylistRemoveStatus.failed;
+        markSongsRemovedFromPlaylist(playlistId, removed);
+        return PlaylistRemoveStatus.removed;
+      }
+    } catch (e) {
+      printWarning(
+        "Failed to remove songs from playlist $playlistId: $e",
+        tag: "AddToPlaylist",
+      );
+      return PlaylistRemoveStatus.failed;
+    } finally {
+      addingPlaylistIds.remove(playlistId);
+      additionInProgress.value = addingPlaylistIds.isNotEmpty;
+      notifyListeners();
+    }
+  }
+
+  /// Piped removal is index-based, so map the target song ids to their
+  /// current positions and delete highest-index first — that keeps the
+  /// lower indices valid as we go. Returns the songs actually removed.
+  Future<List<MediaItem>> _removePipedSongs(
+    String playlistId,
+    List<MediaItem> songsToRemove,
+  ) async {
+    final currentSongs = await _pipedServices.getPlaylistSongs(playlistId);
+    final removeIds = songsToRemove.map((song) => song.id).toSet();
+    final indices = <int>[];
+    for (var i = 0; i < currentSongs.length; i++) {
+      if (removeIds.contains(currentSongs[i].id)) indices.add(i);
+    }
+    indices.sort((a, b) => b.compareTo(a));
+
+    final removed = <MediaItem>[];
+    for (final index in indices) {
+      final res = await _pipedServices.removeFromPlaylist(playlistId, index);
+      if (res.code == 1) {
+        removed.add(currentSongs[index]);
+      }
+    }
+    return removed;
   }
 
   Future<List<MediaItem>> _addLocalMissingSongs(

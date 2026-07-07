@@ -11,11 +11,19 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('bottom nav inset resilience', () {
     late final String scrollToHideSource;
+    late final String bottomNavBarSource;
+    late final String bottomNavBarDimensionsSource;
     late final String insetsSource;
 
     setUpAll(() {
       scrollToHideSource = File(
         'lib/ui/widgets/scroll_to_hide.dart',
+      ).readAsStringSync();
+      bottomNavBarSource = File(
+        'lib/ui/widgets/bottom_nav_bar.dart',
+      ).readAsStringSync();
+      bottomNavBarDimensionsSource = File(
+        'lib/ui/widgets/bottom_nav_bar_dimensions.dart',
       ).readAsStringSync();
       insetsSource = File('lib/utils/insets.dart').readAsStringSync();
     });
@@ -24,60 +32,87 @@ void main() {
       // Root-view read so an ancestor MediaQuery can't shrink the inset.
       expect(
         insetsSource,
-        contains('MediaQueryData.fromView(View.of(context)).viewPadding.bottom'),
+        contains(
+          'MediaQueryData.fromView(View.of(context)).viewPadding.bottom',
+        ),
       );
       // Floor against transient 0 reports during immersive/resume transitions.
       expect(insetsSource, contains('_maxSeenBottomInset'));
       expect(insetsSource, contains('raw > _maxSeenBottomInset'));
-      expect(insetsSource, isNot(contains('MediaQuery.of(context).viewPadding')));
+      expect(
+        insetsSource,
+        isNot(contains('MediaQuery.of(context).viewPadding')),
+      );
     });
 
     test('ScrollToHideWidget.visibleHeight uses the floor helper', () {
       expect(
         scrollToHideSource,
-        contains('80.0 + bottomNavInset(context)'),
+        contains('compactBottomNavBarHeight + bottomNavInset(context)'),
       );
       // No longer reads the ancestor-narrowable MediaQuery directly.
       expect(
-        scrollToHideSource.contains('MediaQuery.of(context).viewPadding.bottom'),
+        scrollToHideSource.contains(
+          'MediaQuery.of(context).viewPadding.bottom',
+        ),
         isFalse,
       );
     });
 
-    test('no bottom-nav spacing still uses MediaQuery.of(...).padding.bottom',
-        () {
-      // The nav-bar footprint must not come from `padding` (collapses under
-      // SafeArea) in the files that reserve nav-bar / mini-player space.
-      final offenders = <String, String>{
-        'home.dart': File('lib/ui/home.dart').readAsStringSync(),
-        'standard_player.dart':
-            File('lib/ui/player/components/standard_player.dart')
-                .readAsStringSync(),
-        'gesture_player.dart':
-            File('lib/ui/player/components/gesture_player.dart')
-                .readAsStringSync(),
-        'up_next_queue.dart':
-            File('lib/ui/widgets/up_next_queue.dart').readAsStringSync(),
-        'main.dart': File('lib/main.dart').readAsStringSync(),
-        'player_controller.dart':
-            File('lib/ui/player/player_controller.dart').readAsStringSync(),
-      };
-      for (final entry in offenders.entries) {
-        expect(
-          entry.value.contains('MediaQuery.of(context).padding.bottom') ||
-              entry.value.contains('mQuery.padding.bottom'),
-          isFalse,
-          reason: '${entry.key} should reserve nav space via bottomNavInset',
-        );
-      }
-      // And they must now reference the helper instead.
-      for (final entry in offenders.entries) {
-        expect(
-          entry.value,
-          contains('bottomNavInset('),
-          reason: '${entry.key} should call bottomNavInset for nav spacing',
-        );
-      }
+    test('bottom nav uses the shared compact height', () {
+      expect(
+        bottomNavBarDimensionsSource,
+        contains('const double compactBottomNavBarHeight = 64.0;'),
+      );
+      expect(bottomNavBarSource, contains('height: compactBottomNavBarHeight'));
+      expect(
+        scrollToHideSource,
+        contains("import 'bottom_nav_bar_dimensions.dart';"),
+      );
+      expect(
+        bottomNavBarSource,
+        contains("import 'bottom_nav_bar_dimensions.dart';"),
+      );
     });
+
+    test(
+      'no bottom-nav spacing still uses MediaQuery.of(...).padding.bottom',
+      () {
+        // The nav-bar footprint must not come from `padding` (collapses under
+        // SafeArea) in the files that reserve nav-bar / mini-player space.
+        final offenders = <String, String>{
+          'home.dart': File('lib/ui/home.dart').readAsStringSync(),
+          'standard_player.dart': File(
+            'lib/ui/player/components/standard_player.dart',
+          ).readAsStringSync(),
+          'gesture_player.dart': File(
+            'lib/ui/player/components/gesture_player.dart',
+          ).readAsStringSync(),
+          'up_next_queue.dart': File(
+            'lib/ui/widgets/up_next_queue.dart',
+          ).readAsStringSync(),
+          'main.dart': File('lib/main.dart').readAsStringSync(),
+          'player_controller.dart': File(
+            'lib/ui/player/player_controller.dart',
+          ).readAsStringSync(),
+        };
+        for (final entry in offenders.entries) {
+          expect(
+            entry.value.contains('MediaQuery.of(context).padding.bottom') ||
+                entry.value.contains('mQuery.padding.bottom'),
+            isFalse,
+            reason: '${entry.key} should reserve nav space via bottomNavInset',
+          );
+        }
+        // And they must now reference the helper instead.
+        for (final entry in offenders.entries) {
+          expect(
+            entry.value,
+            contains('bottomNavInset('),
+            reason: '${entry.key} should call bottomNavInset for nav spacing',
+          );
+        }
+      },
+    );
   });
 }

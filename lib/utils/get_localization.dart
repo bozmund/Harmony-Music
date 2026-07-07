@@ -2313,6 +2313,8 @@ class Languages {
       "rollingChannelOption": "Rolling",
       "rollingChannelOptionDes":
           "Every new build from development. Newest features first, but may be less stable.",
+      "tapToRemoveFromPlaylist": "Added — tap to remove",
+      "songRemovedFromPlaylistAlert": "Removed from playlist",
     },
     "eo": {
       "renamePlaylist": "Alinomi Ludliston",
@@ -4940,6 +4942,8 @@ class Languages {
       "rollingChannelOption": "Rolling",
       "rollingChannelOptionDes":
           "Svaka nova razvojna verzija. Najnovije značajke odmah, ali moguća nestabilnost.",
+      "tapToRemoveFromPlaylist": "Dodano — dodirni za uklanjanje",
+      "songRemovedFromPlaylistAlert": "Uklonjeno s popisa za reprodukciju",
     },
     "hu": {
       "artists": "Előadók",

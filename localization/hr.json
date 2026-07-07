@@ -32,5 +32,7 @@
     "stableChannelOption": "Stabilni (preporučeno)",
     "stableChannelOptionDes": "Testirana, verzionirana izdanja. Rjeđa ažuriranja, veća pouzdanost.",
     "rollingChannelOption": "Rolling",
-    "rollingChannelOptionDes": "Svaka nova razvojna verzija. Najnovije značajke odmah, ali moguća nestabilnost."
+    "rollingChannelOptionDes": "Svaka nova razvojna verzija. Najnovije značajke odmah, ali moguća nestabilnost.",
+    "tapToRemoveFromPlaylist": "Dodano — dodirni za uklanjanje",
+    "songRemovedFromPlaylistAlert": "Uklonjeno s popisa za reprodukciju"
 }

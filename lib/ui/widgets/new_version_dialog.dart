@@ -4,18 +4,12 @@ import 'package:harmonymusic/utils/get_localization.dart';
 
 import '../../app/providers/controller_providers.dart';
 import '../../utils/helper.dart';
-import '../screens/Settings/settings_screen_controller.dart';
 import 'common_dialog_widget.dart';
 
 class NewVersionDialog extends ConsumerWidget {
-  const NewVersionDialog({
-    super.key,
-    required this.updateInfo,
-    this.disableStartupPopupOnUpdateTap = false,
-  });
+  const NewVersionDialog({super.key, required this.updateInfo});
 
   final UpdateInfo updateInfo;
-  final bool disableStartupPopupOnUpdateTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,9 +39,8 @@ class NewVersionDialog extends ConsumerWidget {
                 child: FittedBox(
                   child: FloatingActionButton(
                     onPressed: () async {
-                      await _handleUpdateTap(
-                        settingsController,
-                        homeController.disableStartupUpdatePopup,
+                      await settingsController.downloadAndInstallUpdate(
+                        updateInfo,
                       );
                     },
                     child: AnimatedBuilder(
@@ -114,15 +107,28 @@ class NewVersionDialog extends ConsumerWidget {
                       label: "download".tr,
                       enabled: !settingsController.isUpdateDownloading.value,
                       onTap: () async {
-                        await _handleUpdateTap(
-                          settingsController,
-                          homeController.disableStartupUpdatePopup,
+                        await settingsController.downloadAndInstallUpdate(
+                          updateInfo,
                         );
                       },
                     ),
                     _DialogActionButton(
                       label: "dismiss".tr,
-                      onTap: () => Navigator.of(context).pop(),
+                      onTap: () {
+                        // If the user just turned off the startup update
+                        // popup, send them to the Settings App Info section
+                        // (which holds "Check for updates") so they know
+                        // where to look — otherwise a future update would go
+                        // unnoticed. The checkbox reflects showVersionDialog,
+                        // so a false value means the popup was disabled.
+                        final disabledStartupPopup =
+                            !homeController.showVersionDialog;
+                        Navigator.of(context).pop();
+                        if (disabledStartupPopup) {
+                          settingsController.requestUpdateSectionReveal();
+                          homeController.openSettingsTab();
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -132,16 +138,6 @@ class NewVersionDialog extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _handleUpdateTap(
-    SettingsScreenController settingsController,
-    VoidCallback disableStartupPopup,
-  ) async {
-    if (disableStartupPopupOnUpdateTap) {
-      disableStartupPopup();
-    }
-    await settingsController.downloadAndInstallUpdate(updateInfo);
   }
 }
 
