@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 class CustomExpansionTile extends StatefulWidget {
   final String title;
   final IconData icon;
-  final List<Widget> children;
+  final List<Widget>? children;
+  final List<Widget> Function(BuildContext context)? childrenBuilder;
 
   /// When true the tile mounts expanded and scrolls itself into view —
   /// used to reveal a specific settings section when navigating here from
@@ -14,20 +15,27 @@ class CustomExpansionTile extends StatefulWidget {
 
   const CustomExpansionTile({
     super.key,
-    required this.children,
+    this.children,
+    this.childrenBuilder,
     required this.icon,
     required this.title,
     this.initiallyExpanded = false,
-  });
+  }) : assert(
+         children != null || childrenBuilder != null,
+         'Either children or childrenBuilder must be provided.',
+       );
 
   @override
   State<CustomExpansionTile> createState() => _CustomExpansionTileState();
 }
 
 class _CustomExpansionTileState extends State<CustomExpansionTile> {
+  late bool _childrenMounted;
+
   @override
   void initState() {
     super.initState();
+    _childrenMounted = widget.initiallyExpanded;
     if (widget.initiallyExpanded) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -42,12 +50,24 @@ class _CustomExpansionTileState extends State<CustomExpansionTile> {
     }
   }
 
+  void _handleExpansionChanged(bool expanded) {
+    if (expanded && !_childrenMounted) {
+      setState(() {
+        _childrenMounted = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final children = _childrenMounted
+        ? widget.children ?? widget.childrenBuilder!(context)
+        : const <Widget>[];
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: ExpansionTile(
         initiallyExpanded: widget.initiallyExpanded,
+        onExpansionChanged: _handleExpansionChanged,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         collapsedShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
@@ -62,7 +82,7 @@ class _CustomExpansionTileState extends State<CustomExpansionTile> {
         backgroundColor: Theme.of(context).colorScheme.secondary.withAlpha(30),
         title: Text(widget.title),
         leading: Icon(widget.icon),
-        children: widget.children,
+        children: children,
       ),
     );
   }

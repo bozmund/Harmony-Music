@@ -9,6 +9,7 @@ import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../app/providers/controller_providers.dart';
+import '../../models/media_Item_builder.dart';
 import '../../models/playlist.dart';
 import '../../utils/runtime_platform.dart';
 import 'add_to_playlist.dart';
@@ -188,7 +189,7 @@ class SongListTile extends ConsumerWidget with RemoveSongFromPlaylistMixin {
                             : const SizedBox.shrink(),
                       ),
                     Text(
-                      song.extras!['length'] ?? "",
+                      MediaItemBuilder.displayDuration(song),
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ],

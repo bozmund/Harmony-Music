@@ -8,6 +8,7 @@ import '../../services/file_picker_service.dart';
 import '../../services/music_service.dart';
 import '../../services/piped_service.dart';
 import '../../services/playback_command_service.dart';
+import '../../services/system_ui_mode_service.dart';
 import '../../utils/helper.dart';
 import 'repository_providers.dart';
 
@@ -41,6 +42,10 @@ final updateServiceContractProvider = Provider<UpdateServiceContract>(
 
 final filePickerContractProvider = Provider<FilePickerContract>(
   (ref) => const DefaultFilePickerService(),
+);
+
+final systemUiModeServiceProvider = Provider<SystemUiModeService>(
+  (ref) => SystemUiModeService(),
 );
 
 final downloaderProvider = Provider<Downloader>(

@@ -158,11 +158,17 @@ class _CombinedLibraryState extends ConsumerState<CombinedLibrary>
     HomeScreenController homeScreenController,
     PlayerController playerController,
   ) {
+    // The sliding panel lays the library out at full screen height (behind
+    // the bottom nav bar), so the tab bar must clear whatever occupies the
+    // bottom of the screen: the nav bar (when shown) plus the mini player.
+    // Reserve exactly the nav bar's real footprint — ScrollToHideWidget's
+    // own height, which already tracks the system gesture/button inset via
+    // viewPadding.bottom — with no extra padding, so no dead space is left.
     final bottomNavHeight =
         settingsController.isBottomNavBarEnabled.value &&
             homeScreenController.isHomeScreenOnTop &&
             !playerController.playerPanelOpen.value
-        ? ScrollToHideWidget.visibleHeight(context) + 55
+        ? ScrollToHideWidget.visibleHeight(context)
         : 0.0;
 
     final panelHeight = playerController.playerPanelMinHeight.value;

@@ -75,9 +75,11 @@ void main() {
 
   group('home screen report issue button', () {
     test('button is part of the scrolling content list, not an overlay', () {
-      final source = File(
-        'lib/ui/screens/Home/home_screen.dart',
-      ).readAsStringSync();
+      // Normalize CRLF so the assertions hold regardless of the checkout's
+      // line endings.
+      final source = File('lib/ui/screens/Home/home_screen.dart')
+          .readAsStringSync()
+          .replaceAll('\r\n', '\n');
       // Built once in Body...
       expect(source, contains('final reportIssueButton = Align('));
       // ...and rendered as the first item of the home ListView.
@@ -126,34 +128,59 @@ void main() {
   });
 
   group('immersive mode after resume', () {
-    test('sliding panel reapplies immersive mode on app resume', () {
+    test('system ui mode service owns the platform mode call', () {
+      final serviceSource = File(
+        'lib/services/system_ui_mode_service.dart',
+      ).readAsStringSync();
+      expect(
+        serviceSource,
+        contains('SystemChrome.setEnabledSystemUIMode(resolvedMode)'),
+      );
+
+      final slidingPanelSource = File(
+        'lib/ui/widgets/sliding_up_panel.dart',
+      ).readAsStringSync();
+      final mainSource = File('lib/main.dart').readAsStringSync();
+      expect(
+        slidingPanelSource,
+        isNot(contains('SystemChrome.setEnabledSystemUIMode')),
+      );
+      expect(
+        mainSource,
+        isNot(contains('SystemChrome.setEnabledSystemUIMode')),
+      );
+    });
+
+    test('home shell declares edge-to-edge as the default mode', () {
+      final source = File('lib/ui/home.dart').readAsStringSync();
+      expect(source, contains('SystemUiModeScope.edgeToEdge'));
+    });
+
+    test('sliding panel declares immersive mode for the main player', () {
       final source = File(
         'lib/ui/widgets/sliding_up_panel.dart',
       ).readAsStringSync();
-      expect(source, contains('WidgetsBindingObserver'));
-      expect(source, contains('WidgetsBinding.instance.addObserver(this)'));
-      expect(source, contains('WidgetsBinding.instance.removeObserver(this)'));
-      final start = source.indexOf('void didChangeAppLifecycleState');
-      expect(start, greaterThan(-1));
-      final block = source.substring(start, source.indexOf('\n  }', start));
-      expect(block, contains('AppLifecycleState.resumed'));
-      expect(block, contains('widget.setsScreenMode'));
-      expect(block, contains('_isPanelOpen'));
-      expect(block, contains('SystemUiMode.immersive'));
+      expect(source, contains('SystemUiModeScope.immersive'));
+      expect(source, contains('active: widget.setsScreenMode'));
+      expect(source, contains('SystemUiModePriority.player'));
     });
 
-    test('app resume handler does not stomp the open player panel', () {
-      final source = File('lib/main.dart').readAsStringSync();
-      final start = source.indexOf('didChangeAppLifecycleState');
-      expect(start, greaterThan(-1));
-      final block = source.substring(start, source.indexOf('\n  }', start));
-      expect(block, contains('playerPanelController'));
-      expect(
-        block,
-        contains(
-          'playerPanelOpen ? SystemUiMode.immersive : SystemUiMode.edgeToEdge',
-        ),
-      );
+    test('queue panel does not own system ui mode', () {
+      final source = File(
+        'lib/ui/player/components/player_queue_panel.dart',
+      ).readAsStringSync();
+      expect(source, contains('setsScreenMode: false'));
+    });
+  });
+
+  group('app text colors', () {
+    test('text buttons inherit app text color by default', () {
+      final source = File('lib/ui/utils/theme_controller.dart')
+          .readAsStringSync();
+      expect(source, contains('textButtonTheme: TextButtonThemeData'));
+      expect(source, contains('foregroundColor: buttonTextColor'));
+      expect(source, contains('disabledForegroundColor'));
+      expect(source, contains('textStyle: appTextTheme.titleMedium'));
     });
   });
 }

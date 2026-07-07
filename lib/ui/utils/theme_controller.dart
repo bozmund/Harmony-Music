@@ -272,7 +272,7 @@ class ThemeController extends ChangeNotifier {
         ),
         //scaffoldBackgroundColor: primarySwatch[700]
       );
-      return baseTheme.copyWith(textTheme: _appTextTheme(baseTheme.textTheme));
+      return _withAppTextAndButtonThemes(baseTheme);
     } else if (themeType == ThemeType.dark) {
       SystemChrome.setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
@@ -351,7 +351,7 @@ class ThemeController extends ChangeNotifier {
           ),
         ),
       );
-      return baseTheme.copyWith(textTheme: _appTextTheme(baseTheme.textTheme));
+      return _withAppTextAndButtonThemes(baseTheme);
     } else {
       SystemChrome.setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
@@ -438,8 +438,23 @@ class ThemeController extends ChangeNotifier {
           ),
         ),
       );
-      return baseTheme.copyWith(textTheme: _appTextTheme(baseTheme.textTheme));
+      return _withAppTextAndButtonThemes(baseTheme);
     }
+  }
+
+  ThemeData _withAppTextAndButtonThemes(ThemeData baseTheme) {
+    final appTextTheme = _appTextTheme(baseTheme.textTheme);
+    final buttonTextColor = appTextTheme.titleMedium?.color;
+    return baseTheme.copyWith(
+      textTheme: appTextTheme,
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: buttonTextColor,
+          disabledForegroundColor: buttonTextColor?.withValues(alpha: 0.38),
+          textStyle: appTextTheme.titleMedium,
+        ),
+      ),
+    );
   }
 
   TextTheme _appTextTheme(TextTheme baseTextTheme) {

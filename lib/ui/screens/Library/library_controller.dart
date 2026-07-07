@@ -151,6 +151,33 @@ class LibrarySongsController extends ChangeNotifier {
     _applyLibrarySongSearch(value);
   }
 
+  /// Fills in the on-screen duration for a song that was loaded without one,
+  /// once playback resolves the real duration. The provider only runs
+  /// [init] once, so without this the list would keep showing no duration
+  /// until an app restart even after the value is persisted.
+  void applyResolvedDuration(String songId, Duration duration) {
+    if (duration <= Duration.zero) return;
+    var changed = false;
+    List<MediaItem> patch(List<MediaItem> source) {
+      return source.map((song) {
+        if (song.id != songId ||
+            (song.duration != null && song.duration! > Duration.zero)) {
+          return song;
+        }
+        changed = true;
+        return song.copyWith(duration: duration);
+      }).toList();
+    }
+
+    final patchedMain = patch(librarySongsList);
+    if (tempListContainer.isNotEmpty) {
+      tempListContainer = patch(tempListContainer);
+    }
+    if (!changed) return;
+    librarySongsList = patchedMain;
+    notifyListeners();
+  }
+
   /// This controller outlives the sort widget holding the search bar, so a
   /// filter can survive navigation while the search UI comes back empty.
   /// Called when a fresh sort widget mounts to drop such a stale filter.

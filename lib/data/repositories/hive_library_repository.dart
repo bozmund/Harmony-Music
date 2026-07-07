@@ -31,6 +31,26 @@ class HiveLibraryRepository implements LibraryRepository {
   ];
 
   @override
+  Future<bool> backfillSongDuration(String songId, Duration duration) async {
+    final seconds = duration.inSeconds;
+    if (seconds <= 0) return false;
+    var updated = false;
+    for (final boxName in const [BoxNames.songsCache, BoxNames.songDownloads]) {
+      final box = await _open(boxName);
+      final value = box.get(songId);
+      if (value is! Map) continue;
+      final existing = value['duration'];
+      if (existing is int && existing > 0) continue;
+      await box.put(
+        songId,
+        Map<dynamic, dynamic>.from(value)..['duration'] = seconds,
+      );
+      updated = true;
+    }
+    return updated;
+  }
+
+  @override
   Future<void> deleteCachedSong(String songId) async =>
       (await _open(BoxNames.songsCache)).delete(songId);
 

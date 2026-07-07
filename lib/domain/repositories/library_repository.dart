@@ -7,6 +7,12 @@ abstract class LibraryRepository {
   Future<List<MediaItem>> getCachedSongs();
   Future<List<MediaItem>> getDownloadedSongs();
   Future<List<MediaItem>> getAllLibrarySongs();
+
+  /// Writes [duration] into the stored cached/downloaded copies of [songId]
+  /// when they were saved without one (some sources omit duration until the
+  /// track is actually played). Existing durations are left untouched.
+  /// Returns true if any stored entry was updated.
+  Future<bool> backfillSongDuration(String songId, Duration duration);
   Future<void> deleteCachedSong(String songId);
   Future<void> deleteDownloadedSong(String songId);
   Future<bool> isDownloaded(String songId);

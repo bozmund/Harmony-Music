@@ -11,7 +11,7 @@ void main() {
       'lib/ui/player/components/player_queue_handle.dart',
     ).readAsStringSync();
 
-    expect(panelSource, contains('mediaQuery.viewPadding.bottom'));
+    expect(panelSource, contains('bottomNavInset(context)'));
     expect(
       panelSource,
       contains('minHeight: settingsController.playerUi.value == 0'),

@@ -6,7 +6,9 @@ import 'package:harmonymusic/utils/get_localization.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../app/providers/controller_providers.dart';
+import '../../models/media_Item_builder.dart';
 import '../../utils/runtime_platform.dart';
+import '../../utils/insets.dart';
 import 'image_widget.dart';
 import 'snackbar.dart';
 import 'song_info_bottom_sheet.dart';
@@ -25,7 +27,7 @@ class UpNextQueue extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playerController = ref.read(playerControllerProvider);
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final bottomPadding = bottomNavInset(context);
     return Container(
       color: Theme.of(context).bottomSheetTheme.backgroundColor,
       child: AnimatedBuilder(
@@ -182,7 +184,7 @@ class UpNextQueue extends ConsumerWidget {
                                     color: Colors.white,
                                   )
                                 : Text(
-                                    song.extras!['length'] ?? "",
+                                    MediaItemBuilder.displayDuration(song),
                                     style: Theme.of(
                                       homeScaffoldContext,
                                     ).textTheme.titleSmall,

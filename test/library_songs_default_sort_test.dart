@@ -157,6 +157,103 @@ void main() {
       ]);
     });
   });
+
+  group('applyResolvedDuration', () {
+    test('fills a missing duration in the on-screen list', () {
+      final controller = _librarySongsController();
+      controller.librarySongsList = [_song('kalasi', 'Kalasi', 1000)];
+
+      controller.applyResolvedDuration(
+        'kalasi',
+        const Duration(seconds: 148),
+      );
+
+      expect(
+        controller.librarySongsList.single.duration,
+        const Duration(seconds: 148),
+      );
+    });
+
+    test('never overwrites a duration the song already has', () {
+      final controller = _librarySongsController();
+      controller.librarySongsList = [
+        _song('kalasi', 'Kalasi', 1000)
+            .copyWith(duration: const Duration(seconds: 200)),
+      ];
+
+      controller.applyResolvedDuration(
+        'kalasi',
+        const Duration(seconds: 148),
+      );
+
+      expect(
+        controller.librarySongsList.single.duration,
+        const Duration(seconds: 200),
+      );
+    });
+
+    test('ignores unknown ids and zero durations', () {
+      final controller = _librarySongsController();
+      controller.librarySongsList = [_song('kalasi', 'Kalasi', 1000)];
+
+      controller.applyResolvedDuration('missing', const Duration(seconds: 90));
+      controller.applyResolvedDuration('kalasi', Duration.zero);
+
+      expect(controller.librarySongsList.single.duration, isNull);
+    });
+
+    test('also patches the search snapshot while searching', () {
+      final controller = _librarySongsController();
+      controller.librarySongsList = [
+        _song('kalasi', 'Kalasi', 1000),
+        _song('other', 'Other', 2000),
+      ];
+      controller.onSearchStart(LibrarySongsController.sortWidgetTag);
+      controller.onSearch('Kalasi', LibrarySongsController.sortWidgetTag);
+
+      controller.applyResolvedDuration(
+        'kalasi',
+        const Duration(seconds: 148),
+      );
+      controller.onSearchClose(LibrarySongsController.sortWidgetTag);
+
+      final kalasi =
+          controller.librarySongsList.firstWhere((s) => s.id == 'kalasi');
+      expect(kalasi.duration, const Duration(seconds: 148));
+    });
+  });
+
+  group('playback backfills persisted duration', () {
+    test('player persists and patches duration once playback resolves it', () {
+      final source = File(
+        'lib/ui/player/player_controller.dart',
+      ).readAsStringSync();
+      // Persist to the DB, then patch the on-screen library list.
+      final persistIndex = source.indexOf(
+        '_libraryRepository.backfillSongDuration(mediaItem.id, duration)',
+      );
+      final patchIndex = source.indexOf(
+        'LibrarySongsControllerRegistry.current?.applyResolvedDuration',
+      );
+      expect(persistIndex, greaterThan(-1));
+      expect(patchIndex, greaterThan(persistIndex));
+      // Runs as a side effect of the resolved media item.
+      expect(source, contains('await _backfillLibraryDuration(mediaItem);'));
+    });
+
+    test('backfill only touches the library song boxes when missing', () {
+      final source = File(
+        'lib/data/repositories/hive_library_repository.dart',
+      ).readAsStringSync();
+      final start = source.indexOf('Future<bool> backfillSongDuration(');
+      expect(start, greaterThan(-1));
+      final body = source.substring(start, source.indexOf('\n  }', start));
+      expect(body, contains('BoxNames.songsCache'));
+      expect(body, contains('BoxNames.songDownloads'));
+      // Existing durations must be preserved.
+      expect(body, contains('if (existing is int && existing > 0) continue;'));
+    });
+  });
 }
 
 MediaItem _song(String id, String title, int? date) {

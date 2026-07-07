@@ -11,14 +11,14 @@ import 'package:widget_marquee/widget_marquee.dart';
 import '../../../app/providers/controller_providers.dart';
 import '../../widgets/song_info_bottom_sheet.dart';
 import '../../utils/theme_controller.dart';
-
+import '../../../utils/insets.dart';
 class GesturePlayer extends ConsumerWidget {
   const GesturePlayer({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playerController = ref.read(playerControllerProvider);
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final bottomPadding = bottomNavInset(context);
     return Stack(
       children: [
         GestureDetector(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../utils/runtime_platform.dart';
+import '../../../utils/insets.dart';
 import '../../widgets/sliding_up_panel.dart';
 import '../../widgets/up_next_queue.dart';
 import 'player_body_switcher.dart';
@@ -16,7 +17,7 @@ class PlayerQueuePanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mediaQuery = MediaQuery.of(context);
     final size = mediaQuery.size;
-    final bottomPadding = mediaQuery.viewPadding.bottom;
+    final bottomPadding = bottomNavInset(context);
     final playerController = ref.read(playerControllerProvider);
     final settingsController = ref.read(settingsScreenControllerProvider);
 
