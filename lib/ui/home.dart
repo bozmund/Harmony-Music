@@ -45,17 +45,6 @@ class _HomeState extends ConsumerState<Home> {
     final mediaQuery = MediaQuery.of(context);
     final size = mediaQuery.size;
     final isWideScreen = size.width > 800;
-    if (!playerController.initFlagForPlayer) {
-      final bottomNavVisible =
-          settingsScreenController.isBottomNavBarEnabled.value &&
-          homeScreenController.isHomeScreenOnTop &&
-          !playerController.playerPanelOpen.value;
-      playerController.playerPanelMinHeight.value = collapsedMiniPlayerHeight(
-        context,
-        isWideScreen: isWideScreen,
-        bottomNavVisible: bottomNavVisible,
-      );
-    }
     return CallbackShortcuts(
       bindings: {
         LogicalKeySet(LogicalKeyboardKey.space):
@@ -77,6 +66,16 @@ class _HomeState extends ConsumerState<Home> {
         builder: (context, _) {
           final panelOpen = playerController.playerPanelOpen.value;
           final onSubTab = homeScreenController.tabIndex != 0;
+          final bottomNavVisible =
+              settingsScreenController.isBottomNavBarEnabled.value &&
+              homeScreenController.isHomeScreenOnTop &&
+              !panelOpen;
+          final playerPanelMinHeight = collapsedMiniPlayerHeight(
+            context,
+            isWideScreen: isWideScreen,
+            bottomNavVisible: bottomNavVisible,
+          );
+          _syncPlayerPanelMinHeight(playerController, playerPanelMinHeight);
           // canPop must accurately reflect whether the app handles back:
           // Android predictive back reads it at gesture start, and a stale
           // value hands the gesture to the Activity default (app exit).
@@ -281,7 +280,7 @@ class _HomeState extends ConsumerState<Home> {
                 body: SlidingUpPanel(
                   onPanelSlide: playerController.panelListener,
                   controller: playerController.playerPanelController,
-                  minHeight: playerController.playerPanelMinHeight.value,
+                  minHeight: playerPanelMinHeight,
                   maxHeight: size.height,
                   isDraggable: !isWideScreen,
                   onSwipeUp: () async {
@@ -292,9 +291,9 @@ class _HomeState extends ConsumerState<Home> {
                   header: !isWideScreen
                       ? InkWell(
                           onTap: playerController.playerPanelController.open,
-                          child: const MiniPlayer(),
+                          child: MiniPlayer(height: playerPanelMinHeight),
                         )
-                      : const MiniPlayer(),
+                      : MiniPlayer(height: playerPanelMinHeight),
                 ),
               ),
             ),
@@ -302,5 +301,16 @@ class _HomeState extends ConsumerState<Home> {
         },
       ),
     );
+  }
+
+  void _syncPlayerPanelMinHeight(
+    PlayerController playerController,
+    double height,
+  ) {
+    if (playerController.playerPanelMinHeight.value == height) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      playerController.playerPanelMinHeight.value = height;
+    });
   }
 }

@@ -109,6 +109,35 @@ void main() {
     });
 
     test(
+      'home shell passes fresh collapsed height into panel and mini-player',
+      () {
+        final homeSource = File('lib/ui/home.dart').readAsStringSync();
+        final miniPlayerSource = File(
+          'lib/ui/player/components/mini_player.dart',
+        ).readAsStringSync();
+
+        expect(homeSource, contains('final playerPanelMinHeight'));
+        expect(homeSource, contains('minHeight: playerPanelMinHeight'));
+        expect(
+          homeSource,
+          contains('MiniPlayer(height: playerPanelMinHeight)'),
+        );
+        expect(
+          homeSource,
+          isNot(
+            contains('minHeight: playerController.playerPanelMinHeight.value'),
+          ),
+        );
+        expect(
+          miniPlayerSource,
+          isNot(
+            contains('height: playerController.playerPanelMinHeight.value'),
+          ),
+        );
+      },
+    );
+
+    test(
       'no bottom-nav spacing still uses MediaQuery.of(...).padding.bottom',
       () {
         // The nav-bar footprint must not come from `padding` (collapses under
