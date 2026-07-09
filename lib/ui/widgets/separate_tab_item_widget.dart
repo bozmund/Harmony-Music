@@ -4,6 +4,7 @@ import 'package:harmonymusic/ui/widgets/modification_list.dart';
 
 import '../screens/Artists/artist_screen_controller.dart';
 import '../screens/Search/search_result_screen_controller.dart';
+import 'awaitable_button.dart';
 import 'list_widget.dart';
 import 'loader.dart';
 import 'sort_widget.dart';
@@ -63,18 +64,18 @@ class SeparateTabItemWidget extends StatelessWidget {
           if (isCompleteList)
             isResultWidget
                 ? _SearchResultList(
-                    title: title,
-                    isCompleteList: isCompleteList,
-                    scrollController: scrollController,
-                    searchResController: searchResController,
-                  )
+                  title: title,
+                  isCompleteList: isCompleteList,
+                  scrollController: scrollController,
+                  searchResController: searchResController,
+                )
                 : _ArtistList(
-                    title: title,
-                    items: items,
-                    isCompleteList: isCompleteList,
-                    scrollController: scrollController,
-                    artistController: artistController,
-                  )
+                  title: title,
+                  items: items,
+                  isCompleteList: isCompleteList,
+                  scrollController: scrollController,
+                  artistController: artistController,
+                )
           else
             ListWidget(
               items,
@@ -111,11 +112,11 @@ class _TitleRow extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           if (!isCompleteList)
-            TextButton(
+            AwaitableButton.text(
               onPressed: () async {
                 await searchResController?.viewAllCallback(title);
               },
-              child: Text(
+              label: Text(
                 "viewAll".tr,
                 style: Theme.of(context).textTheme.titleSmall,
               ),
@@ -143,40 +144,45 @@ class _SortRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final animation = isResultWidget
-        ? searchResController ?? const AlwaysStoppedAnimation(0)
-        : artistController ?? const AlwaysStoppedAnimation(0);
+    final animation =
+        isResultWidget
+            ? searchResController ?? const AlwaysStoppedAnimation(0)
+            : artistController ?? const AlwaysStoppedAnimation(0);
     return AnimatedBuilder(
       animation: animation,
-      builder: (context, _) => SortWidget(
-        tag: "${title}_$artistControllerTag",
-        screenController: artistController,
-        isAdditionalOperationRequired:
-            artistController != null && (title == "Songs" || title == "Videos"),
-        isSearchFeatureRequired: artistController != null,
-        titleLeftPadding: 9,
-        itemCountTitle:
-            "${isResultWidget ? (searchResController?.separatedResultContent[title] ?? []).length : (artistController?.separatedContent[title] != null ? artistController?.separatedContent[title]['results'] : []).length} ${"items".tr}",
-        requiredSortTypes: buildSortTypeSet(
-          title == 'Albums' || title == "Singles",
-          title == "Songs" || title == "Videos",
-        ),
-        onSort: (type, ascending) {
-          if (isResultWidget) {
-            searchResController!.onSort(type, ascending, title);
-          } else {
-            artistController?.onSort(type, ascending, title);
-          }
-        },
-        onSearch: artistController?.onSearch,
-        onSearchClose: artistController?.onSearchClose,
-        onSearchStart: artistController?.onSearchStart,
-        startAdditionalOperation: artistController?.startAdditionalOperation,
-        selectAll: artistController?.selectAll,
-        performAdditionalOperation:
-            artistController?.performAdditionalOperation,
-        cancelAdditionalOperation: artistController?.cancelAdditionalOperation,
-      ),
+      builder:
+          (context, _) => SortWidget(
+            tag: "${title}_$artistControllerTag",
+            screenController: artistController,
+            isAdditionalOperationRequired:
+                artistController != null &&
+                (title == "Songs" || title == "Videos"),
+            isSearchFeatureRequired: artistController != null,
+            titleLeftPadding: 9,
+            itemCountTitle:
+                "${isResultWidget ? (searchResController?.separatedResultContent[title] ?? []).length : (artistController?.separatedContent[title] != null ? artistController?.separatedContent[title]['results'] : []).length} ${"items".tr}",
+            requiredSortTypes: buildSortTypeSet(
+              title == 'Albums' || title == "Singles",
+              title == "Songs" || title == "Videos",
+            ),
+            onSort: (type, ascending) {
+              if (isResultWidget) {
+                searchResController!.onSort(type, ascending, title);
+              } else {
+                artistController?.onSort(type, ascending, title);
+              }
+            },
+            onSearch: artistController?.onSearch,
+            onSearchClose: artistController?.onSearchClose,
+            onSearchStart: artistController?.onSearchStart,
+            startAdditionalOperation:
+                artistController?.startAdditionalOperation,
+            selectAll: artistController?.selectAll,
+            performAdditionalOperation:
+                artistController?.performAdditionalOperation,
+            cancelAdditionalOperation:
+                artistController?.cancelAdditionalOperation,
+          ),
     );
   }
 }

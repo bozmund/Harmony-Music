@@ -6,17 +6,17 @@ import 'package:harmonymusic/utils/get_localization.dart';
 
 import '../app/providers/controller_providers.dart';
 import '../utils/helper.dart';
-import '../utils/insets.dart';
 import '../utils/runtime_platform.dart';
 import '../ui/navigator.dart';
 import '../ui/player/player.dart';
 import 'player/components/mini_player.dart';
 import 'player/player_controller.dart';
 import 'widgets/bottom_nav_bar.dart';
+import 'widgets/bottom_nav_bar_dimensions.dart';
+import 'widgets/awaitable_button.dart';
 import 'widgets/scroll_to_hide.dart';
 import 'widgets/sliding_up_panel.dart';
 import 'widgets/snackbar.dart';
-import 'widgets/system_ui_mode_scope.dart';
 import 'widgets/up_next_queue.dart';
 
 class Home extends ConsumerStatefulWidget {
@@ -45,23 +45,23 @@ class _HomeState extends ConsumerState<Home> {
     final mediaQuery = MediaQuery.of(context);
     final size = mediaQuery.size;
     final isWideScreen = size.width > 800;
-    if (!playerController.initFlagForPlayer &&
-        !settingsScreenController.isBottomNavBarEnabled.value) {
-      if (isWideScreen) {
-        playerController.playerPanelMinHeight.value =
-            105 + bottomNavInset(context);
-      } else {
-        playerController.playerPanelMinHeight.value =
-            75 + bottomNavInset(context);
-      }
+    if (!playerController.initFlagForPlayer) {
+      final bottomNavVisible =
+          settingsScreenController.isBottomNavBarEnabled.value &&
+          homeScreenController.isHomeScreenOnTop &&
+          !playerController.playerPanelOpen.value;
+      playerController.playerPanelMinHeight.value = collapsedMiniPlayerHeight(
+        context,
+        isWideScreen: isWideScreen,
+        bottomNavVisible: bottomNavVisible,
+      );
     }
-    return SystemUiModeScope.edgeToEdge(
-      child: CallbackShortcuts(
-        bindings: {
-          LogicalKeySet(LogicalKeyboardKey.space):
-              playerController.requestPlayPause,
-        },
-        child: AnimatedBuilder(
+    return CallbackShortcuts(
+      bindings: {
+        LogicalKeySet(LogicalKeyboardKey.space):
+            playerController.requestPlayPause,
+      },
+      child: AnimatedBuilder(
         // Deliberately NOT listening to currentQueue here: rebuilding the
         // whole Scaffold on every queue mutation (shuffle, enqueue, radio
         // continuation) causes a visible hitch. The queue panel and the
@@ -131,6 +131,7 @@ class _HomeState extends ConsumerState<Home> {
                 return true;
               },
               child: Scaffold(
+                extendBody: true,
                 bottomNavigationBar:
                     settingsScreenController.isBottomNavBarEnabled.value
                     ? ScrollToHideWidget(
@@ -180,123 +181,125 @@ class _HomeState extends ConsumerState<Home> {
                                                 playerController.currentQueue,
                                             builder: (context, _) => Text(
                                               "${playerController.currentQueue.length} ${"songs".tr}",
-                                        ),
-                                      ),
-                                      Text(
-                                        "upNext".tr,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleLarge,
-                                      ),
-                                      Row(
-                                        children: [
-                                          InkWell(
-                                            onTap: () {
-                                              unawaited(
-                                                playerController
-                                                    .toggleQueueLoopMode(),
-                                              );
-                                            },
-                                            child: AnimatedBuilder(
-                                              animation: playerController
-                                                  .isQueueLoopModeEnabled,
-                                              builder: (context, _) => Container(
-                                                height: 30,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 20,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      !playerController
-                                                          .isQueueLoopModeEnabled
-                                                          .value
-                                                      ? Colors.white24
-                                                      : Colors.white.withValues(
-                                                          alpha: 0.8,
+                                            ),
+                                          ),
+                                          Text(
+                                            "upNext".tr,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleLarge,
+                                          ),
+                                          Row(
+                                            children: [
+                                              InkWell(
+                                                onTap: () {
+                                                  unawaited(
+                                                    playerController
+                                                        .toggleQueueLoopMode(),
+                                                  );
+                                                },
+                                                child: AnimatedBuilder(
+                                                  animation: playerController
+                                                      .isQueueLoopModeEnabled,
+                                                  builder: (context, _) => Container(
+                                                    height: 30,
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 20,
                                                         ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
-                                                ),
-                                                child: Center(
-                                                  child: Text("queueLoop".tr),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          !playerController
+                                                              .isQueueLoopModeEnabled
+                                                              .value
+                                                          ? Colors.white24
+                                                          : Colors.white
+                                                                .withValues(
+                                                                  alpha: 0.8,
+                                                                ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                    ),
+                                                    child: Center(
+                                                      child: Text(
+                                                        "queueLoop".tr,
+                                                      ),
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                          ),
-                                          IconButton(
-                                            onPressed: () async {
-                                              if (playerController
-                                                  .isShuffleModeEnabled
-                                                  .value) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  snackbar(
-                                                    context,
-                                                    "queueShufflingDeniedMsg"
-                                                        .tr,
-                                                    size: SanckBarSize.BIG,
-                                                  ),
-                                                );
-                                                return;
-                                              }
-                                              unawaited(
-                                                playerController.shuffleQueue(),
-                                              );
-                                            },
-                                            icon: const Icon(Icons.shuffle),
-                                          ),
-                                          IconButton(
-                                            onPressed: () async {
-                                              unawaited(
-                                                playerController.clearQueue(),
-                                              );
-                                            },
-                                            icon: const Icon(
-                                              Icons.playlist_remove,
-                                            ),
+                                              AwaitableIconButton(
+                                                onPressed: () async {
+                                                  if (playerController
+                                                      .isShuffleModeEnabled
+                                                      .value) {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      snackbar(
+                                                        context,
+                                                        "queueShufflingDeniedMsg"
+                                                            .tr,
+                                                        size: SanckBarSize.BIG,
+                                                      ),
+                                                    );
+                                                    return;
+                                                  }
+                                                  await playerController
+                                                      .shuffleQueue();
+                                                },
+                                                icon: const Icon(Icons.shuffle),
+                                              ),
+                                              AwaitableIconButton(
+                                                onPressed: () async {
+                                                  await playerController
+                                                      .clearQueue();
+                                                },
+                                                icon: const Icon(
+                                                  Icons.playlist_remove,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                              const Expanded(
+                                child: UpNextQueue(isQueueInSlidePanel: false),
+                              ),
+                            ],
                           ),
-                          const Expanded(
-                            child: UpNextQueue(isQueueInSlidePanel: false),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : null,
-            drawerScrimColor: Colors.transparent,
-            body: SlidingUpPanel(
-              onPanelSlide: playerController.panelListener,
-              controller: playerController.playerPanelController,
-              minHeight: playerController.playerPanelMinHeight.value,
-              maxHeight: size.height,
-              isDraggable: !isWideScreen,
-              onSwipeUp: () async {
-                await playerController.queuePanelController.open();
-              },
-              panel: const Player(),
-              body: const ScreenNavigation(),
-              header: !isWideScreen
-                  ? InkWell(
-                      onTap: playerController.playerPanelController.open,
-                      child: const MiniPlayer(),
-                    )
-                  : const MiniPlayer(),
-            ),
+                        ),
+                      )
+                    : null,
+                drawerScrimColor: Colors.transparent,
+                body: SlidingUpPanel(
+                  onPanelSlide: playerController.panelListener,
+                  controller: playerController.playerPanelController,
+                  minHeight: playerController.playerPanelMinHeight.value,
+                  maxHeight: size.height,
+                  isDraggable: !isWideScreen,
+                  onSwipeUp: () async {
+                    await playerController.queuePanelController.open();
+                  },
+                  panel: const Player(),
+                  body: const ScreenNavigation(),
+                  header: !isWideScreen
+                      ? InkWell(
+                          onTap: playerController.playerPanelController.open,
+                          child: const MiniPlayer(),
+                        )
+                      : const MiniPlayer(),
+                ),
               ),
             ),
           );
         },
-      ),
       ),
     );
   }

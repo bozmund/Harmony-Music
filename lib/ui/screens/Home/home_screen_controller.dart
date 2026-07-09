@@ -13,7 +13,6 @@ import '/ui/navigator.dart';
 import '/ui/player/player_controller.dart';
 import '../../../utils/update_check_flag_file.dart';
 import '../../../utils/helper.dart';
-import '../../../utils/insets.dart';
 import '/models/album.dart';
 import '/models/playlist.dart';
 import '/models/quick_picks.dart';
@@ -21,6 +20,7 @@ import '/services/music_service.dart';
 import '/services/app_contracts.dart';
 import '/services/release_prompt.dart';
 import '../Settings/settings_screen_controller.dart';
+import '/ui/widgets/bottom_nav_bar_dimensions.dart';
 import '/ui/widgets/new_version_dialog.dart';
 import '/ui/widgets/release_prompt_dialog.dart';
 
@@ -540,21 +540,30 @@ class HomeScreenController extends ChangeNotifier {
 
       // Set mini-player height accordingly
       if (!playerCon.initFlagForPlayer) {
-        if (isHomeOnTop) {
-          playerCon.playerPanelMinHeight.value = 75.0;
-        } else {
-          Future.delayed(
-            isResultScreenOnTop
-                ? const Duration(milliseconds: 300)
-                : Duration.zero,
-            () {
-              final bottomPadding = AppNavigator.context == null
-                  ? 0.0
-                  : bottomNavInset(AppNavigator.context!);
-              playerCon.playerPanelMinHeight.value = 75.0 + bottomPadding;
-            },
-          );
-        }
+        Future.delayed(
+          isResultScreenOnTop
+              ? const Duration(milliseconds: 300)
+              : Duration.zero,
+          () {
+            final appContext = AppNavigator.context;
+            final isWideScreen =
+                appContext != null &&
+                MediaQuery.of(appContext).size.width > 800;
+            final bottomNavVisible =
+                isHomeOnTop && !playerCon.playerPanelOpen.value;
+            playerCon.playerPanelMinHeight.value = appContext == null
+                ? collapsedMiniPlayerHeightForInset(
+                    bottomInset: 0,
+                    isWideScreen: isWideScreen,
+                    bottomNavVisible: bottomNavVisible,
+                  )
+                : collapsedMiniPlayerHeight(
+                    appContext,
+                    isWideScreen: isWideScreen,
+                    bottomNavVisible: bottomNavVisible,
+                  );
+          },
+        );
       }
     }
   }

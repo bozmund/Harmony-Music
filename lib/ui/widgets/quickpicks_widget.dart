@@ -6,6 +6,7 @@ import 'package:harmonymusic/utils/get_localization.dart';
 import '../../app/providers/controller_providers.dart';
 import '../../utils/runtime_platform.dart';
 import '/models/quick_picks.dart';
+import 'awaitable_button.dart';
 import 'image_widget.dart';
 import 'song_info_bottom_sheet.dart';
 
@@ -63,13 +64,15 @@ class QuickPicksWidget extends ConsumerWidget {
                             ),
                           ),
                           isScrollControlled: true,
-                          context: playerController
-                              .homeScaffoldKey
-                              .currentState!
-                              .context,
+                          context:
+                              playerController
+                                  .homeScaffoldKey
+                                  .currentState!
+                                  .context,
                           barrierColor: Colors.transparent.withAlpha(100),
-                          builder: (context) =>
-                              SongInfoBottomSheet(content.songList[item]),
+                          builder:
+                              (context) =>
+                                  SongInfoBottomSheet(content.songList[item]),
                         ).whenComplete(() {});
                       }
                     },
@@ -103,44 +106,49 @@ class QuickPicksWidget extends ConsumerWidget {
                             ),
                           ),
                           isScrollControlled: true,
-                          context: playerController
-                              .homeScaffoldKey
-                              .currentState!
-                              .context,
+                          context:
+                              playerController
+                                  .homeScaffoldKey
+                                  .currentState!
+                                  .context,
                           barrierColor: Colors.transparent.withAlpha(100),
-                          builder: (context) =>
-                              SongInfoBottomSheet(content.songList[item]),
+                          builder:
+                              (context) =>
+                                  SongInfoBottomSheet(content.songList[item]),
                         ).whenComplete(() {});
                       },
-                      trailing: RuntimePlatform.isDesktop
-                          ? IconButton(
-                              splashRadius: 20,
-                              onPressed: () async {
-                                await showModalBottomSheet(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 500,
-                                  ),
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(10.0),
+                      trailing:
+                          RuntimePlatform.isDesktop
+                              ? AwaitableIconButton(
+                                splashRadius: 20,
+                                onPressed: () async {
+                                  await showModalBottomSheet(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 500,
                                     ),
-                                  ),
-                                  isScrollControlled: true,
-                                  context: playerController
-                                      .homeScaffoldKey
-                                      .currentState!
-                                      .context,
-                                  barrierColor: Colors.transparent.withAlpha(
-                                    100,
-                                  ),
-                                  builder: (context) => SongInfoBottomSheet(
-                                    content.songList[item],
-                                  ),
-                                ).whenComplete(() {});
-                              },
-                              icon: const Icon(Icons.more_vert),
-                            )
-                          : null,
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(10.0),
+                                      ),
+                                    ),
+                                    isScrollControlled: true,
+                                    context:
+                                        playerController
+                                            .homeScaffoldKey
+                                            .currentState!
+                                            .context,
+                                    barrierColor: Colors.transparent.withAlpha(
+                                      100,
+                                    ),
+                                    builder:
+                                        (context) => SongInfoBottomSheet(
+                                          content.songList[item],
+                                        ),
+                                  ).whenComplete(() {});
+                                },
+                                icon: const Icon(Icons.more_vert),
+                              )
+                              : null,
                     ),
                   );
                 },

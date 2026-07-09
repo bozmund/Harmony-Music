@@ -25,6 +25,7 @@ class MainActivity : AudioServiceActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getAppInfo" -> result.success(appInfo())
+                "getSystemNavigationMode" -> result.success(systemNavigationMode())
                 "setKeepScreenAwake" -> {
                     setKeepScreenAwake(call.arguments as? Boolean == true)
                     result.success(null)
@@ -69,6 +70,27 @@ class MainActivity : AudioServiceActivity() {
             "version" to (packageInfo.versionName ?: ""),
             "buildNumber" to versionCode,
         )
+    }
+
+    private fun systemNavigationMode(): String {
+        return try {
+            val resourceId = resources.getIdentifier(
+                "config_navBarInteractionMode",
+                "integer",
+                "android"
+            )
+            if (resourceId == 0) {
+                "unknown"
+            } else {
+                when (resources.getInteger(resourceId)) {
+                    0, 1 -> "buttons"
+                    2 -> "gesture"
+                    else -> "unknown"
+                }
+            }
+        } catch (_: Exception) {
+            "unknown"
+        }
     }
 
     private fun setKeepScreenAwake(enable: Boolean) {

@@ -48,7 +48,11 @@ void main() {
     test('ScrollToHideWidget.visibleHeight uses the floor helper', () {
       expect(
         scrollToHideSource,
-        contains('compactBottomNavBarHeight + bottomNavInset(context)'),
+        contains('bottomNavBarVisibleHeight(context)'),
+      );
+      expect(
+        bottomNavBarDimensionsSource,
+        contains('compactBottomNavBarHeight + bottomInset'),
       );
       // No longer reads the ancestor-narrowable MediaQuery directly.
       expect(
@@ -73,6 +77,35 @@ void main() {
         bottomNavBarSource,
         contains("import 'bottom_nav_bar_dimensions.dart';"),
       );
+    });
+
+    test('collapsed mini-player height writes use shared helper', () {
+      final sources = <String, String>{
+        'home.dart': File('lib/ui/home.dart').readAsStringSync(),
+        'player_controller.dart': File(
+          'lib/ui/player/player_controller.dart',
+        ).readAsStringSync(),
+        'settings_screen_controller.dart': File(
+          'lib/ui/screens/Settings/settings_screen_controller.dart',
+        ).readAsStringSync(),
+        'home_screen_controller.dart': File(
+          'lib/ui/screens/Home/home_screen_controller.dart',
+        ).readAsStringSync(),
+      };
+
+      for (final entry in sources.entries) {
+        expect(
+          entry.value,
+          isNot(contains('playerPanelMinHeight.value = 75.0')),
+          reason:
+              '${entry.key} must not hide the mini-player under nav buttons',
+        );
+        expect(
+          entry.value,
+          contains('collapsedMiniPlayerHeight'),
+          reason: '${entry.key} should use the shared collapsed height helper',
+        );
+      }
     });
 
     test(
@@ -108,7 +141,10 @@ void main() {
         for (final entry in offenders.entries) {
           expect(
             entry.value,
-            contains('bottomNavInset('),
+            anyOf(
+              contains('bottomNavInset('),
+              contains('collapsedMiniPlayerHeight('),
+            ),
             reason: '${entry.key} should call bottomNavInset for nav spacing',
           );
         }

@@ -77,9 +77,9 @@ void main() {
     test('button is part of the scrolling content list, not an overlay', () {
       // Normalize CRLF so the assertions hold regardless of the checkout's
       // line endings.
-      final source = File('lib/ui/screens/Home/home_screen.dart')
-          .readAsStringSync()
-          .replaceAll('\r\n', '\n');
+      final source = File(
+        'lib/ui/screens/Home/home_screen.dart',
+      ).readAsStringSync().replaceAll('\r\n', '\n');
       // Built once in Body...
       expect(source, contains('final reportIssueButton = Align('));
       // ...and rendered as the first item of the home ListView.
@@ -118,7 +118,9 @@ void main() {
       final earlyOutIndex = block.indexOf(
         'nextPrimaryColor == primaryColor.value',
       );
-      final themeBuildIndex = block.indexOf('themeData.value = _createThemeData');
+      final themeBuildIndex = block.indexOf(
+        'themeData.value = _createThemeData',
+      );
       expect(earlyOutIndex, greaterThan(-1));
       expect(themeBuildIndex, greaterThan(-1));
       // The identical-palette early return must run before the app-wide
@@ -151,9 +153,31 @@ void main() {
       );
     });
 
-    test('home shell declares edge-to-edge as the default mode', () {
-      final source = File('lib/ui/home.dart').readAsStringSync();
+    test('app root declares edge-to-edge as the default mode', () {
+      final source = File('lib/main.dart').readAsStringSync();
       expect(source, contains('SystemUiModeScope.edgeToEdge'));
+    });
+
+    test('android startup enables immersive only for gesture navigation', () {
+      final source = File('lib/main.dart').readAsStringSync();
+      expect(source, contains('SystemUiModeService('));
+      expect(source, contains('immersiveAllowed: !RuntimePlatform.isAndroid'));
+      expect(source, contains('getSystemNavigationMode()'));
+      expect(
+        source,
+        contains('navigationMode == SystemNavigationMode.gesture'),
+      );
+      expect(source, contains('systemUiModeServiceProvider.overrideWithValue'));
+    });
+
+    test('system ui service ignores immersive when not allowed', () {
+      final source = File(
+        'lib/services/system_ui_mode_service.dart',
+      ).readAsStringSync();
+      expect(source, contains('bool _immersiveAllowed'));
+      expect(source, contains('void setImmersiveAllowed(bool allowed)'));
+      expect(source, contains('if (!_immersiveAllowed && _isImmersiveMode'));
+      expect(source, contains('SystemUiMode.immersiveSticky'));
     });
 
     test('sliding panel declares immersive mode for the main player', () {
@@ -172,42 +196,37 @@ void main() {
       expect(source, contains('setsScreenMode: false'));
     });
 
-    test(
-      'resume reapply re-asserts the mode twice to survive the '
-      'window-focus race',
-      () {
-        final source = File(
-          'lib/services/system_ui_mode_service.dart',
-        ).readAsStringSync();
-        final start = source.indexOf('Future<void> reapplyCurrentMode()');
-        expect(start, greaterThan(-1));
-        final body = source.substring(start, source.indexOf('\n  }', start));
+    test('resume reapply re-asserts the mode twice to survive the '
+        'window-focus race', () {
+      final source = File(
+        'lib/services/system_ui_mode_service.dart',
+      ).readAsStringSync();
+      final start = source.indexOf('Future<void> reapplyCurrentMode()');
+      expect(start, greaterThan(-1));
+      final body = source.substring(start, source.indexOf('\n  }', start));
 
-        // Two forced applies with a real-world gap in between: a resume can
-        // land before Android actually restores window focus, so a single
-        // early SystemChrome call can get silently overridden once focus
-        // returns. Re-asserting after a short delay covers that window
-        // without depending on exact platform timing.
-        final firstApply = body.indexOf('_scheduleApply(force: true)');
-        final delay = body.indexOf(
-          'Future.delayed(reapplySettleDelay)',
-          firstApply,
-        );
-        final secondApply = body.indexOf(
-          '_scheduleApply(force: true)',
-          delay,
-        );
-        expect(firstApply, greaterThan(-1));
-        expect(delay, greaterThan(firstApply));
-        expect(secondApply, greaterThan(delay));
-      },
-    );
+      // Two forced applies with a real-world gap in between: a resume can
+      // land before Android actually restores window focus, so a single
+      // early SystemChrome call can get silently overridden once focus
+      // returns. Re-asserting after a short delay covers that window
+      // without depending on exact platform timing.
+      final firstApply = body.indexOf('_scheduleApply(force: true)');
+      final delay = body.indexOf(
+        'Future.delayed(reapplySettleDelay)',
+        firstApply,
+      );
+      final secondApply = body.indexOf('_scheduleApply(force: true)', delay);
+      expect(firstApply, greaterThan(-1));
+      expect(delay, greaterThan(firstApply));
+      expect(secondApply, greaterThan(delay));
+    });
   });
 
   group('app text colors', () {
     test('text buttons inherit app text color by default', () {
-      final source = File('lib/ui/utils/theme_controller.dart')
-          .readAsStringSync();
+      final source = File(
+        'lib/ui/utils/theme_controller.dart',
+      ).readAsStringSync();
       expect(source, contains('textButtonTheme: TextButtonThemeData'));
       expect(source, contains('foregroundColor: buttonTextColor'));
       expect(source, contains('disabledForegroundColor'));

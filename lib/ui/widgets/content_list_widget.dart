@@ -3,6 +3,7 @@ import 'package:harmonymusic/utils/get_localization.dart';
 
 import '../../utils/runtime_platform.dart';
 import '../screens/Search/search_result_screen_controller.dart';
+import 'awaitable_button.dart';
 import '/ui/widgets/content_list_widget_item.dart';
 
 class ContentListWidget extends StatelessWidget {
@@ -41,20 +42,20 @@ class ContentListWidget extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 !isHomeContent
-                    ? TextButton(
-                        onPressed: () async {
-                          final searchResultScreenController =
-                              this.searchResultScreenController ??
-                              SearchResultScreenControllerRegistry.current;
-                          await searchResultScreenController?.viewAllCallback(
-                            content.title,
-                          );
-                        },
-                        child: Text(
-                          "viewAll".tr,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      )
+                    ? AwaitableButton.text(
+                      onPressed: () async {
+                        final searchResultScreenController =
+                            this.searchResultScreenController ??
+                            SearchResultScreenControllerRegistry.current;
+                        await searchResultScreenController?.viewAllCallback(
+                          content.title,
+                        );
+                      },
+                      label: Text(
+                        "viewAll".tr,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    )
                     : const SizedBox.shrink(),
               ],
             ),
@@ -73,9 +74,10 @@ class ContentListWidget extends StatelessWidget {
                 physics: const BouncingScrollPhysics(),
                 separatorBuilder: (context, index) => const SizedBox(width: 15),
                 scrollDirection: Axis.horizontal,
-                itemCount: isAlbumContent
-                    ? content.albumList.length
-                    : content.playlistList.length,
+                itemCount:
+                    isAlbumContent
+                        ? content.albumList.length
+                        : content.playlistList.length,
                 itemBuilder: (_, index) {
                   if (isAlbumContent) {
                     return ContentListItem(content: content.albumList[index]);

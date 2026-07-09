@@ -17,9 +17,13 @@ import 'app/navigation/router_provider.dart';
 import 'domain/repositories/settings_repository.dart';
 import 'l10n/app_localizations.dart';
 import '/services/constant.dart';
+import 'services/app_contracts.dart';
+import 'services/app_platform_service.dart';
 import 'services/crash_diagnostics_service.dart';
+import 'services/system_ui_mode_service.dart';
 import 'utils/app_link_controller.dart';
 import '/services/audio_handler.dart';
+import 'ui/widgets/system_ui_mode_scope.dart';
 import 'utils/runtime_platform.dart';
 import 'utils/insets.dart';
 import 'utils/update_check_flag_file.dart';
@@ -52,8 +56,12 @@ Future<void> main() async {
         ),
       );
       bootstrapContainer.dispose();
+      final systemUiModeService = await _createSystemUiModeService();
       appProviderContainer = ProviderContainer(
-        overrides: [audioHandlerProvider.overrideWithValue(audioHandler)],
+        overrides: [
+          audioHandlerProvider.overrideWithValue(audioHandler),
+          systemUiModeServiceProvider.overrideWithValue(systemUiModeService),
+        ],
       );
       registerAppServices(appProviderContainer);
       WidgetsBinding.instance.addObserver(LifecycleHandler(audioHandler));
@@ -68,6 +76,18 @@ Future<void> main() async {
       CrashDiagnosticsService.instance.recordZoneError(error, stackTrace);
     },
   );
+}
+
+Future<SystemUiModeService> _createSystemUiModeService() async {
+  final service = SystemUiModeService(
+    immersiveAllowed: !RuntimePlatform.isAndroid,
+  );
+  if (!RuntimePlatform.isAndroid) return service;
+
+  final navigationMode = await const DefaultAppPlatformService()
+      .getSystemNavigationMode();
+  service.setImmersiveAllowed(navigationMode == SystemNavigationMode.gesture);
+  return service;
 }
 
 void _installCrashDiagnosticsHandlers() {
@@ -126,33 +146,35 @@ class MyApp extends ConsumerWidget {
           minScaleFactor: 1.0,
           maxScaleFactor: 1.1,
         );
-        return Stack(
-          children: [
-            AnimatedBuilder(
-              animation: themeController,
-              builder: (context, _) => MediaQuery(
-                data: mQuery.copyWith(textScaler: scale),
-                child: AnimatedTheme(
-                  duration: const Duration(milliseconds: 700),
-                  data: themeController.themeData.value ?? ThemeData.dark(),
-                  child: child!,
+        return SystemUiModeScope.edgeToEdge(
+          child: Stack(
+            children: [
+              AnimatedBuilder(
+                animation: themeController,
+                builder: (context, _) => MediaQuery(
+                  data: mQuery.copyWith(textScaler: scale),
+                  child: AnimatedTheme(
+                    duration: const Duration(milliseconds: 700),
+                    data: themeController.themeData.value ?? ThemeData.dark(),
+                    child: child!,
+                  ),
                 ),
               ),
-            ),
-            GestureDetector(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  color: Colors.transparent,
-                  height: bottomNavInset(context),
-                  width: mQuery.size.width,
+              GestureDetector(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    color: Colors.transparent,
+                    height: bottomNavInset(context),
+                    width: mQuery.size.width,
+                  ),
                 ),
               ),
-            ),
-            if (!kReleaseMode &&
-                CrashDiagnosticsService.instance.previousSessionCrashed)
-              const _DiagnosticsStartupNotice(),
-          ],
+              if (!kReleaseMode &&
+                  CrashDiagnosticsService.instance.previousSessionCrashed)
+                const _DiagnosticsStartupNotice(),
+            ],
+          ),
         );
       },
     );

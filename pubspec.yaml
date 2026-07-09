@@ -8,14 +8,14 @@ environment:
   sdk: ">=3.10.3 <4.0.0"
 dependencies:
   animations: ^2.2.0
-  app_links: ^7.2.0
+  app_links: ^7.2.1
   archive: ^4.0.9
   audio_service:
     path: third_party/audio_service
   audio_video_progress_bar: ^2.0.3
   buttons_tabbar: ^1.3.15
   cached_network_image: ^3.4.1
-  dio: ^5.9.2
+  dio: ^5.10.0
   file_selector: ^1.1.0
   file_picker: ^11.0.2
   flutter:
@@ -26,13 +26,14 @@ dependencies:
   flutter_keyboard_visibility: ^6.0.0
   flutter_lyric: ^3.0.7
   flutter_slidable: ^4.0.3
-  go_router: ^17.1.1
+  go_router: ^17.3.0
   google_fonts: ^8.1.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   html: ^0.15.6
   jni: ^1.0.0
   jni_flutter: ^1.0.1
+  nsd: ^5.0.1
   just_audio:
     path: third_party/just_audio
   just_audio_media_kit:
@@ -51,7 +52,7 @@ dependencies:
   toggle_switch: ^2.3.0
   tray_manager: ^0.5.3
   widget_marquee: ^0.0.8
-  window_manager: ^0.5.1
+  window_manager: ^0.5.2
   youtube_explode_dart:
     path: third_party/youtube_explode_dart
 dev_dependencies:

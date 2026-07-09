@@ -8,6 +8,40 @@ allprojects {
 rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+
+    // Some older Flutter plugins (e.g. flutter_nearby_connections) predate a few
+    // AGP 8 / modern-Kotlin requirements. Registered here (before the
+    // evaluationDependsOn block below forces evaluation) so the afterEvaluate
+    // hook is always attached in time.
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            def androidExt = project.extensions.findByName('android')
+            if (androidExt != null) {
+                // 1) AGP 8+ requires an explicit `namespace`. Derive it from the
+                //    plugin's Gradle group (which matches its manifest `package`).
+                if (androidExt.namespace == null && project.group) {
+                    androidExt.namespace = project.group.toString()
+                }
+                // 2) Keep the Java target consistent with the app (17) so it
+                //    matches the Kotlin target we set below.
+                try {
+                    androidExt.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+                    androidExt.compileOptions.targetCompatibility = JavaVersion.VERSION_17
+                } catch (ignored) {
+                }
+            }
+        }
+        // 3) Modern Kotlin defaults its JVM target to the running JDK (21 here),
+        //    which mismatches the plugin's Java target. Pin Kotlin to 17 too.
+        project.tasks.configureEach { task ->
+            if (task.class.name.contains('KotlinCompile')) {
+                try {
+                    task.kotlinOptions.jvmTarget = '17'
+                } catch (ignored) {
+                }
+            }
+        }
+    }
 }
 subprojects {
     project.evaluationDependsOn(':app')

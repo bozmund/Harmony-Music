@@ -16,8 +16,6 @@ import 'package:harmonymusic/services/permission_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../../utils/insets.dart';
-
 import '../../../app/navigation/app_navigator.dart';
 import '../../../app/providers/app_locale_provider.dart';
 import '../../../utils/update_check_flag_file.dart';
@@ -26,6 +24,7 @@ import '../../../utils/observable_state.dart';
 import '../../../utils/lang_mapping.dart';
 import '/services/piped_service.dart';
 import '../Library/library_controller.dart';
+import '../../widgets/bottom_nav_bar_dimensions.dart';
 import '../../widgets/new_version_dialog.dart';
 import '../../widgets/snackbar.dart';
 import '../../../utils/helper.dart';
@@ -618,10 +617,23 @@ class SettingsScreenController extends ChangeNotifier
     }
     if (!_playerController().initFlagForPlayer) {
       final appContext = AppNavigator.context;
-      final bottomPadding = appContext == null
-          ? 0.0
-          : bottomNavInset(appContext);
-      playerCon.playerPanelMinHeight.value = val ? 75.0 : 75.0 + bottomPadding;
+      final isWideScreen =
+          appContext != null && MediaQuery.of(appContext).size.width > 800;
+      final bottomNavVisible =
+          val &&
+          homeScrCon.isHomeScreenOnTop &&
+          !playerCon.playerPanelOpen.value;
+      playerCon.playerPanelMinHeight.value = appContext == null
+          ? collapsedMiniPlayerHeightForInset(
+              bottomInset: 0,
+              isWideScreen: isWideScreen,
+              bottomNavVisible: bottomNavVisible,
+            )
+          : collapsedMiniPlayerHeight(
+              appContext,
+              isWideScreen: isWideScreen,
+              bottomNavVisible: bottomNavVisible,
+            );
     }
     await _settingsRepository.setBottomNavBarEnabled(val);
     notifyListeners();
