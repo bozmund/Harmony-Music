@@ -6,6 +6,9 @@
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as readline from "node:readline";
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -13,6 +16,7 @@ import { Key } from "@earendil-works/pi-tui";
 
 const WORKSPACE_ROOT = "C:\\MyRepositories\\Harmony-Music";
 const MCP_SERVER = "C:\\MyRepositories\\Harmony-Music\\mcp\\flutter_dart_server.js";
+const PLANS_DIRECTORY = path.join(WORKSPACE_ROOT, "plans");
 
 const CUSTOM_TOOLS = ["harmony_flutter_test", "harmony_dart_analyze"];
 const PLAN_MODE_TOOLS = ["read", "bash", "grep", "find", "ls", "questionnaire", ...CUSTOM_TOOLS];
@@ -20,9 +24,13 @@ const AGENT_MODE_TOOLS = ["read", "bash", "edit", "write", ...CUSTOM_TOOLS];
 const PLAN_MODE_DISABLED_TOOLS = new Set<string>(["edit", "write"]);
 const PLAN_MANAGED_TOOLS = new Set<string>([...PLAN_MODE_TOOLS, ...AGENT_MODE_TOOLS]);
 
+type HarmonyMode = "agent" | "plan" | "plan-tdd";
+
 interface PlanModeState {
-	enabled: boolean;
+	mode?: HarmonyMode;
+	enabled?: boolean;
 	toolsBeforePlanMode?: string[];
+	lastReviewedPlanFingerprint?: string;
 }
 
 interface McpResponse {
@@ -198,6 +206,61 @@ function truncateText(value: string, maxChars: number): string {
 	return `${value.slice(0, maxChars)}\n\n[truncated to ${maxChars} characters]`;
 }
 
+function getAssistantText(message: unknown): string {
+	const candidate = message as { role?: string; content?: unknown };
+	if (candidate.role !== "assistant" || !Array.isArray(candidate.content)) return "";
+
+	return candidate.content
+		.filter((block): block is { type: string; text: string } => {
+			if (!block || typeof block !== "object") return false;
+			const content = block as { type?: unknown; text?: unknown };
+			return content.type === "text" && typeof content.text === "string";
+		})
+		.map((block) => block.text)
+		.join("\n")
+		.trim();
+}
+
+function hasCompletedPlan(text: string, mode: HarmonyMode): boolean {
+	const heading = mode === "plan-tdd" ? "TDD Plan" : "Plan";
+	const pattern = new RegExp(`^\\s*(?:#{1,6}\\s*)?(?:\\*{1,2})?${heading}:?(?:\\*{1,2})?\\s*$`, "im");
+	return pattern.test(text);
+}
+
+function fingerprintPlan(text: string): string {
+	return createHash("sha256").update(text).digest("hex");
+}
+
+function planSlug(text: string): string {
+	const firstLine = text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "plan";
+	const slug = firstLine
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 48);
+	return slug || "plan";
+}
+
+function saveAcceptedPlan(text: string, acceptedMode: HarmonyMode): string {
+	fs.mkdirSync(PLANS_DIRECTORY, { recursive: true });
+	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+	const baseName = `${timestamp}-${planSlug(text)}`;
+	let filePath = path.join(PLANS_DIRECTORY, `${baseName}.md`);
+	let suffix = 2;
+	while (fs.existsSync(filePath)) {
+		filePath = path.join(PLANS_DIRECTORY, `${baseName}-${suffix}.md`);
+		suffix += 1;
+	}
+
+	const savedAt = new Date().toISOString();
+	fs.writeFileSync(
+		filePath,
+		`# Accepted Harmony Plan\n\nSaved: ${savedAt}\nMode: ${acceptedMode === "plan-tdd" ? "PLAN:TDD" : "PLAN"}\n\n${text}\n`,
+		"utf8",
+	);
+	return filePath;
+}
+
 async function callMcpTool(
 	name: "flutter" | "dart",
 	args: string[],
@@ -309,10 +372,11 @@ const flutterTestTool = defineTool({
 const dartAnalyzeTool = defineTool({
 	name: "harmony_dart_analyze",
 	label: "Harmony Dart Analyze",
-	description: "Run Harmony-Music dart analyze through the repository-local Dart SDK.",
+	description: "Run a whole-workspace Harmony-Music dart analyze checkpoint through the repository-local Dart SDK.",
 	promptSnippet: "Run Harmony-Music dart analyze through the project MCP server",
 	promptGuidelines: [
-		"Use harmony_dart_analyze after Harmony-Music Dart changes to check analyzer errors.",
+		"Use harmony_dart_analyze after a completed change set or before handoff, not after every small edit.",
+		"Prefer focused harmony_flutter_test checks while iterating; use this tool as the whole-workspace analyzer checkpoint.",
 		"Use harmony_dart_analyze with args like ['analyze']; do not use it for dart format.",
 	],
 	parameters: Type.Object({
@@ -340,8 +404,9 @@ const dartAnalyzeTool = defineTool({
 });
 
 export default function harmonyPlanAgentMode(pi: ExtensionAPI): void {
-	let planModeEnabled = false;
+	let mode: HarmonyMode = "agent";
 	let toolsBeforePlanMode: string[] | undefined;
+	let lastReviewedPlanFingerprint: string | undefined;
 
 	pi.registerTool(flutterTestTool);
 	pi.registerTool(dartAnalyzeTool);
@@ -353,10 +418,9 @@ export default function harmonyPlanAgentMode(pi: ExtensionAPI): void {
 	});
 
 	function updateStatus(ctx: ExtensionContext): void {
-		ctx.ui.setStatus(
-			"harmony-plan-agent-mode",
-			planModeEnabled ? ctx.ui.theme.fg("warning", "PLAN:TDD") : ctx.ui.theme.fg("success", "AGENT"),
-		);
+		const label =
+			mode === "agent" ? ctx.ui.theme.fg("success", "AGENT") : ctx.ui.theme.fg("warning", mode === "plan" ? "PLAN" : "PLAN:TDD");
+		ctx.ui.setStatus("harmony-plan-agent-mode", label);
 	}
 
 	function getPlanModeTools(activeToolNames: string[]): string[] {
@@ -387,41 +451,71 @@ export default function harmonyPlanAgentMode(pi: ExtensionAPI): void {
 
 	function persistState(): void {
 		pi.appendEntry("harmony-plan-agent-mode", {
-			enabled: planModeEnabled,
+			mode,
 			toolsBeforePlanMode,
+			lastReviewedPlanFingerprint,
 		});
 	}
 
-	function togglePlanMode(ctx: ExtensionContext): void {
-		planModeEnabled = !planModeEnabled;
-		if (planModeEnabled) {
+	function setMode(nextMode: HarmonyMode, ctx: ExtensionContext): void {
+		const wasPlanning = mode !== "agent";
+		const isPlanning = nextMode !== "agent";
+		mode = nextMode;
+
+		if (!wasPlanning && isPlanning) {
+			lastReviewedPlanFingerprint = undefined;
 			enablePlanModeTools();
-			ctx.ui.notify("Harmony TDD Plan mode enabled. Edit/write disabled; tests and analyze available.");
-		} else {
+		} else if (wasPlanning && !isPlanning) {
 			restoreAgentModeTools();
+		}
+
+		if (mode === "agent") {
 			ctx.ui.notify("Agent mode enabled. Edit/write restored.");
+		} else if (mode === "plan") {
+			ctx.ui.notify("Plan mode enabled. Edit/write disabled.");
+		} else {
+			ctx.ui.notify("Harmony TDD Plan mode enabled. Edit/write disabled; tests and analyze available.");
 		}
 		updateStatus(ctx);
 		persistState();
 	}
 
+	function cycleMode(ctx: ExtensionContext): void {
+		const nextMode: Record<HarmonyMode, HarmonyMode> = {
+			agent: "plan",
+			plan: "plan-tdd",
+			"plan-tdd": "agent",
+		};
+		setMode(nextMode[mode], ctx);
+	}
+
 	pi.registerCommand("plan", {
-		description: "Toggle Harmony TDD Plan/Agent mode",
-		handler: async (_args, ctx) => togglePlanMode(ctx),
+		description: "Switch to Harmony Plan mode",
+		handler: async (_args, ctx) => setMode("plan", ctx),
+	});
+
+	pi.registerCommand("plantdd", {
+		description: "Switch to Harmony TDD Plan mode",
+		handler: async (_args, ctx) => setMode("plan-tdd", ctx),
+	});
+
+	pi.registerCommand("agent", {
+		description: "Switch to Harmony Agent mode",
+		handler: async (_args, ctx) => setMode("agent", ctx),
 	});
 
 	pi.registerShortcut(Key.tab, {
-		description: "Toggle Harmony TDD Plan/Agent mode",
-		handler: async (ctx) => togglePlanMode(ctx),
+		description: "Cycle Harmony Agent, Plan, and Plan:TDD modes",
+		handler: async (ctx) => cycleMode(ctx),
 	});
 
 	pi.registerShortcut(Key.ctrlAlt("p"), {
-		description: "Toggle Harmony TDD Plan/Agent mode",
-		handler: async (ctx) => togglePlanMode(ctx),
+		description: "Cycle Harmony Agent, Plan, and Plan:TDD modes",
+		handler: async (ctx) => cycleMode(ctx),
 	});
 
 	pi.on("tool_call", async (event) => {
-		if (!planModeEnabled || event.toolName !== "bash") return;
+		if (mode === "agent" || event.toolName !== "bash") return;
 
 		const command = event.input.command as string;
 		if (!isSafeCommand(command)) {
@@ -433,21 +527,40 @@ export default function harmonyPlanAgentMode(pi: ExtensionAPI): void {
 	});
 
 	pi.on("context", async (event) => {
-		if (planModeEnabled) return;
+		if (mode !== "agent") return;
 
 		return {
 			messages: event.messages.filter((m) => {
 				const msg = m as { role?: string; customType?: string; content?: unknown };
 				if (msg.customType === "harmony-plan-agent-mode-context") return false;
 				if (msg.role !== "user") return true;
-				if (typeof msg.content === "string") return !msg.content.includes("[HARMONY TDD PLAN MODE ACTIVE]");
+				if (typeof msg.content === "string") return !msg.content.includes("[HARMONY PLAN MODE ACTIVE]");
 				return true;
 			}),
 		};
 	});
 
 	pi.on("before_agent_start", async () => {
-		if (!planModeEnabled) return;
+		if (mode === "agent") return;
+
+		if (mode === "plan") {
+			return {
+				message: {
+					customType: "harmony-plan-agent-mode-context",
+					content: `[HARMONY PLAN MODE ACTIVE]
+You are in Harmony-Music Plan mode.
+
+Inspect the problem, gather the necessary evidence, and propose the smallest safe implementation approach. Do not edit files in this mode. You may use read-only inspection, Harmony validation tools, and read-only Git commands.
+
+When the plan is ready for review, end the response with this exact shape:
+
+Plan:
+1. First implementation step
+2. Second implementation step`,
+					display: false,
+				},
+			};
+		}
 
 		return {
 			message: {
@@ -455,26 +568,27 @@ export default function harmonyPlanAgentMode(pi: ExtensionAPI): void {
 				content: `[HARMONY TDD PLAN MODE ACTIVE]
 You are in Harmony-Music TDD Plan mode.
 
-Plan mode goals:
-1. Get to the bottom of the problem before proposing code changes.
-2. Design the smallest failing test or validation that proves the bug before production-code edits.
-3. Run the targeted validation when useful using harmony_flutter_test or harmony_dart_analyze.
-4. Explain the expected failure and the smallest implementation approach.
-5. Do not edit files in Plan mode.
+This is a bounded planning task, not an open-ended investigation.
+- Use at most three read/search tool calls to identify the relevant code and test location.
+- Run at most one targeted validation only when it resolves a concrete uncertainty; validation is optional.
+- Once you can name the likely files and a smallest failing test, stop investigating and write the plan.
+- Do not re-check, final-review, or keep researching to make the plan more complete.
+- If evidence is incomplete, state the assumption in the plan instead of making more tool calls.
+- Do not edit files in Plan mode.
 
 Available validation tools:
 - harmony_flutter_test: run flutter test commands only.
 - harmony_dart_analyze: run dart analyze commands only.
 
-When planning a fix, answer using this shape:
+End the response immediately after this concise shape. Keep each item to one or two sentences:
 
 TDD Plan:
-1. Problem investigation
-2. Failing test design
-3. Expected failure command
-4. Minimal implementation approach
-5. Passing test command
-6. Broader validation
+1. Evidence and assumption
+2. Smallest failing test
+3. Expected failing command
+4. Minimal implementation
+5. Passing command
+6. Focused follow-up validation
 
 Plan mode may use read-only Git inspection, including git status, git log, git diff, and git show. Git state-changing commands remain forbidden unless the user explicitly requests that exact Git operation outside Plan mode.`,
 				display: false,
@@ -482,11 +596,39 @@ Plan mode may use read-only Git inspection, including git status, git log, git d
 		};
 	});
 
+	pi.on("agent_end", async (event, ctx) => {
+		if (mode === "agent" || !ctx.hasUI) return;
+
+		const lastAssistant = [...event.messages].reverse().find((message) => getAssistantText(message).length > 0);
+		const planText = lastAssistant ? getAssistantText(lastAssistant) : "";
+		if (!planText || !hasCompletedPlan(planText, mode)) return;
+
+		const fingerprint = fingerprintPlan(planText);
+		if (fingerprint === lastReviewedPlanFingerprint) return;
+		lastReviewedPlanFingerprint = fingerprint;
+		persistState();
+
+		const choice = await ctx.ui.select("Plan ready for review", ["Accept plan", "Refine plan", "Continue planning"]);
+		if (choice === "Accept plan") {
+			const savedPath = saveAcceptedPlan(planText, mode);
+			ctx.ui.notify(`Accepted plan saved to ${savedPath}`);
+			setMode("agent", ctx);
+			return;
+		}
+
+		if (choice === "Refine plan") {
+			const refinement = await ctx.ui.editor("Refine the plan:", "");
+			if (refinement?.trim()) {
+				pi.sendUserMessage(refinement.trim(), { deliverAs: "followUp" });
+			}
+		}
+	});
+
 	pi.on("session_start", async (_event, ctx) => {
 		pi.setActiveTools(getAgentModeTools(pi.getActiveTools()));
 
 		if (pi.getFlag("plan") === true) {
-			planModeEnabled = true;
+			mode = "plan-tdd";
 		}
 
 		const entries = ctx.sessionManager.getEntries();
@@ -495,11 +637,12 @@ Plan mode may use read-only Git inspection, including git status, git log, git d
 			.pop() as { data?: PlanModeState } | undefined;
 
 		if (planModeEntry?.data) {
-			planModeEnabled = planModeEntry.data.enabled ?? planModeEnabled;
+			mode = planModeEntry.data.mode ?? (planModeEntry.data.enabled === true ? "plan-tdd" : mode);
 			toolsBeforePlanMode = planModeEntry.data.toolsBeforePlanMode ?? toolsBeforePlanMode;
+			lastReviewedPlanFingerprint = planModeEntry.data.lastReviewedPlanFingerprint;
 		}
 
-		if (planModeEnabled) {
+		if (mode !== "agent") {
 			enablePlanModeTools();
 		}
 		updateStatus(ctx);

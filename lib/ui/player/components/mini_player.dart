@@ -9,6 +9,7 @@ import '../../../app/providers/controller_providers.dart';
 import '/ui/widgets/lyrics_dialog.dart';
 import '/ui/widgets/song_info_dialog.dart';
 import '../../widgets/add_to_playlist_btn.dart';
+import '../../widgets/toggle_icon_button.dart';
 import '../../widgets/awaitable_button.dart';
 import '../../widgets/sleep_timer_bottom_sheet.dart';
 import '../../widgets/song_download_btn.dart';
@@ -230,29 +231,19 @@ class MiniPlayer extends ConsumerWidget {
                                             ).textTheme.titleMedium!.color,
                                           ),
                                         ),
-                                        IconButton(
-                                          iconSize: 20,
+                                        ToggleIconButton(
+                                          size: 20,
+                                          isActive: playerController
+                                              .isShuffleModeEnabled
+                                              .value,
+                                          activeIcon: Icons.shuffle,
+                                          inactiveIcon: Icons.shuffle,
                                           onPressed: () {
                                             unawaited(
                                               playerController
                                                   .toggleShuffleMode(),
                                             );
                                           },
-                                          icon: Icon(
-                                            Icons.shuffle,
-                                            color:
-                                                playerController
-                                                    .isShuffleModeEnabled
-                                                    .value
-                                                ? Theme.of(
-                                                    context,
-                                                  ).textTheme.titleLarge!.color
-                                                : Theme.of(context)
-                                                      .textTheme
-                                                      .titleLarge!
-                                                      .color!
-                                                      .withValues(alpha: 0.2),
-                                          ),
                                         ),
                                       ],
                                     ),

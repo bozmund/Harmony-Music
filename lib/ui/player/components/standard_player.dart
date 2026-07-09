@@ -8,6 +8,7 @@ import '../../../utils/runtime_platform.dart';
 import '../../../utils/insets.dart';
 import '../../screens/listen_together/listen_together_sheet.dart';
 import '../../widgets/awaitable_button.dart';
+import '../../widgets/toggle_icon_button.dart';
 import '../../widgets/song_info_bottom_sheet.dart';
 import 'album_art_lyrics.dart';
 import 'background_image.dart';
@@ -227,15 +228,11 @@ class StandardPlayer extends ConsumerWidget {
                   animation: ref.read(listenTogetherControllerProvider),
                   builder: (context, _) {
                     final lt = ref.read(listenTogetherControllerProvider);
-                    return IconButton(
-                      icon: Icon(
-                        lt.isActive ? Icons.groups_2 : Icons.groups_2_outlined,
-                        size: 25,
-                        color:
-                            lt.isActive
-                                ? Theme.of(context).colorScheme.primary
-                                : null,
-                      ),
+                    return ToggleIconButton(
+                      size: 25,
+                      isActive: lt.isActive,
+                      activeIcon: Icons.groups_2,
+                      inactiveIcon: Icons.groups_2_outlined,
                       onPressed: () async {
                         await showListenTogetherSheet(
                           playerController

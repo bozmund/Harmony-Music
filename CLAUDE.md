@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Accepted Plans
+
+Before implementing an explicitly accepted plan, save its full accepted content as a timestamped Markdown file in the repository-root `plans/` directory.
+
 ## Flutter/Dart MCP server
 
 This repo ships a small dependency-free MCP stdio server at `mcp/flutter_dart_server.js`

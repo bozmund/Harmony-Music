@@ -9,9 +9,11 @@ import 'package:harmonymusic/ui/player/components/background_image.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../../app/providers/controller_providers.dart';
+import '../../widgets/toggle_icon_button.dart';
 import '../../widgets/song_info_bottom_sheet.dart';
 import '../../utils/theme_controller.dart';
 import '../../../utils/insets.dart';
+
 class GesturePlayer extends ConsumerWidget {
   const GesturePlayer({super.key});
 
@@ -191,33 +193,23 @@ class GesturePlayer extends ConsumerWidget {
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceEvenly,
                                       children: [
-                                        IconButton(
+                                        ToggleIconButton(
+                                          size: 18,
                                           splashRadius: 10,
                                           visualDensity: const VisualDensity(
                                             horizontal: -4,
                                             vertical: -4,
                                           ),
-                                          iconSize: 18,
+                                          isActive: playerController
+                                              .isLoopModeEnabled
+                                              .value,
+                                          activeIcon: Icons.all_inclusive,
+                                          inactiveIcon: Icons.all_inclusive,
                                           onPressed: () {
                                             unawaited(
                                               playerController.toggleLoopMode(),
                                             );
                                           },
-                                          icon: Icon(
-                                            Icons.all_inclusive,
-                                            color:
-                                                playerController
-                                                    .isLoopModeEnabled
-                                                    .value
-                                                ? Theme.of(
-                                                    context,
-                                                  ).textTheme.titleLarge!.color
-                                                : Theme.of(context)
-                                                      .textTheme
-                                                      .titleLarge!
-                                                      .color!
-                                                      .withValues(alpha: 0.2),
-                                          ),
                                         ),
                                         IconButton(
                                           iconSize: 18,

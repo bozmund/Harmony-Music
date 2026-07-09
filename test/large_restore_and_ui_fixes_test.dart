@@ -223,14 +223,30 @@ void main() {
   });
 
   group('app text colors', () {
-    test('text buttons inherit app text color by default', () {
-      final source = File(
+    test('text and transparent buttons inherit readable app colors', () {
+      final controllerSource = File(
         'lib/ui/utils/theme_controller.dart',
       ).readAsStringSync();
-      expect(source, contains('textButtonTheme: TextButtonThemeData'));
-      expect(source, contains('foregroundColor: buttonTextColor'));
-      expect(source, contains('disabledForegroundColor'));
-      expect(source, contains('textStyle: appTextTheme.titleMedium'));
+      final themeSource = File(
+        'lib/ui/utils/app_text_and_action_theme.dart',
+      ).readAsStringSync();
+
+      expect(
+        controllerSource,
+        contains("import 'app_text_and_action_theme.dart';"),
+      );
+      expect(
+        controllerSource,
+        contains('applyHarmonyTextAndActionTheme(baseTheme)'),
+      );
+      expect(themeSource, contains('displayColor: foregroundColor'));
+      expect(themeSource, contains('bodyColor: foregroundColor'));
+      expect(themeSource, contains('textButtonTheme: TextButtonThemeData'));
+      expect(
+        themeSource,
+        contains('outlinedButtonTheme: OutlinedButtonThemeData'),
+      );
+      expect(themeSource, contains('disabledForegroundColor'));
     });
   });
 }

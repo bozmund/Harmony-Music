@@ -2,6 +2,9 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
+    - .dart_tool/**
+    - .flutter/**
+    - build/**
     - third_party/**/test/**
   errors:
     unawaited_futures: error
