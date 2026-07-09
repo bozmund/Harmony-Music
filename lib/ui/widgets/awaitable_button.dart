@@ -144,7 +144,7 @@ class _AwaitableButtonState extends State<AwaitableButton> {
     final onPressed =
         widget.onPressed == null || _isRunning ? null : _handlePressed;
     final onLongPress = _isRunning ? null : widget.onLongPress;
-    final icon = _isRunning ? _indicator() : widget.icon;
+    final icon = _isRunning && widget.icon != null ? _indicator() : widget.icon;
     final label =
         widget.icon == null && _isRunning
             ? _labelSizedIndicator()
