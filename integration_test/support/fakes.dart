@@ -261,6 +261,12 @@ class FakeAppPlatform implements AppPlatformContract {
   Future<void> restartApp({bool terminate = true}) async {
     restarted = true;
   }
+
+  @override
+  Future<SystemNavigationMode> getSystemNavigationMode() {
+    // TODO: implement getSystemNavigationMode
+    throw UnimplementedError();
+  }
 }
 
 class FakeFilePicker implements FilePickerContract {
@@ -340,4 +346,5 @@ class FakeAudioHandler extends BaseAudioHandler {
     }
     return Future.value(null);
   }
+
 }
