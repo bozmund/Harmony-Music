@@ -51,68 +51,56 @@ void main() {
       expect(checkboxBlock, contains('setStartupUpdatePopupEnabled(!val)'));
     });
 
-    test(
-      'downloading an update never silently disables the startup popup',
-      () {
-        // Tapping Download must only ever start the download — it must not
-        // touch the "show at startup" preference behind the user's back.
-        // That preference may change only through the checkbox itself
-        // (onChangeVersionVisibility), which the user has to tap directly.
-        expect(updateDialog, isNot(contains('disableStartupPopupOnUpdateTap')));
-        expect(updateDialog, isNot(contains('disableStartupUpdatePopup')));
-        expect(homeController, isNot(contains('disableStartupUpdatePopup')));
+    test('downloading an update never silently disables the startup popup', () {
+      // Tapping Download must only ever start the download — it must not
+      // touch the "show at startup" preference behind the user's back.
+      // That preference may change only through the checkbox itself
+      // (onChangeVersionVisibility), which the user has to tap directly.
+      expect(updateDialog, isNot(contains('disableStartupPopupOnUpdateTap')));
+      expect(updateDialog, isNot(contains('disableStartupUpdatePopup')));
+      expect(homeController, isNot(contains('disableStartupUpdatePopup')));
 
-        final checkUpdateBlock = _methodBlock(
-          settingsController,
-          'checkUpdate',
-        );
-        expect(checkUpdateBlock, contains('checkNewVersion()'));
-        expect(checkUpdateBlock, isNot(contains('showVersionDialog')));
-        expect(
-          checkUpdateBlock,
-          isNot(contains('disableStartupPopupOnUpdateTap')),
-        );
+      final checkUpdateBlock = _methodBlock(settingsController, 'checkUpdate');
+      expect(checkUpdateBlock, contains('checkNewVersion()'));
+      expect(checkUpdateBlock, isNot(contains('showVersionDialog')));
+      expect(
+        checkUpdateBlock,
+        isNot(contains('disableStartupPopupOnUpdateTap')),
+      );
 
-        // Both download buttons in the dialog only ever call
-        // downloadAndInstallUpdate.
-        expect(
-          'downloadAndInstallUpdate'.allMatches(updateDialog).length,
-          2,
-        );
-      },
-    );
+      // Both download buttons in the dialog only ever call
+      // downloadAndInstallUpdate.
+      expect('downloadAndInstallUpdate'.allMatches(updateDialog).length, 2);
+    });
 
-    test(
-      'dismissing after disabling the popup opens the update section',
-      () {
-        // When the user turns off the startup popup and dismisses, they must
-        // be shown where updates can still be checked manually, otherwise a
-        // later update goes unnoticed. The redirect is gated on the popup
-        // actually having been disabled (showVersionDialog == false).
-        final dismissTapIndex = updateDialog.indexOf('"dismiss".tr');
-        expect(dismissTapIndex, greaterThan(-1));
-        final popIndex = updateDialog.indexOf(
-          'Navigator.of(context).pop()',
-          dismissTapIndex,
-        );
-        final gateIndex = updateDialog.indexOf(
-          'homeController.showVersionDialog',
-          dismissTapIndex,
-        );
-        final revealIndex = updateDialog.indexOf(
-          'requestUpdateSectionReveal()',
-          dismissTapIndex,
-        );
-        final settingsTabIndex = updateDialog.indexOf(
-          'openSettingsTab()',
-          dismissTapIndex,
-        );
-        expect(popIndex, greaterThan(dismissTapIndex));
-        expect(gateIndex, greaterThan(dismissTapIndex));
-        expect(revealIndex, greaterThan(gateIndex));
-        expect(settingsTabIndex, greaterThan(revealIndex));
-      },
-    );
+    test('dismissing after disabling the popup opens the update section', () {
+      // When the user turns off the startup popup and dismisses, they must
+      // be shown where updates can still be checked manually, otherwise a
+      // later update goes unnoticed. The redirect is gated on the popup
+      // actually having been disabled (showVersionDialog == false).
+      final dismissTapIndex = updateDialog.indexOf('context.l10n.dismiss');
+      expect(dismissTapIndex, greaterThan(-1));
+      final popIndex = updateDialog.indexOf(
+        'Navigator.of(context).pop()',
+        dismissTapIndex,
+      );
+      final gateIndex = updateDialog.indexOf(
+        'homeController.showVersionDialog',
+        dismissTapIndex,
+      );
+      final revealIndex = updateDialog.indexOf(
+        'requestUpdateSectionReveal()',
+        dismissTapIndex,
+      );
+      final settingsTabIndex = updateDialog.indexOf(
+        'openSettingsTab()',
+        dismissTapIndex,
+      );
+      expect(popIndex, greaterThan(dismissTapIndex));
+      expect(gateIndex, greaterThan(dismissTapIndex));
+      expect(revealIndex, greaterThan(gateIndex));
+      expect(settingsTabIndex, greaterThan(revealIndex));
+    });
 
     test(
       'settings navigation icons are badged when an update is available',

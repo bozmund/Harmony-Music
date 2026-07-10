@@ -51,15 +51,15 @@ The migration must remain incremental: each subsystem should compile, analyze, a
 
 ### 3. Localization
 
-- Replace `.tr` call sites with generated `AppLocalizations` through `context.l10n`.
+- Localization call sites have been migrated to generated `AppLocalizations` through `context.l10n`.
 - Rename legacy invalid localization keys during replacement:
   - uppercase keys such as `CreateNewPlaylist`
   - reserved words such as `dynamic`
   - keys with symbols such as `music&Playback`
   - raw placeholder strings such as `{Song Name}`
 - Add ARB metadata for real placeholders instead of interpolating translated fragments manually.
-- Keep the old `Languages` map only until the last `.tr` call is removed, then delete `lib/utils/get_localization.dart`.
-- Add a source guard that fails on `.tr` after migration is complete.
+- The old `Languages` map and generated custom-localization file have been removed.
+- A source guard fails if the legacy translation extension is reintroduced.
 
 ### 4. Settings And Theme State
 

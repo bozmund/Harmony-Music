@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/ui/widgets/modification_list.dart';
 
 import '../screens/Artists/artist_screen_controller.dart';
@@ -64,18 +64,18 @@ class SeparateTabItemWidget extends StatelessWidget {
           if (isCompleteList)
             isResultWidget
                 ? _SearchResultList(
-                  title: title,
-                  isCompleteList: isCompleteList,
-                  scrollController: scrollController,
-                  searchResController: searchResController,
-                )
+                    title: title,
+                    isCompleteList: isCompleteList,
+                    scrollController: scrollController,
+                    searchResController: searchResController,
+                  )
                 : _ArtistList(
-                  title: title,
-                  items: items,
-                  isCompleteList: isCompleteList,
-                  scrollController: scrollController,
-                  artistController: artistController,
-                )
+                    title: title,
+                    items: items,
+                    isCompleteList: isCompleteList,
+                    scrollController: scrollController,
+                    artistController: artistController,
+                  )
           else
             ListWidget(
               items,
@@ -108,7 +108,7 @@ class _TitleRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            title.toLowerCase().removeAllWhitespace.tr,
+            context.l10n.sectionTitle(title),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           if (!isCompleteList)
@@ -117,7 +117,7 @@ class _TitleRow extends StatelessWidget {
                 await searchResController?.viewAllCallback(title);
               },
               label: Text(
-                "viewAll".tr,
+                context.l10n.viewAll,
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
@@ -144,45 +144,40 @@ class _SortRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final animation =
-        isResultWidget
-            ? searchResController ?? const AlwaysStoppedAnimation(0)
-            : artistController ?? const AlwaysStoppedAnimation(0);
+    final animation = isResultWidget
+        ? searchResController ?? const AlwaysStoppedAnimation(0)
+        : artistController ?? const AlwaysStoppedAnimation(0);
     return AnimatedBuilder(
       animation: animation,
-      builder:
-          (context, _) => SortWidget(
-            tag: "${title}_$artistControllerTag",
-            screenController: artistController,
-            isAdditionalOperationRequired:
-                artistController != null &&
-                (title == "Songs" || title == "Videos"),
-            isSearchFeatureRequired: artistController != null,
-            titleLeftPadding: 9,
-            itemCountTitle:
-                "${isResultWidget ? (searchResController?.separatedResultContent[title] ?? []).length : (artistController?.separatedContent[title] != null ? artistController?.separatedContent[title]['results'] : []).length} ${"items".tr}",
-            requiredSortTypes: buildSortTypeSet(
-              title == 'Albums' || title == "Singles",
-              title == "Songs" || title == "Videos",
-            ),
-            onSort: (type, ascending) {
-              if (isResultWidget) {
-                searchResController!.onSort(type, ascending, title);
-              } else {
-                artistController?.onSort(type, ascending, title);
-              }
-            },
-            onSearch: artistController?.onSearch,
-            onSearchClose: artistController?.onSearchClose,
-            onSearchStart: artistController?.onSearchStart,
-            startAdditionalOperation:
-                artistController?.startAdditionalOperation,
-            selectAll: artistController?.selectAll,
-            performAdditionalOperation:
-                artistController?.performAdditionalOperation,
-            cancelAdditionalOperation:
-                artistController?.cancelAdditionalOperation,
-          ),
+      builder: (context, _) => SortWidget(
+        tag: "${title}_$artistControllerTag",
+        screenController: artistController,
+        isAdditionalOperationRequired:
+            artistController != null && (title == "Songs" || title == "Videos"),
+        isSearchFeatureRequired: artistController != null,
+        titleLeftPadding: 9,
+        itemCountTitle:
+            "${isResultWidget ? (searchResController?.separatedResultContent[title] ?? []).length : (artistController?.separatedContent[title] != null ? artistController?.separatedContent[title]['results'] : []).length} ${context.l10n.items}",
+        requiredSortTypes: buildSortTypeSet(
+          title == 'Albums' || title == "Singles",
+          title == "Songs" || title == "Videos",
+        ),
+        onSort: (type, ascending) {
+          if (isResultWidget) {
+            searchResController!.onSort(type, ascending, title);
+          } else {
+            artistController?.onSort(type, ascending, title);
+          }
+        },
+        onSearch: artistController?.onSearch,
+        onSearchClose: artistController?.onSearchClose,
+        onSearchStart: artistController?.onSearchStart,
+        startAdditionalOperation: artistController?.startAdditionalOperation,
+        selectAll: artistController?.selectAll,
+        performAdditionalOperation:
+            artistController?.performAdditionalOperation,
+        cancelAdditionalOperation: artistController?.cancelAdditionalOperation,
+      ),
     );
   }
 }

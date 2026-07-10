@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/utils/helper.dart';
 
 import '../screens/Library/library_controller.dart';
@@ -38,7 +38,7 @@ class PipedSyncWidget extends StatelessWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 snackbar(
                   context,
-                  "pipedPlaylistSyncAlert".tr,
+                  context.l10n.pipedPlaylistSyncAlert,
                   size: SanckBarSize.MEDIUM,
                 ),
               );
@@ -47,7 +47,7 @@ class PipedSyncWidget extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   snackbar(
                     context,
-                    "errorOccurredAlert".tr,
+                    context.l10n.errorOccurredAlert,
                     size: SanckBarSize.BIG,
                   ),
                 );

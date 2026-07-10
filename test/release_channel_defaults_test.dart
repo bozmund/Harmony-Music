@@ -13,15 +13,11 @@ void main() {
       expect(source, isNot(contains("?? 'rolling'")));
     });
 
-    test('settings controller starts on stable before loading the setting',
-        () {
+    test('settings controller starts on stable before loading the setting', () {
       final source = File(
         'lib/ui/screens/Settings/settings_screen_controller.dart',
       ).readAsStringSync();
-      expect(
-        source,
-        contains('ObservableValue(UpdateChannel.stable)'),
-      );
+      expect(source, contains('ObservableValue(UpdateChannel.stable)'));
     });
   });
 
@@ -54,10 +50,7 @@ void main() {
         controllerSource,
         contains('if (_settingsRepository.isReleasePromptAnswered(prompt.id))'),
       );
-      expect(
-        controllerSource,
-        contains('setReleasePromptAnswered(prompt.id)'),
-      );
+      expect(controllerSource, contains('setReleasePromptAnswered(prompt.id)'));
 
       final hiveSource = File(
         'lib/data/repositories/hive_settings_repository.dart',
@@ -69,11 +62,9 @@ void main() {
       final dialogSource = File(
         'lib/ui/widgets/release_prompt_dialog.dart',
       ).readAsStringSync();
-      final answeredIndex =
-          dialogSource.indexOf('markReleasePromptAnswered()');
+      final answeredIndex = dialogSource.indexOf('markReleasePromptAnswered()');
       final channelIndex = dialogSource.indexOf('changeUpdateChannel(');
-      final revealIndex =
-          dialogSource.indexOf('requestUpdateSectionReveal()');
+      final revealIndex = dialogSource.indexOf('requestUpdateSectionReveal()');
       final settingsTabIndex = dialogSource.indexOf('openSettingsTab()');
       expect(answeredIndex, greaterThan(-1));
       expect(channelIndex, greaterThan(-1));
@@ -90,12 +81,11 @@ void main() {
       final screenSource = File(
         'lib/ui/screens/Settings/settings_screen.dart',
       ).readAsStringSync();
-      final consumeIndex =
-          screenSource.indexOf('consumeUpdateSectionReveal()');
+      final consumeIndex = screenSource.indexOf('consumeUpdateSectionReveal()');
       expect(consumeIndex, greaterThan(-1));
       // The reveal flag must expand the App Info tile — the section that
       // contains the update-channel row.
-      final appInfoIndex = screenSource.indexOf('"appInfo".tr');
+      final appInfoIndex = screenSource.indexOf('context.l10n.appInfo');
       final revealTileIndex = screenSource.indexOf(
         'initiallyExpanded: revealUpdateSection',
         appInfoIndex,

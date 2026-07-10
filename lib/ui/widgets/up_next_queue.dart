@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../app/providers/controller_providers.dart';
@@ -48,7 +48,7 @@ class UpNextQueue extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   snackbar(
                     context,
-                    "queueRearrangingDeniedMessage".tr,
+                    context.l10n.queueRearrangingDeniedMessage,
                     size: SanckBarSize.BIG,
                   ),
                 );
@@ -123,7 +123,7 @@ class UpNextQueue extends ConsumerWidget {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   snackbar(
                                     context,
-                                    "songRemovedFromQueueCurrSong".tr,
+                                    context.l10n.songRemovedFromQueueCurrSong,
                                     size: SanckBarSize.BIG,
                                   ),
                                 );

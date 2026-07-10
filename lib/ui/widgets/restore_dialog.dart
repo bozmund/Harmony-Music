@@ -3,7 +3,7 @@ import 'dart:io';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../app/providers/repository_providers.dart';
@@ -65,7 +65,7 @@ class _RestoreDialogState extends ConsumerState<RestoreDialog> {
                 Container(
                   padding: const EdgeInsets.only(bottom: 10.0, top: 10),
                   child: Text(
-                    "restoreAppData".tr,
+                    context.l10n.restoreAppData,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -81,9 +81,12 @@ class _RestoreDialogState extends ConsumerState<RestoreDialog> {
                               textAlign: TextAlign.center,
                             )
                           : restoreDialogController.restoreCompleted
-                          ? Text("restoreMsg".tr, textAlign: TextAlign.center)
+                          ? Text(
+                              context.l10n.restoreMsg,
+                              textAlign: TextAlign.center,
+                            )
                           : restoreDialogController.processingFiles
-                          ? Text("processFiles".tr)
+                          ? Text(context.l10n.processFiles)
                           : restoreDialogController.restoreRunning
                           ? Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -93,10 +96,10 @@ class _RestoreDialogState extends ConsumerState<RestoreDialog> {
                                   style: Theme.of(context).textTheme.titleLarge,
                                 ),
                                 const SizedBox(height: 10),
-                                Text("restoring".tr),
+                                Text(context.l10n.restoring),
                               ],
                             )
-                          : Text("letsStart".tr),
+                          : Text(context.l10n.letsStart),
                     ),
                   ),
                 ),
@@ -132,8 +135,8 @@ class _RestoreDialogState extends ConsumerState<RestoreDialog> {
                               ),
                               child: Text(
                                 restoreDialogController.restoreCompleted
-                                    ? "restartApp".tr
-                                    : "restore".tr,
+                                    ? context.l10n.restartApp
+                                    : context.l10n.restore,
                                 style: TextStyle(
                                   color: Theme.of(context).canvasColor,
                                 ),

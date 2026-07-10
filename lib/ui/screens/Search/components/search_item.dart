@@ -32,10 +32,9 @@ class SearchItem extends ConsumerWidget {
           searchScreenController.focusNode.unfocus();
         }
       },
-      leading:
-          isHistoryString
-              ? const Icon(Icons.history)
-              : const Icon(Icons.search),
+      leading: isHistoryString
+          ? const Icon(Icons.history)
+          : const Icon(Icons.search),
       minLeadingWidth: 20,
       dense: true,
       title: Text(queryString),
@@ -45,19 +44,19 @@ class SearchItem extends ConsumerWidget {
           children: [
             isHistoryString
                 ? AwaitableIconButton(
-                  iconSize: 18,
-                  splashRadius: 18,
-                  visualDensity: const VisualDensity(horizontal: -2),
-                  onPressed: () async {
-                    await searchScreenController.removeQueryFromHistory(
-                      queryString,
-                    );
-                  },
-                  icon: Icon(
-                    Icons.clear,
-                    color: Theme.of(context).textTheme.titleMedium!.color,
-                  ),
-                )
+                    iconSize: 18,
+                    splashRadius: 18,
+                    visualDensity: const VisualDensity(horizontal: -2),
+                    onPressed: () async {
+                      await searchScreenController.removeQueryFromHistory(
+                        queryString,
+                      );
+                    },
+                    icon: Icon(
+                      Icons.clear,
+                      color: Theme.of(context).textTheme.titleMedium!.color,
+                    ),
+                  )
                 : const SizedBox(width: 40),
             AwaitableIconButton(
               iconSize: 20,

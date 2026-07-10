@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../../../app/providers/controller_providers.dart';
 import 'search_item.dart';
@@ -43,7 +43,7 @@ class DesktopSearchBar extends ConsumerWidget {
             backgroundColor: WidgetStatePropertyAll<Color>(
               Theme.of(context).colorScheme.secondary,
             ),
-            hintText: "searchDes".tr,
+            hintText: context.l10n.searchDes,
             leading: IconButton(
               onPressed: () {
                 if (searchScreenController.focusNode.hasFocus) {
@@ -100,7 +100,7 @@ class DesktopSearchBar extends ConsumerWidget {
                           height: 50,
                           child: Center(
                             child: Text(
-                              "urlSearchDes".tr,
+                              context.l10n.urlSearchDes,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),

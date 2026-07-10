@@ -4,7 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../app/navigation/app_navigator.dart';
 import '../../app/providers/controller_providers.dart';
@@ -122,38 +122,36 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
                   children: [
                     calledFromPlayer
                         ? IconButton(
-                          onPressed: () async {
-                            await showDialog(
-                              context: context,
-                              builder:
-                                  (context) => SongInfoDialog(
-                                    song: song,
-                                    includePlaybackDebug: true,
-                                  ),
-                            );
-                          },
-                          icon: Icon(
-                            Icons.info,
-                            color:
-                                Theme.of(context).textTheme.titleMedium!.color,
-                          ),
-                        )
-                        : IconButton(
-                          onPressed: songInfoController.toggleFav,
-                          icon: AnimatedBuilder(
-                            animation: songInfoController,
-                            builder:
-                                (context, _) => Icon(
-                                  !songInfoController.isCurrentSongFav
-                                      ? Icons.favorite_border
-                                      : Icons.favorite,
-                                  color:
-                                      Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium!.color,
+                            onPressed: () async {
+                              await showDialog(
+                                context: context,
+                                builder: (context) => SongInfoDialog(
+                                  song: song,
+                                  includePlaybackDebug: true,
                                 ),
+                              );
+                            },
+                            icon: Icon(
+                              Icons.info,
+                              color: Theme.of(
+                                context,
+                              ).textTheme.titleMedium!.color,
+                            ),
+                          )
+                        : IconButton(
+                            onPressed: songInfoController.toggleFav,
+                            icon: AnimatedBuilder(
+                              animation: songInfoController,
+                              builder: (context, _) => Icon(
+                                !songInfoController.isCurrentSongFav
+                                    ? Icons.favorite_border
+                                    : Icons.favorite,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.titleMedium!.color,
+                              ),
+                            ),
                           ),
-                        ),
                     SongDownloadButton(
                       song_: song,
                       showDebugStatus: false,
@@ -174,22 +172,19 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
                   Navigator.of(context).pop();
                   await showDialog(
                     context: context,
-                    builder:
-                        (context) => IssueReportDialog(
-                          extraDiagnosticsBuilder:
-                              () async => {
-                                'playback':
-                                    await playerController
-                                        .detailedPlaybackDebugSnapshot(),
-                              },
-                        ),
+                    builder: (context) => IssueReportDialog(
+                      extraDiagnosticsBuilder: () async => {
+                        'playback': await playerController
+                            .detailedPlaybackDebugSnapshot(),
+                      },
+                    ),
                   );
                 },
               ),
             ListTile(
               visualDensity: const VisualDensity(vertical: -1),
               leading: const Icon(Icons.sensors),
-              title: Text("startRadio".tr),
+              title: Text(context.l10n.startRadio),
               onTap: () async {
                 Navigator.of(context).pop();
                 await playerController.startRadio(song);
@@ -198,30 +193,30 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
             (calledFromPlayer || calledFromQueue)
                 ? const SizedBox.shrink()
                 : ListTile(
-                  visualDensity: const VisualDensity(vertical: -1),
-                  leading: const Icon(Icons.queue_play_next),
-                  title: Text("playNext".tr),
-                  onTap: () {
-                    final messenger = ScaffoldMessenger.of(context);
-                    Navigator.of(context).pop();
-                    unawaited(
-                      playerController.playNext(song).whenComplete(() {
-                        if (!context.mounted) return;
-                        messenger.showSnackBar(
-                          snackbar(
-                            context,
-                            "${"playNextMsg".tr} ${song.title}",
-                            size: SanckBarSize.BIG,
-                          ),
-                        );
-                      }),
-                    );
-                  },
-                ),
+                    visualDensity: const VisualDensity(vertical: -1),
+                    leading: const Icon(Icons.queue_play_next),
+                    title: Text(context.l10n.playNext),
+                    onTap: () {
+                      final messenger = ScaffoldMessenger.of(context);
+                      Navigator.of(context).pop();
+                      unawaited(
+                        playerController.playNext(song).whenComplete(() {
+                          if (!context.mounted) return;
+                          messenger.showSnackBar(
+                            snackbar(
+                              context,
+                              "${context.l10n.playNextMsg} ${song.title}",
+                              size: SanckBarSize.BIG,
+                            ),
+                          );
+                        }),
+                      );
+                    },
+                  ),
             ListTile(
               visualDensity: const VisualDensity(vertical: -1),
               leading: const Icon(Icons.add_circle_outline),
-              title: Text("addToPlaylist".tr),
+              title: Text(context.l10n.addToPlaylist),
               onTap: () async {
                 Navigator.of(context).pop();
                 await showDialog(
@@ -233,46 +228,46 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
             (calledFromPlayer || calledFromQueue)
                 ? const SizedBox.shrink()
                 : ListTile(
-                  visualDensity: const VisualDensity(vertical: -1),
-                  leading: const Icon(Icons.merge),
-                  title: Text("enqueueSong".tr),
-                  onTap: () {
-                    final messenger = ScaffoldMessenger.of(context);
-                    unawaited(
-                      playerController.enqueueSong(song).whenComplete(() {
-                        if (!context.mounted) return;
-                        messenger.showSnackBar(
-                          snackbar(
-                            context,
-                            "songEnqueueAlert".tr,
-                            size: SanckBarSize.MEDIUM,
-                          ),
-                        );
-                      }),
-                    );
-                    Navigator.of(context).pop();
-                  },
-                ),
+                    visualDensity: const VisualDensity(vertical: -1),
+                    leading: const Icon(Icons.merge),
+                    title: Text(context.l10n.enqueueSong),
+                    onTap: () {
+                      final messenger = ScaffoldMessenger.of(context);
+                      unawaited(
+                        playerController.enqueueSong(song).whenComplete(() {
+                          if (!context.mounted) return;
+                          messenger.showSnackBar(
+                            snackbar(
+                              context,
+                              context.l10n.songEnqueueAlert,
+                              size: SanckBarSize.MEDIUM,
+                            ),
+                          );
+                        }),
+                      );
+                      Navigator.of(context).pop();
+                    },
+                  ),
             song.extras!['album'] != null
                 ? ListTile(
-                  visualDensity: const VisualDensity(vertical: -1),
-                  leading: const Icon(Icons.album),
-                  title: Text("goToAlbum".tr),
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    if (calledFromPlayer) {
-                      await playerController.playerPanelController.close();
-                    }
-                    if (calledFromQueue) {
-                      await playerController.playerPanelController.close();
-                    }
-                    await ScreenNavigationSetup.navigatorKey.currentState
-                        ?.pushNamed(
-                          ScreenNavigationSetup.albumScreen,
-                          arguments: (null, song.extras!['album']['id']),
-                        );
-                  },
-                )
+                    visualDensity: const VisualDensity(vertical: -1),
+                    leading: const Icon(Icons.album),
+                    title: Text(context.l10n.goToAlbum),
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      if (calledFromPlayer) {
+                        await playerController.playerPanelController.close();
+                      }
+                      if (calledFromQueue) {
+                        await playerController.playerPanelController.close();
+                      }
+                      await ScreenNavigationSetup.navigatorKey.currentState
+                          ?.pushNamed(
+                            ScreenNavigationSetup.albumScreen,
+                            arguments: (null, song.extras!['album']['id']),
+                          );
+                    },
+                  )
                 : const SizedBox.shrink(),
             ...artistWidgetList(song, context, playerController),
             (playlist != null &&
@@ -280,108 +275,107 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
                         !(playlist!.playlistId == "LIBRP")) ||
                     (playlist != null && playlist!.isPipedPlaylist)
                 ? ListTile(
-                  visualDensity: const VisualDensity(vertical: -1),
-                  leading: const Icon(Icons.delete),
-                  title:
-                      playlist!.title == "Library Songs"
-                          ? Text("removeFromLib".tr)
-                          : Text("removeFromPlaylist".tr),
-                  onTap: () async {
-                    Navigator.of(context).pop();
-                    await songInfoController
-                        .removeSongFromPlaylist(song, playlist!)
-                        .whenComplete(() {
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            snackbar(
-                              context,
-                              "Removed from ${playlist!.title}",
-                              size: SanckBarSize.MEDIUM,
-                            ),
-                          );
-                        });
-                  },
-                )
+                    visualDensity: const VisualDensity(vertical: -1),
+                    leading: const Icon(Icons.delete),
+                    title: playlist!.title == "Library Songs"
+                        ? Text(context.l10n.removeFromLib)
+                        : Text(context.l10n.removeFromPlaylist),
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      await songInfoController
+                          .removeSongFromPlaylist(song, playlist!)
+                          .whenComplete(() {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              snackbar(
+                                context,
+                                "Removed from ${playlist!.title}",
+                                size: SanckBarSize.MEDIUM,
+                              ),
+                            );
+                          });
+                    },
+                  )
                 : const SizedBox.shrink(),
             calledFromQueue
                 ? ListTile(
-                  visualDensity: const VisualDensity(vertical: -1),
-                  leading: const Icon(Icons.delete),
-                  title: Text("removeFromQueue".tr),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    if (playerController.currentSong.value!.id == song.id) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        snackbar(
-                          context,
-                          "songRemovedFromQueueCurrSong".tr,
-                          size: SanckBarSize.BIG,
-                        ),
-                      );
-                    } else {
-                      final messenger = ScaffoldMessenger.of(context);
-                      unawaited(
-                        playerController.removeFromQueue(song).whenComplete(() {
-                          if (!context.mounted) return;
-                          messenger.showSnackBar(
-                            snackbar(
-                              context,
-                              "songRemovedFromQueue".tr,
-                              size: SanckBarSize.MEDIUM,
-                            ),
-                          );
-                        }),
-                      );
-                    }
-                  },
-                )
+                    visualDensity: const VisualDensity(vertical: -1),
+                    leading: const Icon(Icons.delete),
+                    title: Text(context.l10n.removeFromQueue),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      if (playerController.currentSong.value!.id == song.id) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          snackbar(
+                            context,
+                            context.l10n.songRemovedFromQueueCurrSong,
+                            size: SanckBarSize.BIG,
+                          ),
+                        );
+                      } else {
+                        final messenger = ScaffoldMessenger.of(context);
+                        unawaited(
+                          playerController.removeFromQueue(song).whenComplete(
+                            () {
+                              if (!context.mounted) return;
+                              messenger.showSnackBar(
+                                snackbar(
+                                  context,
+                                  context.l10n.songRemovedFromQueue,
+                                  size: SanckBarSize.MEDIUM,
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      }
+                    },
+                  )
                 : const SizedBox.shrink(),
             AnimatedBuilder(
               animation: songInfoController,
-              builder:
-                  (context, _) =>
-                      (songInfoController.isDownloaded &&
-                              (playlist?.playlistId != BoxNames.songDownloads &&
-                                  playlist?.playlistId != BoxNames.songsCache))
-                          ? ListTile(
-                            contentPadding: const EdgeInsets.only(left: 15),
-                            visualDensity: const VisualDensity(vertical: -1),
-                            leading: const Icon(Icons.delete),
-                            title: Text("deleteDownloadData".tr),
-                            onTap: () async {
-                              Navigator.of(context).pop();
-                              final downloadJson = await songInfoController
-                                  .downloadRepository
-                                  .getDownloadJson(song.id);
-                              final downloadUrl =
-                                  downloadJson is Map
-                                      ? downloadJson['url']?.toString()
-                                      : null;
-                              await LibrarySongsControllerRegistry.current
-                                  ?.removeSong(song, true, url: downloadUrl);
-                              await songInfoController.downloadRepository
-                                  .deleteDownloadedSong(song.id);
-                              if (playlist != null) {
-                                PlaylistScreenControllerRegistry.maybeOf(
-                                  Key(playlist!.playlistId).hashCode.toString(),
-                                )?.checkDownloadStatus();
-                              }
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  snackbar(
-                                    context,
-                                    "deleteDownloadedDataAlert".tr,
-                                    size: SanckBarSize.BIG,
-                                  ),
-                                );
-                              }
-                            },
-                          )
-                          : const SizedBox.shrink(),
+              builder: (context, _) =>
+                  (songInfoController.isDownloaded &&
+                      (playlist?.playlistId != BoxNames.songDownloads &&
+                          playlist?.playlistId != BoxNames.songsCache))
+                  ? ListTile(
+                      contentPadding: const EdgeInsets.only(left: 15),
+                      visualDensity: const VisualDensity(vertical: -1),
+                      leading: const Icon(Icons.delete),
+                      title: Text(context.l10n.deleteDownloadData),
+                      onTap: () async {
+                        Navigator.of(context).pop();
+                        final downloadJson = await songInfoController
+                            .downloadRepository
+                            .getDownloadJson(song.id);
+                        final downloadUrl = downloadJson is Map
+                            ? downloadJson['url']?.toString()
+                            : null;
+                        await LibrarySongsControllerRegistry.current
+                            ?.removeSong(song, true, url: downloadUrl);
+                        await songInfoController.downloadRepository
+                            .deleteDownloadedSong(song.id);
+                        if (playlist != null) {
+                          PlaylistScreenControllerRegistry.maybeOf(
+                            Key(playlist!.playlistId).hashCode.toString(),
+                          )?.checkDownloadStatus();
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            snackbar(
+                              context,
+                              context.l10n.deleteDownloadedDataAlert,
+                              size: SanckBarSize.BIG,
+                            ),
+                          );
+                        }
+                      },
+                    )
+                  : const SizedBox.shrink(),
             ),
             ListTile(
               leading: const Icon(Icons.open_with),
-              title: Text("openIn".tr),
+              title: Text(context.l10n.openIn),
               trailing: SizedBox(
                 width: 200,
                 child: Row(
@@ -414,7 +408,7 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
                 contentPadding: const EdgeInsets.only(left: 15),
                 visualDensity: const VisualDensity(vertical: -1),
                 leading: const Icon(Icons.timer),
-                title: Text("sleepTimer".tr),
+                title: Text(context.l10n.sleepTimer),
                 onTap: () async {
                   Navigator.of(context).pop();
                   await showModalBottomSheet(
@@ -436,7 +430,7 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
               contentPadding: const EdgeInsets.only(left: 15),
               visualDensity: const VisualDensity(vertical: -1),
               leading: const Icon(Icons.share),
-              title: Text("shareSong".tr),
+              title: Text(context.l10n.shareSong),
               onTap: () async {
                 await AppPlatformService.shareText(
                   "https://youtube.com/watch?v=${song.id}",
@@ -463,28 +457,28 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
     }
     return artistList.isNotEmpty
         ? artistList
-            .map(
-              (e) => ListTile(
-                onTap: () async {
-                  Navigator.of(context).pop();
-                  if (calledFromPlayer) {
-                    await playerController.playerPanelController.close();
-                  }
-                  if (calledFromQueue) {
-                    await playerController.playerPanelController.close();
-                  }
-                  await ScreenNavigationSetup.navigatorKey.currentState
-                      ?.pushNamed(
-                        ScreenNavigationSetup.artistScreen,
-                        arguments: [true, e['id']],
-                      );
-                },
-                tileColor: Colors.transparent,
-                leading: const Icon(Icons.person),
-                title: Text("${"viewArtist".tr} (${e['name']})"),
-              ),
-            )
-            .toList()
+              .map(
+                (e) => ListTile(
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    if (calledFromPlayer) {
+                      await playerController.playerPanelController.close();
+                    }
+                    if (calledFromQueue) {
+                      await playerController.playerPanelController.close();
+                    }
+                    await ScreenNavigationSetup.navigatorKey.currentState
+                        ?.pushNamed(
+                          ScreenNavigationSetup.artistScreen,
+                          arguments: [true, e['id']],
+                        );
+                  },
+                  tileColor: Colors.transparent,
+                  leading: const Icon(Icons.person),
+                  title: Text("${context.l10n.viewArtist} (${e['name']})"),
+                ),
+              )
+              .toList()
         : [const SizedBox.shrink()];
   }
 }

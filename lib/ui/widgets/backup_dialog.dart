@@ -3,7 +3,8 @@ import 'dart:io';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
+import 'package:harmonymusic/l10n/app_localizations.dart';
 
 import '../../app/providers/repository_providers.dart';
 import '../../services/backup/backup_service.dart';
@@ -62,7 +63,7 @@ class _BackupDialogState extends ConsumerState<BackupDialog> {
                 Container(
                   padding: const EdgeInsets.only(bottom: 10.0, top: 10),
                   child: Text(
-                    "backupAppData".tr,
+                    context.l10n.backupAppData,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -87,7 +88,9 @@ class _BackupDialogState extends ConsumerState<BackupDialog> {
                               AnimatedBuilder(
                                 animation: backupDialogController,
                                 builder: (context, _) => Text(
-                                  backupDialogController.statusText,
+                                  backupDialogController.statusText(
+                                    context.l10n,
+                                  ),
                                   textAlign: TextAlign.center,
                                 ),
                               ),
@@ -126,7 +129,7 @@ class _BackupDialogState extends ConsumerState<BackupDialog> {
                                             top: 8.0,
                                           ),
                                           child: Text(
-                                            "androidBackupWarning".tr,
+                                            context.l10n.androidBackupWarning,
                                             textAlign: TextAlign.center,
                                             style: Theme.of(context)
                                                 .textTheme
@@ -169,7 +172,7 @@ class _BackupDialogState extends ConsumerState<BackupDialog> {
                                         .setDownloadedFilesSelected(value!);
                                   },
                           ),
-                          Text("includeDownloadedFiles".tr),
+                          Text(context.l10n.includeDownloadedFiles),
                         ],
                       ),
                     ),
@@ -204,8 +207,8 @@ class _BackupDialogState extends ConsumerState<BackupDialog> {
                               ),
                               child: Text(
                                 backupDialogController.backupCompleted
-                                    ? "close".tr
-                                    : "backup".tr,
+                                    ? context.l10n.close
+                                    : context.l10n.backup,
                                 style: TextStyle(
                                   color: Theme.of(context).canvasColor,
                                 ),
@@ -240,20 +243,20 @@ class BackupDialogController extends ChangeNotifier {
   var currentBackupFileName = "";
   var backupError = "";
 
-  String get statusText {
+  String statusText(AppLocalizations l10n) {
     if (backupError.isNotEmpty) {
       return backupError;
     }
     if (scanning) {
-      return "scanning".tr;
+      return l10n.scanning;
     }
     if (backupRunning) {
-      return "${"backupInProgress".tr}\n$backupProgress/$filesToBackup";
+      return "${l10n.backupInProgress}\n$backupProgress/$filesToBackup";
     }
     if (backupCompleted) {
-      return "backupMsg".tr;
+      return l10n.backupMsg;
     }
-    return "letsStart".tr;
+    return l10n.letsStart;
   }
 
   void setDownloadedFilesSelected(bool value) {

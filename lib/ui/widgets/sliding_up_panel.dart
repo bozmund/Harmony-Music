@@ -277,11 +277,7 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
   Widget _buildPanelContent() {
     final panelContent =
         widget.panel ??
-        widget.panelBuilder!(
-          _sc,
-          onListReorderStart,
-          onListReorderEnd,
-        );
+        widget.panelBuilder!(_sc, onListReorderStart, onListReorderEnd);
     return _withSystemUiModeScope(panelContent);
   }
 

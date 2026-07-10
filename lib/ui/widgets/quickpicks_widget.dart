@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../app/providers/controller_providers.dart';
 import '../../utils/runtime_platform.dart';
@@ -31,7 +31,7 @@ class QuickPicksWidget extends ConsumerWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              content.title.toLowerCase().removeAllWhitespace.tr,
+              context.l10n.sectionTitle(content.title),
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
@@ -64,15 +64,13 @@ class QuickPicksWidget extends ConsumerWidget {
                             ),
                           ),
                           isScrollControlled: true,
-                          context:
-                              playerController
-                                  .homeScaffoldKey
-                                  .currentState!
-                                  .context,
+                          context: playerController
+                              .homeScaffoldKey
+                              .currentState!
+                              .context,
                           barrierColor: Colors.transparent.withAlpha(100),
-                          builder:
-                              (context) =>
-                                  SongInfoBottomSheet(content.songList[item]),
+                          builder: (context) =>
+                              SongInfoBottomSheet(content.songList[item]),
                         ).whenComplete(() {});
                       }
                     },
@@ -106,49 +104,44 @@ class QuickPicksWidget extends ConsumerWidget {
                             ),
                           ),
                           isScrollControlled: true,
-                          context:
-                              playerController
-                                  .homeScaffoldKey
-                                  .currentState!
-                                  .context,
+                          context: playerController
+                              .homeScaffoldKey
+                              .currentState!
+                              .context,
                           barrierColor: Colors.transparent.withAlpha(100),
-                          builder:
-                              (context) =>
-                                  SongInfoBottomSheet(content.songList[item]),
+                          builder: (context) =>
+                              SongInfoBottomSheet(content.songList[item]),
                         ).whenComplete(() {});
                       },
-                      trailing:
-                          RuntimePlatform.isDesktop
-                              ? AwaitableIconButton(
-                                splashRadius: 20,
-                                onPressed: () async {
-                                  await showModalBottomSheet(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 500,
+                      trailing: RuntimePlatform.isDesktop
+                          ? AwaitableIconButton(
+                              splashRadius: 20,
+                              onPressed: () async {
+                                await showModalBottomSheet(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 500,
+                                  ),
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(10.0),
                                     ),
-                                    shape: const RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.vertical(
-                                        top: Radius.circular(10.0),
-                                      ),
-                                    ),
-                                    isScrollControlled: true,
-                                    context:
-                                        playerController
-                                            .homeScaffoldKey
-                                            .currentState!
-                                            .context,
-                                    barrierColor: Colors.transparent.withAlpha(
-                                      100,
-                                    ),
-                                    builder:
-                                        (context) => SongInfoBottomSheet(
-                                          content.songList[item],
-                                        ),
-                                  ).whenComplete(() {});
-                                },
-                                icon: const Icon(Icons.more_vert),
-                              )
-                              : null,
+                                  ),
+                                  isScrollControlled: true,
+                                  context: playerController
+                                      .homeScaffoldKey
+                                      .currentState!
+                                      .context,
+                                  barrierColor: Colors.transparent.withAlpha(
+                                    100,
+                                  ),
+                                  builder: (context) => SongInfoBottomSheet(
+                                    content.songList[item],
+                                  ),
+                                ).whenComplete(() {});
+                              },
+                              icon: const Icon(Icons.more_vert),
+                            )
+                          : null,
                     ),
                   );
                 },

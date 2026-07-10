@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:html/parser.dart' as html_parser;
 
 import '../../services/app_platform_service.dart';
@@ -32,7 +32,7 @@ class PlaylistExportDialog extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 20, top: 10),
               child: Text(
-                "exportPlaylist".tr,
+                context.l10n.exportPlaylist,
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
@@ -40,8 +40,8 @@ class PlaylistExportDialog extends StatelessWidget {
             // Button 1: Export to JSON
             _ExportButton(
               icon: Icons.save,
-              title: "exportPlaylistJson".tr,
-              subtitle: "exportPlaylistJsonSubtitle".tr,
+              title: context.l10n.exportPlaylistJson,
+              subtitle: context.l10n.exportPlaylistJsonSubtitle,
               onTap: () async {
                 Navigator.of(context).pop();
                 await controller.exportPlaylistToJson(parentContext);
@@ -51,8 +51,8 @@ class PlaylistExportDialog extends StatelessWidget {
             // Button 2: Export to CSV
             _ExportButton(
               icon: Icons.table_chart,
-              title: "exportPlaylistCsv".tr,
-              subtitle: "exportPlaylistCsvSubtitle".tr,
+              title: context.l10n.exportPlaylistCsv,
+              subtitle: context.l10n.exportPlaylistCsvSubtitle,
               onTap: () async {
                 Navigator.of(context).pop();
                 await controller.exportPlaylistToCsv(parentContext);
@@ -62,8 +62,8 @@ class PlaylistExportDialog extends StatelessWidget {
             // Button 3: Export to YouTube Music (split button)
             _SplitExportButton(
               icon: Icons.open_in_new,
-              title: "exportToYouTubeMusic".tr,
-              subtitle: "exportToYouTubeMusicSubtitle".tr,
+              title: context.l10n.exportToYouTubeMusic,
+              subtitle: context.l10n.exportToYouTubeMusicSubtitle,
               onMainTap: () async {
                 Navigator.of(context).pop();
                 await _openInYouTubeMusic();
@@ -80,7 +80,7 @@ class PlaylistExportDialog extends StatelessWidget {
               child: TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(
-                  "close".tr,
+                  context.l10n.close,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -131,7 +131,11 @@ class PlaylistExportDialog extends StatelessWidget {
     await Clipboard.setData(ClipboardData(text: ytmUrl ?? url)).then((_) {
       if (parentContext.mounted) {
         ScaffoldMessenger.of(parentContext).showSnackBar(
-          snackbar(parentContext, "linkCopied".tr, size: SanckBarSize.MEDIUM),
+          snackbar(
+            parentContext,
+            parentContext.l10n.linkCopied,
+            size: SanckBarSize.MEDIUM,
+          ),
         );
       }
     });

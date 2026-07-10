@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/ui/widgets/loader.dart';
 
 import '../../app/providers/controller_providers.dart';
@@ -54,7 +54,7 @@ class _ExportFileDialogState extends ConsumerState<ExportFileDialog> {
                 Container(
                   padding: const EdgeInsets.only(bottom: 10.0, top: 10),
                   child: Text(
-                    "exportDownloadedFiles".tr,
+                    context.l10n.exportDownloadedFiles,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -66,7 +66,7 @@ class _ExportFileDialogState extends ConsumerState<ExportFileDialog> {
                       builder: (context, _) =>
                           exportFileDialogController.exportProgress ==
                               exportFileDialogController.filesToExport.length
-                          ? Text("exportMsg".tr)
+                          ? Text(context.l10n.exportMsg)
                           : exportFileDialogController.exportRunning
                           ? Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -76,12 +76,12 @@ class _ExportFileDialogState extends ConsumerState<ExportFileDialog> {
                                   style: Theme.of(context).textTheme.titleLarge,
                                 ),
                                 const SizedBox(height: 10),
-                                Text("exporting".tr),
+                                Text(context.l10n.exporting),
                               ],
                             )
                           : exportFileDialogController.ready
                           ? Text(
-                              "${exportFileDialogController.filesToExport.length} ${"downFilesFound".tr}",
+                              "${exportFileDialogController.filesToExport.length} ${context.l10n.downFilesFound}",
                             )
                           : exportFileDialogController.scanning
                           ? Column(
@@ -89,7 +89,7 @@ class _ExportFileDialogState extends ConsumerState<ExportFileDialog> {
                               children: [
                                 const LoadingIndicator(),
                                 const SizedBox(height: 10),
-                                Text("scanning".tr),
+                                Text(context.l10n.scanning),
                               ],
                             )
                           : const SizedBox(),
@@ -125,8 +125,8 @@ class _ExportFileDialogState extends ConsumerState<ExportFileDialog> {
                                       exportFileDialogController
                                           .filesToExport
                                           .length
-                                  ? "close".tr
-                                  : "export".tr,
+                                  ? context.l10n.close
+                                  : context.l10n.export,
                               style: TextStyle(
                                 color: Theme.of(context).canvasColor,
                               ),

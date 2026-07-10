@@ -339,4 +339,3 @@ int _compareSemanticVersions(String a, String b) {
   }
   return 0;
 }
-

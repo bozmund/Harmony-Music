@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '/services/constant.dart';
 import '../navigator.dart';
@@ -18,6 +19,18 @@ class ContentListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAlbum = content.runtimeType.toString() == "Album";
+    final title = isAlbum || !isLibraryItem
+        ? content.title as String
+        : switch (content.playlistId as String) {
+            BoxNames.libRP => context.l10n.recentlyPlayed,
+            BoxNames.libFav => context.l10n.favorites,
+            BoxNames.libFavNotDownloaded => context.l10n.likedNotDownloaded,
+            BoxNames.libImportDuplicates => context.l10n.importConflicts,
+            BoxNames.libImportReview => context.l10n.importNeedsReview,
+            BoxNames.songsCache => context.l10n.cachedOrOffline,
+            BoxNames.songDownloads => context.l10n.downloads,
+            _ => content.title as String,
+          };
     return InkWell(
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
@@ -146,7 +159,7 @@ class ContentListItem extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    content.title,
+                    title,
                     // overflow: TextOverflow.ellipsis,
                     maxLines: 2,
                     style: Theme.of(context).textTheme.titleMedium,

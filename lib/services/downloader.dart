@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../app/navigation/app_navigator.dart';
@@ -243,14 +243,12 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
     if (!playerResponse.playable) {
       currentDownloadPhase.value = "failed";
       currentDownloadDebugMessage.value = "Stream not playable";
-      lastDownloadError.value =
-          "${song.title}: ${playerResponse.statusMSG == "networkError" ? playerResponse.statusMSG.tr : playerResponse.statusMSG}";
+      lastDownloadError.value = "${song.title}: ${playerResponse.statusMSG}";
       _notifyDownloaderChanged();
       _showDownloadError(
         song,
-        playerResponse.statusMSG == "networkError"
-            ? playerResponse.statusMSG.tr
-            : playerResponse.statusMSG,
+        playerResponse.statusMSG,
+        localizeNetworkError: playerResponse.statusMSG == "networkError",
       );
       printINFO(
         "[$traceId] Requested song ${song.title} is not downloadable: ${playerResponse.statusMSG}",
@@ -545,17 +543,26 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
       flush: true,
     );
     if (showSnack && song != null) {
-      _showDownloadError(song, "downloadError3".tr);
+      _showDownloadError(song, '', localizeGeneralError: true);
     }
   }
 
-  void _showDownloadError(MediaItem song, String message) {
+  void _showDownloadError(
+    MediaItem song,
+    String message, {
+    bool localizeNetworkError = false,
+    bool localizeGeneralError = false,
+  }) {
     final context = AppNavigator.context;
     if (context == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
       snackbar(
         context,
-        "${song.title}: $message",
+        "${song.title}: ${localizeNetworkError
+            ? context.l10n.networkError
+            : localizeGeneralError
+            ? context.l10n.downloadError3
+            : message}",
         size: SanckBarSize.BIG,
         duration: const Duration(seconds: 2),
         top: !RuntimePlatform.isDesktop,

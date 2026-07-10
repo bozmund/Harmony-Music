@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../app/providers/controller_providers.dart';
 import '../../utils/helper.dart';
@@ -20,33 +20,38 @@ class ReleasePromptDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return CommonDialog(
       child: Container(
-        padding: const EdgeInsets.only(top: 30, bottom: 25, left: 20, right: 20),
+        padding: const EdgeInsets.only(
+          top: 30,
+          bottom: 25,
+          left: 20,
+          right: 20,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              "chooseUpdateChannel".tr,
+              context.l10n.chooseUpdateChannel,
               style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             Padding(
               padding: const EdgeInsets.only(top: 12, bottom: 18),
               child: Text(
-                "chooseUpdateChannelDes".tr,
+                context.l10n.chooseUpdateChannelDes,
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
             ),
             _ChannelChoiceTile(
-              title: "stableChannelOption".tr,
-              description: "stableChannelOptionDes".tr,
+              title: context.l10n.stableChannelOption,
+              description: context.l10n.stableChannelOptionDes,
               onTap: () => _choose(context, ref, UpdateChannel.stable),
             ),
             const SizedBox(height: 10),
             _ChannelChoiceTile(
-              title: "rollingChannelOption".tr,
-              description: "rollingChannelOptionDes".tr,
+              title: context.l10n.rollingChannelOption,
+              description: context.l10n.rollingChannelOptionDes,
               onTap: () => _choose(context, ref, UpdateChannel.rolling),
             ),
           ],
@@ -102,10 +107,7 @@ class _ChannelChoiceTile extends StatelessWidget {
             children: [
               Text(title, style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 4),
-              Text(
-                description,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(description, style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
         ),

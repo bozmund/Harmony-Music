@@ -3,7 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../widgets/snackbar.dart';
@@ -47,7 +47,7 @@ class PlayerQueueFooterControls extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     Text(
-                      "${playerController.currentQueue.length} ${"songs".tr}",
+                      "${playerController.currentQueue.length} ${context.l10n.songs}",
                       style: Theme.of(context).textTheme.titleSmall!.copyWith(
                         color: Theme.of(context).textTheme.titleMedium!.color,
                       ),
@@ -65,7 +65,7 @@ class PlayerQueueFooterControls extends ConsumerWidget {
                               : Colors.white.withValues(alpha: 0.8),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Center(child: Text("queueLoop".tr)),
+                        child: Center(child: Text(context.l10n.queueLoop)),
                       ),
                     ),
                     InkWell(
@@ -74,7 +74,7 @@ class PlayerQueueFooterControls extends ConsumerWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             snackbar(
                               context,
-                              "queueShufflingDeniedMsg".tr,
+                              context.l10n.queueShufflingDeniedMsg,
                               size: SanckBarSize.BIG,
                             ),
                           );

@@ -141,14 +141,14 @@ class _AwaitableButtonState extends State<AwaitableButton> {
 
   @override
   Widget build(BuildContext context) {
-    final onPressed =
-        widget.onPressed == null || _isRunning ? null : _handlePressed;
+    final onPressed = widget.onPressed == null || _isRunning
+        ? null
+        : _handlePressed;
     final onLongPress = _isRunning ? null : widget.onLongPress;
     final icon = _isRunning && widget.icon != null ? _indicator() : widget.icon;
-    final label =
-        widget.icon == null && _isRunning
-            ? _labelSizedIndicator()
-            : widget.label;
+    final label = widget.icon == null && _isRunning
+        ? _labelSizedIndicator()
+        : widget.label;
 
     switch (widget._variant) {
       case _AwaitableButtonVariant.elevated:
@@ -232,7 +232,10 @@ class _AwaitableButtonState extends State<AwaitableButton> {
   Widget _labelSizedIndicator() {
     return Stack(
       alignment: Alignment.center,
-      children: [Opacity(opacity: 0, child: widget.label), _indicator()],
+      children: [
+        Opacity(opacity: 0, child: widget.label),
+        _indicator(),
+      ],
     );
   }
 
@@ -421,8 +424,9 @@ class _AwaitableIconButtonState extends State<AwaitableIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final onPressed =
-        widget.onPressed == null || _isRunning ? null : _handlePressed;
+    final onPressed = widget.onPressed == null || _isRunning
+        ? null
+        : _handlePressed;
     final onLongPress = _isRunning ? null : widget.onLongPress;
     final icon = _isRunning ? _indicator() : widget.icon;
     final selectedIcon = _isRunning ? icon : widget.selectedIcon;

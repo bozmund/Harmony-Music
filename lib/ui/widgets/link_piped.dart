@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
+import 'package:harmonymusic/l10n/app_localizations.dart';
 
 import '../../app/providers/controller_providers.dart';
 import '../../app/providers/service_providers.dart';
@@ -22,21 +23,28 @@ class LinkPiped extends ConsumerStatefulWidget {
 }
 
 class _LinkPipedState extends ConsumerState<LinkPiped> {
-  late final PipedLinkedController pipedLinkedController;
+  PipedLinkedController? _pipedLinkedController;
+  PipedLinkedController get pipedLinkedController => _pipedLinkedController!;
 
   @override
   void initState() {
     super.initState();
-    pipedLinkedController = PipedLinkedController(
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _pipedLinkedController ??= PipedLinkedController(
       pipedServices: ref.read(pipedServicesProvider),
       settingsScreenController: ref.read(settingsScreenControllerProvider),
       libraryPlaylistsController: LibraryPlaylistsControllerRegistry.current!,
+      l10n: context.l10n,
     );
   }
 
   @override
   void dispose() {
-    pipedLinkedController.dispose();
+    _pipedLinkedController?.dispose();
     super.dispose();
   }
 
@@ -51,7 +59,10 @@ class _LinkPipedState extends ConsumerState<LinkPiped> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Piped".tr, style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                context.l10n.piped,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               Padding(
                 padding: const EdgeInsets.only(top: 15.0, bottom: 10),
                 child: DropdownButton(
@@ -77,20 +88,22 @@ class _LinkPipedState extends ConsumerState<LinkPiped> {
                       cursorColor: Theme.of(
                         context,
                       ).textTheme.titleSmall!.color,
-                      decoration: InputDecoration(hintText: "hintApiUrl".tr),
+                      decoration: InputDecoration(
+                        hintText: context.l10n.hintApiUrl,
+                      ),
                     )
                   : const SizedBox.shrink(),
               ModifiedTextField(
                 controller: pipedLinkedController.usernameInputController,
                 cursorColor: Theme.of(context).textTheme.titleSmall!.color,
-                decoration: InputDecoration(hintText: "username".tr),
+                decoration: InputDecoration(hintText: context.l10n.username),
               ),
               const SizedBox(height: 15),
               ModifiedTextField(
                 controller: pipedLinkedController.passwordInputController,
                 cursorColor: Theme.of(context).textTheme.titleSmall!.color,
                 decoration: InputDecoration(
-                  hintText: "password".tr,
+                  hintText: context.l10n.password,
                   suffixIcon: IconButton(
                     color: Theme.of(context).textTheme.titleSmall!.color,
                     icon: pipedLinkedController.passwordVisible
@@ -122,7 +135,7 @@ class _LinkPipedState extends ConsumerState<LinkPiped> {
                       vertical: 10,
                     ),
                     child: Text(
-                      "link".tr,
+                      context.l10n.link,
                       style: TextStyle(color: Theme.of(context).canvasColor),
                     ),
                   ),
@@ -141,21 +154,23 @@ class PipedLinkedController extends ChangeNotifier {
     required PipedServices pipedServices,
     required SettingsScreenController settingsScreenController,
     required LibraryPlaylistsController libraryPlaylistsController,
+    required AppLocalizations l10n,
   }) : _pipedServices = pipedServices,
        _settingsScreenController = settingsScreenController,
-       _libraryPlaylistsController = libraryPlaylistsController {
+       _libraryPlaylistsController = libraryPlaylistsController,
+       _l10n = l10n {
+    pipedInstList.add(PipedInstance(name: _l10n.selectAuthIns, apiUrl: ""));
     unawaited(getAllInstList());
   }
 
   final instApiUrlInputController = TextEditingController();
   final usernameInputController = TextEditingController();
   final passwordInputController = TextEditingController();
-  final pipedInstList = <PipedInstance>[
-    PipedInstance(name: "selectAuthIns".tr, apiUrl: ""),
-  ];
+  final pipedInstList = <PipedInstance>[];
   final PipedServices _pipedServices;
   final SettingsScreenController _settingsScreenController;
   final LibraryPlaylistsController _libraryPlaylistsController;
+  final AppLocalizations _l10n;
   var selectedInst = "";
   var passwordVisible = false;
   var errorText = "";
@@ -176,13 +191,13 @@ class PipedLinkedController extends ChangeNotifier {
       if (res.code == 1) {
         pipedInstList.addAll(
           List<PipedInstance>.from(res.response) +
-              [PipedInstance(name: "customIns".tr, apiUrl: "custom")],
+              [PipedInstance(name: _l10n.customIns, apiUrl: "custom")],
         );
       } else {
         errorText =
-            "${res.errorMessage ?? "errorOccurredAlert".tr}! ${"customInsSelectMsg".tr}";
+            "${res.errorMessage ?? _l10n.errorOccurredAlert}! ${_l10n.customInsSelectMsg}";
         pipedInstList.add(
-          PipedInstance(name: "customIns".tr, apiUrl: "custom"),
+          PipedInstance(name: _l10n.customIns, apiUrl: "custom"),
         );
       }
       notifyListeners();
@@ -195,7 +210,7 @@ class PipedLinkedController extends ChangeNotifier {
     final userName = usernameInputController.text;
     final password = passwordInputController.text;
     if (selectedInst.isEmpty) {
-      errorText = "selectAuthInsMsg".tr;
+      errorText = context.l10n.selectAuthInsMsg;
       notifyListeners();
       return;
     }
@@ -204,7 +219,7 @@ class PipedLinkedController extends ChangeNotifier {
         // ignore: invalid_use_of_protected_member
         (instApiUrlInputController.hasListeners &&
             instApiUrlInputController.text.isEmpty)) {
-      errorText = "allFieldsReqMsg".tr;
+      errorText = context.l10n.allFieldsReqMsg;
       notifyListeners();
       return;
     }
@@ -223,12 +238,16 @@ class PipedLinkedController extends ChangeNotifier {
             if (context.mounted) {
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
-                snackbar(context, "linkAlert".tr, size: SanckBarSize.MEDIUM),
+                snackbar(
+                  context,
+                  context.l10n.linkAlert,
+                  size: SanckBarSize.MEDIUM,
+                ),
               );
             }
             await _libraryPlaylistsController.syncPipedPlaylist();
           } else {
-            errorText = res.errorMessage ?? "errorOccurredAlert".tr;
+            errorText = res.errorMessage ?? context.l10n.errorOccurredAlert;
             notifyListeners();
           }
         });

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../app/providers/service_providers.dart';
@@ -95,13 +95,13 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen>
                               (searchResScrController.isResultContentFetched &&
                                   searchResScrController.railItems.isNotEmpty)
                               ? [
-                                  railDestination("results".tr),
+                                  railDestination(context.l10n.results),
                                   ...(searchResScrController.railItems.map(
                                     (element) => railDestination(element),
                                   )),
                                 ]
                               : [
-                                  railDestination("results".tr),
+                                  railDestination(context.l10n.results),
                                   railDestination(""),
                                 ],
                           leading: Column(
@@ -167,7 +167,7 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen>
       icon: const SizedBox.shrink(),
       label: RotatedBox(
         quarterTurns: -1,
-        child: Text(label.toLowerCase().removeAllWhitespace.tr),
+        child: Text(context.l10n.sectionTitle(label)),
       ),
     );
   }
@@ -191,7 +191,7 @@ class Body extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "nomatch".tr,
+                    context.l10n.nomatch,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text("'${searchResScrController.queryString}'"),

@@ -63,9 +63,7 @@ class _SystemUiModeScopeState extends ConsumerState<SystemUiModeScope>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && widget.active) {
-      unawaited(
-        ref.read(systemUiModeServiceProvider).reapplyCurrentMode(),
-      );
+      unawaited(ref.read(systemUiModeServiceProvider).reapplyCurrentMode());
     }
   }
 

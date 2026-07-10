@@ -5,7 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../app/providers/controller_providers.dart';
@@ -97,7 +97,7 @@ class SongListTile extends ConsumerWidget with RemoveSongFromPlaylistMixin {
                     ScaffoldMessenger.of(context).showSnackBar(
                       snackbar(
                         context,
-                        "songEnqueueAlert".tr,
+                        context.l10n.songEnqueueAlert,
                         size: SanckBarSize.MEDIUM,
                       ),
                     );
@@ -116,7 +116,7 @@ class SongListTile extends ConsumerWidget with RemoveSongFromPlaylistMixin {
                     ScaffoldMessenger.of(context).showSnackBar(
                       snackbar(
                         context,
-                        "${"playNextMsg".tr} ${song.title}",
+                        "${context.l10n.playNextMsg} ${song.title}",
                         size: SanckBarSize.BIG,
                       ),
                     );
@@ -141,24 +141,23 @@ class SongListTile extends ConsumerWidget with RemoveSongFromPlaylistMixin {
               isScrollControlled: true,
               context: playerController.homeScaffoldKey.currentState!.context,
               barrierColor: Colors.transparent.withAlpha(100),
-              builder:
-                  (context) => SongInfoBottomSheet(song, playlist: playlist),
+              builder: (context) =>
+                  SongInfoBottomSheet(song, playlist: playlist),
             );
           },
           contentPadding: const EdgeInsets.only(top: 0, left: 5, right: 30),
-          leading:
-              thumbReplacementWithIndex
-                  ? SizedBox(
-                    width: 27.5,
-                    height: 55,
-                    child: Center(
-                      child: Text(
-                        "$index.",
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
+          leading: thumbReplacementWithIndex
+              ? SizedBox(
+                  width: 27.5,
+                  height: 55,
+                  child: Center(
+                    child: Text(
+                      "$index.",
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                  )
-                  : ImageWidget(size: 55, song: song),
+                  ),
+                )
+              : ImageWidget(size: 55, song: song),
           title: Marquee(
             delay: const Duration(milliseconds: 300),
             duration: const Duration(seconds: 5),
@@ -185,12 +184,10 @@ class SongListTile extends ConsumerWidget with RemoveSongFromPlaylistMixin {
                     if (isPlaylistOrAlbum)
                       AnimatedBuilder(
                         animation: playerController.currentSong,
-                        builder:
-                            (context, _) =>
-                                playerController.currentSong.value?.id ==
-                                        song.id
-                                    ? const Icon(Icons.equalizer)
-                                    : const SizedBox.shrink(),
+                        builder: (context, _) =>
+                            playerController.currentSong.value?.id == song.id
+                            ? const Icon(Icons.equalizer)
+                            : const SizedBox.shrink(),
                       ),
                     Text(
                       MediaItemBuilder.displayDuration(song),
@@ -210,15 +207,13 @@ class SongListTile extends ConsumerWidget with RemoveSongFromPlaylistMixin {
                           ),
                         ),
                         isScrollControlled: true,
-                        context:
-                            playerController
-                                .homeScaffoldKey
-                                .currentState!
-                                .context,
+                        context: playerController
+                            .homeScaffoldKey
+                            .currentState!
+                            .context,
                         barrierColor: Colors.transparent.withAlpha(100),
-                        builder:
-                            (context) =>
-                                SongInfoBottomSheet(song, playlist: playlist),
+                        builder: (context) =>
+                            SongInfoBottomSheet(song, playlist: playlist),
                       );
                     },
                     icon: const Icon(Icons.more_vert),

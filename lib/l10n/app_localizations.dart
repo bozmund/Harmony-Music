@@ -1747,6 +1747,420 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Harmony Music'**
   String get appTitle;
+
+  /// No description provided for @accountSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get accountSection;
+
+  /// No description provided for @optionalAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional Harmony account'**
+  String get optionalAccount;
+
+  /// No description provided for @optionalAccountDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in or register through Auth0. Music and library features work without an account.'**
+  String get optionalAccountDes;
+
+  /// No description provided for @authNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Auth0 is not configured for this build.'**
+  String get authNotConfigured;
+
+  /// No description provided for @authUnsupportedPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'Account login is not supported on this platform.'**
+  String get authUnsupportedPlatform;
+
+  /// No description provided for @loggedInAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Logged in as'**
+  String get loggedInAs;
+
+  /// No description provided for @loginOrRegister.
+  ///
+  /// In en, this message translates to:
+  /// **'Login / Register'**
+  String get loginOrRegister;
+
+  /// No description provided for @logout.
+  ///
+  /// In en, this message translates to:
+  /// **'Logout'**
+  String get logout;
+
+  /// No description provided for @library.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get library;
+
+  /// No description provided for @createNewPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Create new playlist'**
+  String get createNewPlaylist;
+
+  /// No description provided for @musicAndPlayback.
+  ///
+  /// In en, this message translates to:
+  /// **'Music & Playback'**
+  String get musicAndPlayback;
+
+  /// No description provided for @dynamicTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Dynamic'**
+  String get dynamicTheme;
+
+  /// No description provided for @export.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get export;
+
+  /// No description provided for @piped.
+  ///
+  /// In en, this message translates to:
+  /// **'Piped'**
+  String get piped;
+
+  /// No description provided for @checkUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get checkUpdate;
+
+  /// No description provided for @upToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'App is up to date'**
+  String get upToDate;
+
+  /// No description provided for @checkingUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking for updates...'**
+  String get checkingUpdate;
+
+  /// No description provided for @chooseUpdateChannel.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose your update channel'**
+  String get chooseUpdateChannel;
+
+  /// No description provided for @chooseUpdateChannelDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Harmony Music now offers two update channels. Pick how you want to receive updates — you can change this anytime in Settings.'**
+  String get chooseUpdateChannelDes;
+
+  /// No description provided for @stableChannelOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Stable (recommended)'**
+  String get stableChannelOption;
+
+  /// No description provided for @stableChannelOptionDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Tested, versioned releases. Fewer updates, more reliable.'**
+  String get stableChannelOptionDes;
+
+  /// No description provided for @rollingChannelOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Rolling'**
+  String get rollingChannelOption;
+
+  /// No description provided for @rollingChannelOptionDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Every new build from development. Newest features first, but may be less stable.'**
+  String get rollingChannelOptionDes;
+
+  /// No description provided for @tapToRemoveFromPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Added — tap to remove'**
+  String get tapToRemoveFromPlaylist;
+
+  /// No description provided for @songRemovedFromPlaylistAlert.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed from playlist'**
+  String get songRemovedFromPlaylistAlert;
+
+  /// No description provided for @listenTogether.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen together'**
+  String get listenTogether;
+
+  /// No description provided for @listenTogetherDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Play in sync with nearby phones'**
+  String get listenTogetherDes;
+
+  /// No description provided for @hostSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Host a session'**
+  String get hostSession;
+
+  /// No description provided for @hostSessionDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Others join and listen with you'**
+  String get hostSessionDes;
+
+  /// No description provided for @joinSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Join a session'**
+  String get joinSession;
+
+  /// No description provided for @leaveSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave session'**
+  String get leaveSession;
+
+  /// No description provided for @endSession.
+  ///
+  /// In en, this message translates to:
+  /// **'End session'**
+  String get endSession;
+
+  /// No description provided for @searchingForSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching for nearby sessions…'**
+  String get searchingForSessions;
+
+  /// No description provided for @noSessionsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No sessions found yet'**
+  String get noSessionsFound;
+
+  /// No description provided for @connectVia.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect via'**
+  String get connectVia;
+
+  /// No description provided for @wifiTransport.
+  ///
+  /// In en, this message translates to:
+  /// **'Wi-Fi'**
+  String get wifiTransport;
+
+  /// No description provided for @bluetoothTransport.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth'**
+  String get bluetoothTransport;
+
+  /// No description provided for @hostingSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Hosting — others can join'**
+  String get hostingSession;
+
+  /// No description provided for @connectedToSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get connectedToSession;
+
+  /// No description provided for @connectingToSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting…'**
+  String get connectingToSession;
+
+  /// No description provided for @participants.
+  ///
+  /// In en, this message translates to:
+  /// **'Participants'**
+  String get participants;
+
+  /// No description provided for @you.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get you;
+
+  /// No description provided for @listenTogetherUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen together isn\'t available on this device'**
+  String get listenTogetherUnavailable;
+
+  /// No description provided for @back.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get back;
+
+  /// No description provided for @addToLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to library'**
+  String get addToLibrary;
+
+  /// No description provided for @removeFromLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from library'**
+  String get removeFromLibrary;
+
+  /// No description provided for @play.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get play;
+
+  /// No description provided for @enqueueAlbumSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Add album songs to queue'**
+  String get enqueueAlbumSongs;
+
+  /// No description provided for @downloadAlbumSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Download album songs'**
+  String get downloadAlbumSongs;
+
+  /// No description provided for @shareAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Share album'**
+  String get shareAlbum;
+
+  /// No description provided for @enqueueSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Add songs to queue'**
+  String get enqueueSongs;
+
+  /// No description provided for @shuffle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle'**
+  String get shuffle;
+
+  /// No description provided for @downloadPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Download playlist'**
+  String get downloadPlaylist;
+
+  /// No description provided for @syncPlaylistSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync playlist songs'**
+  String get syncPlaylistSongs;
+
+  /// No description provided for @sharePlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Share playlist'**
+  String get sharePlaylist;
+
+  /// No description provided for @playlist.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist'**
+  String get playlist;
+
+  /// No description provided for @sortByName.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort by name'**
+  String get sortByName;
+
+  /// No description provided for @sortByDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort by date'**
+  String get sortByDate;
+
+  /// No description provided for @sortByDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort by duration'**
+  String get sortByDuration;
+
+  /// No description provided for @sortAscendNDescend.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort ascending or descending'**
+  String get sortAscendNDescend;
+
+  /// No description provided for @listBookmarkRemoveAlert.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed from library'**
+  String get listBookmarkRemoveAlert;
+
+  /// No description provided for @blacklistPipedPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Blacklist Piped playlist'**
+  String get blacklistPipedPlaylist;
+
+  /// No description provided for @noItems.
+  ///
+  /// In en, this message translates to:
+  /// **'No {title}!'**
+  String noItems(String title);
+
+  /// No description provided for @imported.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported'**
+  String get imported;
+
+  /// No description provided for @importedPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported playlist'**
+  String get importedPlaylist;
+
+  /// No description provided for @permissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Permission denied'**
+  String get permissionDenied;
+
+  /// No description provided for @likedNotDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Liked not downloaded'**
+  String get likedNotDownloaded;
+
+  /// No description provided for @importConflicts.
+  ///
+  /// In en, this message translates to:
+  /// **'Import conflicts'**
+  String get importConflicts;
+
+  /// No description provided for @importNeedsReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Import needs review'**
+  String get importNeedsReview;
 }
 
 class _AppLocalizationsDelegate

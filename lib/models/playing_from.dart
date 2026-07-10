@@ -1,4 +1,4 @@
-import 'package:harmonymusic/utils/get_localization.dart';
+import '../l10n/app_localizations.dart';
 
 class PlayingFrom {
   PlayingFromType type;
@@ -6,21 +6,21 @@ class PlayingFrom {
 
   PlayingFrom({required this.type, this.name = ""});
 
-  get typeString {
+  String typeString(AppLocalizations l10n) {
     switch (type) {
       case PlayingFromType.ALBUM:
-        return "playingFromAlbum".tr;
+        return l10n.playingFromAlbum;
       case PlayingFromType.PLAYLIST:
-        return "playingFromPlaylist".tr;
+        return l10n.playingFromPlaylist;
       case PlayingFromType.SELECTION:
-        return "playingFromSelection".tr;
+        return l10n.playingFromSelection;
       case PlayingFromType.ARTIST:
-        return "playingFromArtist".tr;
+        return l10n.playingFromArtist;
     }
   }
 
-  get nameString {
-    if (type == PlayingFromType.SELECTION) return "randomSelection".tr;
+  String nameString(AppLocalizations l10n) {
+    if (type == PlayingFromType.SELECTION) return l10n.randomSelection;
     return name;
   }
 }

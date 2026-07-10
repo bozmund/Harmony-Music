@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/ui/utils/theme_controller.dart';
 import 'package:toggle_switch/toggle_switch.dart';
 
@@ -32,7 +32,7 @@ class LyricsSwitch extends ConsumerWidget {
                 inactiveFgColor: Colors.white,
                 initialLabelIndex: playerController.lyricsMode.value,
                 totalSwitches: 2,
-                labels: ['synced'.tr, 'plain'.tr],
+                labels: [context.l10n.synced, context.l10n.plain],
                 radiusStyle: true,
                 onToggle: playerController.changeLyricsMode,
               ),

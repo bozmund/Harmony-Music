@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../utils/runtime_platform.dart';
 import '../screens/Search/search_result_screen_controller.dart';
@@ -43,19 +43,19 @@ class ContentListWidget extends StatelessWidget {
                 ),
                 !isHomeContent
                     ? AwaitableButton.text(
-                      onPressed: () async {
-                        final searchResultScreenController =
-                            this.searchResultScreenController ??
-                            SearchResultScreenControllerRegistry.current;
-                        await searchResultScreenController?.viewAllCallback(
-                          content.title,
-                        );
-                      },
-                      label: Text(
-                        "viewAll".tr,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                    )
+                        onPressed: () async {
+                          final searchResultScreenController =
+                              this.searchResultScreenController ??
+                              SearchResultScreenControllerRegistry.current;
+                          await searchResultScreenController?.viewAllCallback(
+                            content.title,
+                          );
+                        },
+                        label: Text(
+                          context.l10n.viewAll,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      )
                     : const SizedBox.shrink(),
               ],
             ),
@@ -74,10 +74,9 @@ class ContentListWidget extends StatelessWidget {
                 physics: const BouncingScrollPhysics(),
                 separatorBuilder: (context, index) => const SizedBox(width: 15),
                 scrollDirection: Axis.horizontal,
-                itemCount:
-                    isAlbumContent
-                        ? content.albumList.length
-                        : content.playlistList.length,
+                itemCount: isAlbumContent
+                    ? content.albumList.length
+                    : content.playlistList.length,
                 itemBuilder: (_, index) {
                   if (isAlbumContent) {
                     return ContentListItem(content: content.albumList[index]);

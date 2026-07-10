@@ -1,7 +1,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../app/providers/controller_providers.dart';
 import '/models/album.dart';
@@ -46,7 +46,7 @@ class ListWidget extends ConsumerWidget with RemoveSongFromPlaylistMixin {
       return Expanded(
         child: Center(
           child: Text(
-            "No ${title.toLowerCase().tr}!",
+            context.l10n.noItems(title.toLowerCase()),
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ),

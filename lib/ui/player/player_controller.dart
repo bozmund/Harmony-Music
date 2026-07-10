@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:audio_service/audio_service.dart';
@@ -696,10 +696,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     bool radio = false,
   }) async {
     /// update playing from value
-    playingFrom.value = PlayingFrom(
-      type: PlayingFromType.SELECTION,
-      name: radio ? "randomRadio".tr : "randomSelection".tr,
-    );
+    playingFrom.value = PlayingFrom(type: PlayingFromType.SELECTION, name: '');
 
     /// set global radio mode flag
     isRadioModeOn = radio;
@@ -1103,7 +1100,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       ScaffoldMessenger.of(context).showSnackBar(
         snackbar(
           context,
-          "queueLoopNotDisMsg1".tr,
+          context.l10n.queueLoopNotDisMsg1,
           size: SanckBarSize.BIG,
           duration: const Duration(seconds: 2),
         ),
@@ -1118,7 +1115,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       ScaffoldMessenger.of(context).showSnackBar(
         snackbar(
           context,
-          "queueLoopNotDisMsg2".tr,
+          context.l10n.queueLoopNotDisMsg2,
           size: SanckBarSize.BIG,
           duration: const Duration(seconds: 2),
         ),
@@ -1386,7 +1383,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     ScaffoldMessenger.of(context).showSnackBar(
       snackbar(
         context,
-        message == "networkError" ? message.tr : message,
+        message == "networkError" ? context.l10n.networkError : message,
         size: SanckBarSize.MEDIUM,
       ),
     );
