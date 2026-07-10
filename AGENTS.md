@@ -10,7 +10,9 @@
 ## Working Style
 
 - Keep edits small and aligned with the existing app structure.
+- When a plan is explicitly accepted before implementation, save the accepted plan as a timestamped Markdown file in `plans/` at the repository root.
 - For Settings UI, prefer the established `CustomExpansionTile`, `ListTile`, `Obx`, `CustomSwitch`, and `SettingsScreenController` patterns.
+- When choosing or building UI widgets, consult `docs/component_guide.md` to reuse existing components before writing inline widgets.
 - Keep state in controllers and persisted preferences in Hive using `PrefKeys` when behavior must survive restarts.
 - Use `unawaited(...)` intentionally for fire-and-forget futures; analyzer rules treat unawaited futures as errors.
 - Avoid editing generated, vendor, or third-party code under `third_party/`, platform build output, `.dart_tool/`, or `build/` unless the task specifically requires it.

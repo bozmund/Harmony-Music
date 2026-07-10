@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers/controller_providers.dart';
 import 'add_to_playlist.dart';
+import 'awaitable_button.dart';
 
 class AddToPlaylistButton extends ConsumerWidget {
   const AddToPlaylistButton({
@@ -15,18 +16,16 @@ class AddToPlaylistButton extends ConsumerWidget {
   final MediaItem? song;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playerController = calledFromPlayer
-        ? ref.read(playerControllerProvider)
-        : null;
-    return IconButton(
+    final playerController =
+        calledFromPlayer ? ref.read(playerControllerProvider) : null;
+    return AwaitableIconButton(
       icon: Icon(
         Icons.add_circle_outline,
         color: Theme.of(context).textTheme.titleMedium!.color,
       ),
       onPressed: () async {
-        final currentSong = calledFromPlayer
-            ? playerController!.currentSong.value
-            : song;
+        final currentSong =
+            calledFromPlayer ? playerController!.currentSong.value : song;
         if (currentSong != null) {
           await showDialog(
             context: context,

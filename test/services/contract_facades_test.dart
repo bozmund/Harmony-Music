@@ -60,16 +60,22 @@ void main() {
       ).thenAnswer((_) async {});
       when(() => platform.installApk('/tmp/app.apk')).thenAnswer((_) async {});
       when(() => platform.setPlaybackWakeLock(true)).thenAnswer((_) async {});
+      when(
+        () => platform.getSystemNavigationMode(),
+      ).thenAnswer((_) async => SystemNavigationMode.buttons);
 
       AppPlatformService.override = platform;
 
       await AppPlatformService.openUrl('https://example.test');
       await AppPlatformService.installApk('/tmp/app.apk');
       await AppPlatformService.setPlaybackWakeLock(true);
+      final navigationMode = await AppPlatformService.getSystemNavigationMode();
 
       verify(() => platform.openUrl('https://example.test')).called(1);
       verify(() => platform.installApk('/tmp/app.apk')).called(1);
       verify(() => platform.setPlaybackWakeLock(true)).called(1);
+      verify(() => platform.getSystemNavigationMode()).called(1);
+      expect(navigationMode, SystemNavigationMode.buttons);
     },
   );
 }

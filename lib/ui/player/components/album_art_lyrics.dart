@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '/ui/player/components/lyrics_widget.dart';
+import '../../widgets/awaitable_button.dart';
 import '../../widgets/image_widget.dart';
 import '../../widgets/sleep_timer_bottom_sheet.dart';
 import '../../widgets/song_info_bottom_sheet.dart';
@@ -22,144 +23,155 @@ class AlbumArtNLyrics extends ConsumerWidget {
         playerController.showLyricsFlag,
         playerController.isSleepTimerActive,
       ]),
-      builder: (context, _) => playerController.currentSong.value != null
-          ? Stack(
-              children: [
-                GestureDetector(
-                  onLongPress: () async {
-                    await showModalBottomSheet(
-                      constraints: const BoxConstraints(maxWidth: 500),
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(10.0),
-                        ),
-                      ),
-                      isScrollControlled: true,
-                      context: playerController
-                          .homeScaffoldKey
-                          .currentState!
-                          .context,
-                      barrierColor: Colors.transparent.withAlpha(100),
-                      builder: (context) => SongInfoBottomSheet(
-                        playerController.currentSong.value!,
-                        calledFromPlayer: true,
-                      ),
-                    );
-                  },
-                  onTap: () async {
-                    await playerController.showLyrics();
-                  },
-                  onHorizontalDragEnd: (DragEndDetails details) {
-                    if (playerController.showLyricsFlag.value) return;
-                    if (details.primaryVelocity! < 0) {
-                      playerController.requestNext();
-                    } else if (details.primaryVelocity! > 0) {
-                      playerController.requestPrev();
-                    }
-                  },
-                  child: ImageWidget(
-                    size: playerArtImageSize,
-                    song: playerController.currentSong.value!,
-                    isPlayerArtImage: true,
-                  ),
-                ),
-                playerController.showLyricsFlag.value
-                    ? InkWell(
-                        onTap: () async {
-                          await playerController.showLyrics();
-                        },
-                        child: Container(
-                          height: playerArtImageSize,
-                          width: playerArtImageSize,
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.8),
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Stack(
-                            children: [
-                              LyricsWidget(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 0,
-                                  vertical: playerArtImageSize / 3.5,
-                                ),
+      builder:
+          (context, _) =>
+              playerController.currentSong.value != null
+                  ? Stack(
+                    children: [
+                      GestureDetector(
+                        onLongPress: () async {
+                          await showModalBottomSheet(
+                            constraints: const BoxConstraints(maxWidth: 500),
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(10.0),
                               ),
-                              IgnorePointer(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(5),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Theme.of(
-                                          context,
-                                        ).primaryColor.withValues(alpha: 0.90),
-                                        Colors.transparent,
-                                        Colors.transparent,
-                                        Colors.transparent,
-                                        Theme.of(
-                                          context,
-                                        ).primaryColor.withValues(alpha: 0.90),
-                                      ],
-                                      stops: const [0, 0.2, 0.5, 0.8, 1],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-                if (playerController.isSleepTimerActive.value)
-                  SizedBox(
-                    width: playerArtImageSize,
-                    height: playerArtImageSize,
-                    //color: Colors.green,
-                    child: Align(
-                      alignment: Alignment.bottomRight,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Container(
-                          height: 50,
-                          width: 60,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(15),
-                            border: Border.all(width: 1.3, color: Colors.white),
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.secondary.withAlpha(150),
-                          ),
-                          child: IconButton(
-                            onPressed: () async {
-                              await showModalBottomSheet(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 500,
-                                ),
-                                shape: const RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(10.0),
-                                  ),
-                                ),
-                                isScrollControlled: true,
-                                context: playerController
+                            ),
+                            isScrollControlled: true,
+                            context:
+                                playerController
                                     .homeScaffoldKey
                                     .currentState!
                                     .context,
-                                barrierColor: Colors.transparent.withAlpha(100),
-                                builder: (context) =>
-                                    const SleepTimerBottomSheet(),
-                              );
-                            },
-                            icon: const Icon(Icons.timer, color: Colors.white),
-                          ),
+                            barrierColor: Colors.transparent.withAlpha(100),
+                            builder:
+                                (context) => SongInfoBottomSheet(
+                                  playerController.currentSong.value!,
+                                  calledFromPlayer: true,
+                                ),
+                          );
+                        },
+                        onTap: () async {
+                          await playerController.showLyrics();
+                        },
+                        onHorizontalDragEnd: (DragEndDetails details) {
+                          if (playerController.showLyricsFlag.value) return;
+                          if (details.primaryVelocity! < 0) {
+                            playerController.requestNext();
+                          } else if (details.primaryVelocity! > 0) {
+                            playerController.requestPrev();
+                          }
+                        },
+                        child: ImageWidget(
+                          size: playerArtImageSize,
+                          song: playerController.currentSong.value!,
+                          isPlayerArtImage: true,
                         ),
                       ),
-                    ),
-                  ),
-              ],
-            )
-          : Container(),
+                      playerController.showLyricsFlag.value
+                          ? InkWell(
+                            onTap: () async {
+                              await playerController.showLyrics();
+                            },
+                            child: Container(
+                              height: playerArtImageSize,
+                              width: playerArtImageSize,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.8),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Stack(
+                                children: [
+                                  LyricsWidget(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 0,
+                                      vertical: playerArtImageSize / 3.5,
+                                    ),
+                                  ),
+                                  IgnorePointer(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(5),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Theme.of(context).primaryColor
+                                                .withValues(alpha: 0.90),
+                                            Colors.transparent,
+                                            Colors.transparent,
+                                            Colors.transparent,
+                                            Theme.of(context).primaryColor
+                                                .withValues(alpha: 0.90),
+                                          ],
+                                          stops: const [0, 0.2, 0.5, 0.8, 1],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          : const SizedBox.shrink(),
+                      if (playerController.isSleepTimerActive.value)
+                        SizedBox(
+                          width: playerArtImageSize,
+                          height: playerArtImageSize,
+                          //color: Colors.green,
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Container(
+                                height: 50,
+                                width: 60,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(
+                                    width: 1.3,
+                                    color: Colors.white,
+                                  ),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.secondary.withAlpha(150),
+                                ),
+                                child: AwaitableIconButton(
+                                  onPressed: () async {
+                                    await showModalBottomSheet(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 500,
+                                      ),
+                                      shape: const RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.vertical(
+                                          top: Radius.circular(10.0),
+                                        ),
+                                      ),
+                                      isScrollControlled: true,
+                                      context:
+                                          playerController
+                                              .homeScaffoldKey
+                                              .currentState!
+                                              .context,
+                                      barrierColor: Colors.transparent
+                                          .withAlpha(100),
+                                      builder:
+                                          (context) =>
+                                              const SleepTimerBottomSheet(),
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.timer,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                  : Container(),
     );
   }
 }

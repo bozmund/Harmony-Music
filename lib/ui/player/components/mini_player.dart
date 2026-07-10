@@ -9,6 +9,8 @@ import '../../../app/providers/controller_providers.dart';
 import '/ui/widgets/lyrics_dialog.dart';
 import '/ui/widgets/song_info_dialog.dart';
 import '../../widgets/add_to_playlist_btn.dart';
+import '../../widgets/toggle_icon_button.dart';
+import '../../widgets/awaitable_button.dart';
 import '../../widgets/sleep_timer_bottom_sheet.dart';
 import '../../widgets/song_download_btn.dart';
 import '../../widgets/image_widget.dart';
@@ -16,7 +18,9 @@ import '../../widgets/mini_player_progress_bar.dart';
 import 'animated_play_button.dart';
 
 class MiniPlayer extends ConsumerWidget {
-  const MiniPlayer({super.key});
+  const MiniPlayer({super.key, required this.height});
+
+  final double height;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -30,7 +34,6 @@ class MiniPlayer extends ConsumerWidget {
         playerController.currentSong,
         playerController.playerPanelTopVisible,
         playerController.playerPaneOpacity,
-        playerController.playerPanelMinHeight,
         settingsController.isBottomNavBarEnabled,
       ]),
       builder: (context, _) {
@@ -40,7 +43,7 @@ class MiniPlayer extends ConsumerWidget {
             opacity: playerController.playerPaneOpacity.value,
             duration: Duration.zero,
             child: Container(
-              height: playerController.playerPanelMinHeight.value,
+              height: height,
               width: size.width,
               color: Theme.of(context).bottomSheetTheme.backgroundColor,
               child: Center(
@@ -228,29 +231,19 @@ class MiniPlayer extends ConsumerWidget {
                                             ).textTheme.titleMedium!.color,
                                           ),
                                         ),
-                                        IconButton(
-                                          iconSize: 20,
+                                        ToggleIconButton(
+                                          size: 20,
+                                          isActive: playerController
+                                              .isShuffleModeEnabled
+                                              .value,
+                                          activeIcon: Icons.shuffle,
+                                          inactiveIcon: Icons.shuffle,
                                           onPressed: () {
                                             unawaited(
                                               playerController
                                                   .toggleShuffleMode(),
                                             );
                                           },
-                                          icon: Icon(
-                                            Icons.shuffle,
-                                            color:
-                                                playerController
-                                                    .isShuffleModeEnabled
-                                                    .value
-                                                ? Theme.of(
-                                                    context,
-                                                  ).textTheme.titleLarge!.color
-                                                : Theme.of(context)
-                                                      .textTheme
-                                                      .titleLarge!
-                                                      .color!
-                                                      .withValues(alpha: 0.2),
-                                          ),
                                         ),
                                       ],
                                     ),
@@ -387,7 +380,7 @@ class MiniPlayer extends ConsumerWidget {
                                                       .withValues(alpha: 0.2),
                                           ),
                                         ),
-                                        IconButton(
+                                        AwaitableIconButton(
                                           iconSize: 20,
                                           onPressed: () async {
                                             await playerController.showLyrics();
@@ -516,7 +509,7 @@ class MiniPlayer extends ConsumerWidget {
                                               padding: const EdgeInsets.only(
                                                 left: 10.0,
                                               ),
-                                              child: IconButton(
+                                              child: AwaitableIconButton(
                                                 onPressed: () async {
                                                   await showModalBottomSheet(
                                                     constraints:
@@ -562,7 +555,7 @@ class MiniPlayer extends ConsumerWidget {
                                             calledFromPlayer: true,
                                           ),
                                           if (size.width > 965)
-                                            IconButton(
+                                            AwaitableIconButton(
                                               onPressed: () async {
                                                 final currentSong =
                                                     playerController

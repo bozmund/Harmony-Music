@@ -82,6 +82,8 @@ abstract class UpdateServiceContract {
 abstract class AppPlatformContract {
   Future<AppPlatformInfo> getAppInfo();
 
+  Future<SystemNavigationMode> getSystemNavigationMode();
+
   Future<void> setKeepScreenAwake(bool enable);
 
   Future<void> setPlaybackWakeLock(bool enable);
@@ -94,6 +96,8 @@ abstract class AppPlatformContract {
 
   Future<void> restartApp({bool terminate = true});
 }
+
+enum SystemNavigationMode { gesture, buttons, unknown }
 
 class AppPlatformInfo {
   const AppPlatformInfo({

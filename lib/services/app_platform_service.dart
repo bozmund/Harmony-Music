@@ -47,6 +47,33 @@ class DefaultAppPlatformService implements AppPlatformContract {
   }
 
   @override
+  Future<SystemNavigationMode> getSystemNavigationMode() async {
+    if (!Platform.isAndroid) {
+      return SystemNavigationMode.gesture;
+    }
+
+    try {
+      final result = await _channel.invokeMethod<String>(
+        'getSystemNavigationMode',
+      );
+      return _parseSystemNavigationMode(result);
+    } catch (_) {
+      return SystemNavigationMode.unknown;
+    }
+  }
+
+  static SystemNavigationMode _parseSystemNavigationMode(String? value) {
+    switch (value) {
+      case 'gesture':
+        return SystemNavigationMode.gesture;
+      case 'buttons':
+        return SystemNavigationMode.buttons;
+      default:
+        return SystemNavigationMode.unknown;
+    }
+  }
+
+  @override
   Future<void> setKeepScreenAwake(bool enable) async {
     if (!Platform.isAndroid) return;
     try {
@@ -130,6 +157,9 @@ class AppPlatformService {
       override ?? const DefaultAppPlatformService();
 
   static Future<AppPlatformInfo> getAppInfo() => _service.getAppInfo();
+
+  static Future<SystemNavigationMode> getSystemNavigationMode() =>
+      _service.getSystemNavigationMode();
 
   static Future<void> setKeepScreenAwake(bool enable) =>
       _service.setKeepScreenAwake(enable);

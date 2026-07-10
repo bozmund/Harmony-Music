@@ -56,5 +56,16 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<!-- Listen Together: local network discovery + P2P messaging -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Harmony Music uses the local network to let nearby phones listen to music together.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_harmonymusic._tcp</string>
+	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Harmony Music uses Bluetooth to let nearby phones listen to music together without Wi-Fi.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Harmony Music uses Bluetooth to let nearby phones listen to music together without Wi-Fi.</string>
 </dict>
 </plist>

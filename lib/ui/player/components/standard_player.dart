@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers/controller_providers.dart';
 import '../../../utils/runtime_platform.dart';
 import '../../../utils/insets.dart';
+import '../../screens/listen_together/listen_together_sheet.dart';
+import '../../widgets/awaitable_button.dart';
+import '../../widgets/toggle_icon_button.dart';
 import '../../widgets/song_info_bottom_sheet.dart';
 import 'album_art_lyrics.dart';
 import 'background_image.dart';
@@ -33,9 +36,10 @@ class StandardPlayer extends ConsumerWidget {
         size.width - 60; //((size.height < 750) ? 90 : 60);
     //playerArtImageSize = playerArtImageSize > 350 ? 350 : playerArtImageSize;
     final spaceAvailableForArtImage = size.height - (70 + bottomPadding + 330);
-    playerArtImageSize = playerArtImageSize > spaceAvailableForArtImage
-        ? spaceAvailableForArtImage
-        : playerArtImageSize;
+    playerArtImageSize =
+        playerArtImageSize > spaceAvailableForArtImage
+            ? spaceAvailableForArtImage
+            : playerArtImageSize;
     return Stack(
       children: [
         /// Stack first child
@@ -88,80 +92,86 @@ class StandardPlayer extends ConsumerWidget {
         /// Player content in landscape mode
         Padding(
           padding: const EdgeInsets.only(left: 25, right: 25),
-          child: isLandscape
-              ? Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    /// Album art with lyrics in .45  of width
-                    SizedBox(
-                      width: size.width * .45,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 90.0),
+          child:
+              isLandscape
+                  ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      /// Album art with lyrics in .45  of width
+                      SizedBox(
+                        width: size.width * .45,
                         child: Padding(
-                          padding: const EdgeInsets.only(top: 40),
-                          child: Center(
-                            child: AlbumArtNLyrics(
-                              playerArtImageSize: size.width * .29,
+                          padding: const EdgeInsets.only(bottom: 90.0),
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 40),
+                            child: Center(
+                              child: AlbumArtNLyrics(
+                                playerArtImageSize: size.width * .29,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
 
-                    /// Player controls in .48 of width
-                    SizedBox(
-                      width: size.width * .48,
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: 10.0,
-                          right: 10,
-                          bottom: bottomPadding,
-                        ),
-                        child: const PlayerControlWidget(),
-                      ),
-                    ),
-                  ],
-                )
-              :
-                /// Player content in portrait mode
-                Column(
-                  children: [
-                    /// Work as top padding depending on the lyrics visibility and screen size
-                    AnimatedBuilder(
-                      animation: playerController.showLyricsFlag,
-                      builder: (context, _) =>
-                          playerController.showLyricsFlag.value
-                          ? SizedBox(height: size.height < 750 ? 60 : 90)
-                          : SizedBox(height: size.height < 750 ? 110 : 140),
-                    ),
-
-                    /// Contains the lyrics switch and album art with lyrics
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const LyricsSwitch(),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 500),
-                          child: AlbumArtNLyrics(
-                            playerArtImageSize: playerArtImageSize,
+                      /// Player controls in .48 of width
+                      SizedBox(
+                        width: size.width * .48,
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: 10.0,
+                            right: 10,
+                            bottom: bottomPadding,
                           ),
+                          child: const PlayerControlWidget(),
                         ),
-                      ],
-                    ),
-
-                    /// Extra space container
-                    Expanded(child: Container()),
-
-                    /// Contains the player controls
-                    Padding(
-                      padding: EdgeInsets.only(bottom: 80 + bottomPadding),
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 500),
-                        child: const PlayerControlWidget(),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                  :
+                  /// Player content in portrait mode
+                  Column(
+                    children: [
+                      /// Work as top padding depending on the lyrics visibility and screen size
+                      AnimatedBuilder(
+                        animation: playerController.showLyricsFlag,
+                        builder:
+                            (context, _) =>
+                                playerController.showLyricsFlag.value
+                                    ? SizedBox(
+                                      height: size.height < 750 ? 60 : 90,
+                                    )
+                                    : SizedBox(
+                                      height: size.height < 750 ? 110 : 140,
+                                    ),
+                      ),
+
+                      /// Contains the lyrics switch and album art with lyrics
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const LyricsSwitch(),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 500),
+                            child: AlbumArtNLyrics(
+                              playerArtImageSize: playerArtImageSize,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      /// Extra space container
+                      Expanded(child: Container()),
+
+                      /// Contains the player controls
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 80 + bottomPadding),
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 500),
+                          child: const PlayerControlWidget(),
+                        ),
+                      ),
+                    ],
+                  ),
         ),
 
         /// Stack child
@@ -190,28 +200,53 @@ class StandardPlayer extends ConsumerWidget {
                     padding: const EdgeInsets.only(top: 8.0, left: 5, right: 5),
                     child: AnimatedBuilder(
                       animation: playerController.playingFrom,
-                      builder: (context, _) => Column(
-                        children: [
-                          Text(
-                            playerController.playingFrom.value.typeString,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
+                      builder:
+                          (context, _) => Column(
+                            children: [
+                              Text(
+                                playerController.playingFrom.value.typeString,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                "\"${playerController.playingFrom.value.nameString}\"",
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            "\"${playerController.playingFrom.value.nameString}\"",
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
 
+                /// Listen together (synchronized playback across phones)
+                AnimatedBuilder(
+                  animation: ref.read(listenTogetherControllerProvider),
+                  builder: (context, _) {
+                    final lt = ref.read(listenTogetherControllerProvider);
+                    return ToggleIconButton(
+                      size: 25,
+                      isActive: lt.isActive,
+                      activeIcon: Icons.groups_2,
+                      inactiveIcon: Icons.groups_2_outlined,
+                      onPressed: () async {
+                        await showListenTogetherSheet(
+                          playerController
+                              .homeScaffoldKey
+                              .currentState!
+                              .context,
+                        );
+                      },
+                    );
+                  },
+                ),
+
                 /// More button for current song context
-                IconButton(
+                AwaitableIconButton(
                   icon: const Icon(Icons.more_vert, size: 25),
                   onPressed: () async {
                     await showModalBottomSheet(
@@ -222,15 +257,17 @@ class StandardPlayer extends ConsumerWidget {
                         ),
                       ),
                       isScrollControlled: true,
-                      context: playerController
-                          .homeScaffoldKey
-                          .currentState!
-                          .context,
+                      context:
+                          playerController
+                              .homeScaffoldKey
+                              .currentState!
+                              .context,
                       barrierColor: Colors.transparent.withAlpha(100),
-                      builder: (context) => SongInfoBottomSheet(
-                        playerController.currentSong.value!,
-                        calledFromPlayer: true,
-                      ),
+                      builder:
+                          (context) => SongInfoBottomSheet(
+                            playerController.currentSong.value!,
+                            calledFromPlayer: true,
+                          ),
                     );
                   },
                 ),

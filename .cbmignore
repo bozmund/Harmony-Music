@@ -1,0 +1,6 @@
+.dart_tool/
+.flutter/
+.idea/
+.vscode/
+build/
+third_party/

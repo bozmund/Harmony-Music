@@ -134,6 +134,11 @@ class _FakeAppPlatform implements AppPlatformContract {
   }
 
   @override
+  Future<SystemNavigationMode> getSystemNavigationMode() async {
+    return SystemNavigationMode.gesture;
+  }
+
+  @override
   Future<void> installApk(String path) async {}
 
   @override

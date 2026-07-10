@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../services/listen_together/lan_transport.dart';
+import '../../services/listen_together/listen_together_controller.dart';
+import '../../services/listen_together/nearby_transport.dart';
+import '../../services/listen_together/sync_transport.dart';
 import '../../utils/system_tray.dart';
 import '../../ui/player/player_controller.dart';
 import '../../ui/screens/Home/home_screen_controller.dart';
@@ -34,6 +38,19 @@ final ChangeNotifierProvider<PlayerController> playerControllerProvider =
       );
       unawaited(controller.init());
       return controller;
+    });
+
+final ChangeNotifierProvider<ListenTogetherController>
+listenTogetherControllerProvider =
+    ChangeNotifierProvider<ListenTogetherController>((ref) {
+      return ListenTogetherController(
+        playerController: ref.read(playerControllerProvider),
+        playbackCommands: ref.read(playbackCommandServiceProvider),
+        transportFactory: (kind) => switch (kind) {
+          TransportKind.lan => LanTransport(),
+          TransportKind.nearby => NearbyTransport(),
+        },
+      );
     });
 
 final ChangeNotifierProvider<HomeScreenController>

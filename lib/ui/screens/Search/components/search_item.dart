@@ -5,6 +5,7 @@ import '../../../../app/providers/controller_providers.dart';
 import '../../../../utils/runtime_platform.dart';
 
 import '../../../navigator.dart';
+import '../../../widgets/awaitable_button.dart';
 
 class SearchItem extends ConsumerWidget {
   final String queryString;
@@ -31,9 +32,10 @@ class SearchItem extends ConsumerWidget {
           searchScreenController.focusNode.unfocus();
         }
       },
-      leading: isHistoryString
-          ? const Icon(Icons.history)
-          : const Icon(Icons.search),
+      leading:
+          isHistoryString
+              ? const Icon(Icons.history)
+              : const Icon(Icons.search),
       minLeadingWidth: 20,
       dense: true,
       title: Text(queryString),
@@ -42,22 +44,22 @@ class SearchItem extends ConsumerWidget {
         child: Row(
           children: [
             isHistoryString
-                ? IconButton(
-                    iconSize: 18,
-                    splashRadius: 18,
-                    visualDensity: const VisualDensity(horizontal: -2),
-                    onPressed: () async {
-                      await searchScreenController.removeQueryFromHistory(
-                        queryString,
-                      );
-                    },
-                    icon: Icon(
-                      Icons.clear,
-                      color: Theme.of(context).textTheme.titleMedium!.color,
-                    ),
-                  )
+                ? AwaitableIconButton(
+                  iconSize: 18,
+                  splashRadius: 18,
+                  visualDensity: const VisualDensity(horizontal: -2),
+                  onPressed: () async {
+                    await searchScreenController.removeQueryFromHistory(
+                      queryString,
+                    );
+                  },
+                  icon: Icon(
+                    Icons.clear,
+                    color: Theme.of(context).textTheme.titleMedium!.color,
+                  ),
+                )
                 : const SizedBox(width: 40),
-            IconButton(
+            AwaitableIconButton(
               iconSize: 20,
               splashRadius: 18,
               visualDensity: const VisualDensity(horizontal: -2),

@@ -15,6 +15,8 @@ import '../../models/playing_from.dart';
 import '../../app/navigation/app_navigator.dart';
 import '../../services/app_platform_service.dart';
 import '../../services/downloader.dart';
+import '../../services/listen_together/listen_together_gate.dart';
+import '../../services/listen_together/session_message.dart';
 import '../../services/playback_command_service.dart';
 import '../../utils/runtime_platform.dart';
 import '../../utils/observable_state.dart';
@@ -25,8 +27,8 @@ import '/services/synced_lyrics_service.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
 import '../../services/windows_audio_service.dart';
 import '../../utils/helper.dart';
-import '../../utils/insets.dart';
 import '../screens/Home/home_screen_controller.dart';
+import '../widgets/bottom_nav_bar_dimensions.dart';
 import '../widgets/sliding_up_panel.dart';
 import '/models/duration_state.dart';
 import '/services/app_contracts.dart';
@@ -66,6 +68,12 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   final Downloader _downloader;
   final MusicServiceContract _musicServices;
   final PlaybackCommandService _playbackCommands;
+
+  /// Set by [ListenTogetherController] while a session is active. When this
+  /// device is a guest, local control intents are forwarded to the host
+  /// instead of being executed locally. Null when no session is active.
+  ListenTogetherGate? listenTogetherGate;
+
   final currentQueue = ObservableList<MediaItem>();
 
   final playerPaneOpacity = ObservableValue(1.0);
@@ -884,19 +892,24 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     final screenSize = appContext == null
         ? Size.zero
         : MediaQuery.of(appContext).size;
-    final bottomPadding = appContext == null
-        ? 0.0
-        : bottomNavInset(appContext);
     final isWideScreen = screenSize.width > 800;
     final autoOpenPlayer = _settingsRepository.getAutoOpenPlayer();
     if (initFlagForPlayer || playerPanelMinHeight.value == 0) {
-      final miniPlayerHeight = isWideScreen ? 105.0 : 75.0;
-      if (!_settingsController.isBottomNavBarEnabled.value ||
-          getCurrentRouteName() != '/homeScreen') {
-        playerPanelMinHeight.value = miniPlayerHeight + bottomPadding;
-      } else {
-        playerPanelMinHeight.value = miniPlayerHeight;
-      }
+      final bottomNavVisible =
+          _settingsController.isBottomNavBarEnabled.value &&
+          getCurrentRouteName() == '/homeScreen' &&
+          !playerPanelOpen.value;
+      playerPanelMinHeight.value = appContext == null
+          ? collapsedMiniPlayerHeightForInset(
+              bottomInset: 0,
+              isWideScreen: isWideScreen,
+              bottomNavVisible: bottomNavVisible,
+            )
+          : collapsedMiniPlayerHeight(
+              appContext,
+              isWideScreen: isWideScreen,
+              bottomNavVisible: bottomNavVisible,
+            );
       initFlagForPlayer = false;
       // Publish the new min height *before* auto-opening the panel so the
       // panel does not animate open from a zero-height mini player.
@@ -922,6 +935,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> toggleShuffleMode() async {
+    if (_routeToHost(SessionCommand.toggleShuffle())) return;
     final shuffleModeEnabled = isShuffleModeEnabled.value;
     final nextEnabled = await _playbackCommands.toggleShuffle(
       enabled: shuffleModeEnabled,
@@ -964,7 +978,20 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     isQueueReorderingInProcess.value = false;
   }
 
+  /// Returns true and forwards the intent to the host when this device is a
+  /// guest in a Listen Together session, so callers can short-circuit local
+  /// execution.
+  bool _routeToHost(SessionCommand command) {
+    final gate = listenTogetherGate;
+    if (gate != null && gate.isGuest) {
+      gate.sendCommand(command);
+      return true;
+    }
+    return false;
+  }
+
   Future<void> play() async {
+    if (_routeToHost(SessionCommand.play())) return;
     await _playbackCommands.play();
   }
 
@@ -973,6 +1000,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> pause() async {
+    if (_routeToHost(SessionCommand.pause())) return;
     await _playbackCommands.pause();
   }
 
@@ -982,6 +1010,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> playPause() async {
     if (initFlagForPlayer) return;
+    if (_routeToHost(SessionCommand.playPause())) return;
     await _playbackCommands.playPause(
       isPlaying: _audioHandler.playbackState.value.playing,
     );
@@ -999,6 +1028,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> prev() async {
+    if (_routeToHost(SessionCommand.prev())) return;
     await _playbackCommands.previous();
   }
 
@@ -1007,6 +1037,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> next() async {
+    if (_routeToHost(SessionCommand.next())) return;
     await _playbackCommands.next();
   }
 
@@ -1015,6 +1046,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> seek(Duration position) async {
+    if (_routeToHost(SessionCommand.seek(position))) return;
     await _playbackCommands.seek(position);
   }
 
@@ -1023,6 +1055,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> seekByIndex(int index) async {
+    if (_routeToHost(SessionCommand.playByIndex(index))) return;
     await _playbackCommands.playByIndex(index);
   }
 
@@ -1056,6 +1089,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> toggleLoopMode() async {
+    if (_routeToHost(SessionCommand.toggleLoop())) return;
     isLoopModeEnabled.value = await _playbackCommands.toggleLoop(
       enabled: isLoopModeEnabled.value,
     );

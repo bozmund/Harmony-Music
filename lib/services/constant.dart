@@ -104,4 +104,5 @@ class LogTags {
   static const String piped = 'Piped';
   static const String backup = 'Backup';
   static const String preload = 'Preload';
+  static const String listenTogether = 'ListenTogether';
 }

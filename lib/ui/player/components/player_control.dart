@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../../app/providers/controller_providers.dart';
+import '../../widgets/toggle_icon_button.dart';
 import '../../widgets/add_to_playlist_btn.dart';
 import '/ui/player/components/animated_play_button.dart';
 import '../player_controller.dart';
@@ -128,18 +129,13 @@ class PlayerControlWidget extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              IconButton(
+              ToggleIconButton(
+                isActive: playerController.isShuffleModeEnabled.value,
+                activeIcon: Icons.shuffle,
+                inactiveIcon: Icons.shuffle,
                 onPressed: () {
                   unawaited(playerController.toggleShuffleMode());
                 },
-                icon: Icon(
-                  Icons.shuffle,
-                  color: playerController.isShuffleModeEnabled.value
-                      ? Theme.of(context).textTheme.titleLarge!.color
-                      : Theme.of(
-                          context,
-                        ).textTheme.titleLarge!.color!.withValues(alpha: 0.2),
-                ),
               ),
               _previousButton(playerController, context),
               const CircleAvatar(
@@ -147,18 +143,13 @@ class PlayerControlWidget extends ConsumerWidget {
                 child: AnimatedPlayButton(key: Key("playButton")),
               ),
               _nextButton(playerController, context),
-              IconButton(
+              ToggleIconButton(
+                isActive: playerController.isLoopModeEnabled.value,
+                activeIcon: Icons.all_inclusive,
+                inactiveIcon: Icons.all_inclusive,
                 onPressed: () {
                   unawaited(playerController.toggleLoopMode());
                 },
-                icon: Icon(
-                  Icons.all_inclusive,
-                  color: playerController.isLoopModeEnabled.value
-                      ? Theme.of(context).textTheme.titleLarge!.color
-                      : Theme.of(
-                          context,
-                        ).textTheme.titleLarge!.color!.withValues(alpha: 0.2),
-                ),
               ),
             ],
           ),

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../domain/repositories/settings_repository.dart';
 import '/utils/helper.dart';
+import 'app_text_and_action_theme.dart';
 
 class ThemeController extends ChangeNotifier {
   ThemeController(this._settingsRepository) {
@@ -272,7 +273,7 @@ class ThemeController extends ChangeNotifier {
         ),
         //scaffoldBackgroundColor: primarySwatch[700]
       );
-      return _withAppTextAndButtonThemes(baseTheme);
+      return applyHarmonyTextAndActionTheme(baseTheme);
     } else if (themeType == ThemeType.dark) {
       SystemChrome.setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
@@ -351,7 +352,7 @@ class ThemeController extends ChangeNotifier {
           ),
         ),
       );
-      return _withAppTextAndButtonThemes(baseTheme);
+      return applyHarmonyTextAndActionTheme(baseTheme);
     } else {
       SystemChrome.setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
@@ -438,27 +439,8 @@ class ThemeController extends ChangeNotifier {
           ),
         ),
       );
-      return _withAppTextAndButtonThemes(baseTheme);
+      return applyHarmonyTextAndActionTheme(baseTheme);
     }
-  }
-
-  ThemeData _withAppTextAndButtonThemes(ThemeData baseTheme) {
-    final appTextTheme = _appTextTheme(baseTheme.textTheme);
-    final buttonTextColor = appTextTheme.titleMedium?.color;
-    return baseTheme.copyWith(
-      textTheme: appTextTheme,
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: buttonTextColor,
-          disabledForegroundColor: buttonTextColor?.withValues(alpha: 0.38),
-          textStyle: appTextTheme.titleMedium,
-        ),
-      ),
-    );
-  }
-
-  TextTheme _appTextTheme(TextTheme baseTextTheme) {
-    return baseTextTheme.apply(fontFamily: 'Inter');
   }
 
   MaterialColor _createMaterialColor(Color color) {

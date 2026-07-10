@@ -10,10 +10,22 @@ class SystemUiModePriority {
 }
 
 class SystemUiModeService {
+  SystemUiModeService({bool immersiveAllowed = true})
+    : _immersiveAllowed = immersiveAllowed;
+
   final Map<Object, _SystemUiModeRequest> _requests = {};
   int _nextSequence = 0;
   SystemUiMode? _currentMode;
   Future<void> _pendingApply = Future<void>.value();
+  bool _immersiveAllowed;
+
+  bool get immersiveAllowed => _immersiveAllowed;
+
+  void setImmersiveAllowed(bool allowed) {
+    if (_immersiveAllowed == allowed) return;
+    _immersiveAllowed = allowed;
+    unawaited(_scheduleApply(force: true));
+  }
 
   void registerRequest({
     required Object owner,
@@ -74,6 +86,9 @@ class SystemUiModeService {
   SystemUiMode? _resolveMode() {
     _SystemUiModeRequest? selected;
     for (final request in _requests.values) {
+      if (!_immersiveAllowed && _isImmersiveMode(request.mode)) {
+        continue;
+      }
       if (selected == null ||
           request.priority > selected.priority ||
           (request.priority == selected.priority &&
@@ -82,6 +97,11 @@ class SystemUiModeService {
       }
     }
     return selected?.mode;
+  }
+
+  bool _isImmersiveMode(SystemUiMode mode) {
+    return mode == SystemUiMode.immersive ||
+        mode == SystemUiMode.immersiveSticky;
   }
 }
 
