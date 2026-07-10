@@ -43,12 +43,9 @@ class AlbumScreenController extends PlaylistAlbumScreenControllerBase
 
   final HomeScreenController _homeScreenController;
 
-  final album = ObservableValue(Album(
-    title: "",
-    browseId: "",
-    thumbnailUrl: "",
-    artists: [],
-  ));
+  final album = ObservableValue(
+    Album(title: "", browseId: "", thumbnailUrl: "", artists: []),
+  );
   final isOfflineAlbum = ObservableValue(false);
 
   // Title animation

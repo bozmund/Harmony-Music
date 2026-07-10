@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../app/providers/controller_providers.dart';
 import 'bottom_nav_bar_dimensions.dart';
@@ -25,20 +25,20 @@ class BottomNavBar extends ConsumerWidget {
           NavigationDestination(
             selectedIcon: const Icon(Icons.home),
             icon: const Icon(Icons.home_outlined),
-            label: modifyNGetLabel('home'.tr),
+            label: modifyNGetLabel(context.l10n.home),
           ),
           NavigationDestination(
             icon: const Icon(Icons.search),
-            label: modifyNGetLabel('search'.tr),
+            label: modifyNGetLabel(context.l10n.search),
           ),
           NavigationDestination(
             icon: const Icon(Icons.library_music),
-            label: modifyNGetLabel('library'.tr),
+            label: modifyNGetLabel(context.l10n.library),
           ),
           NavigationDestination(
             selectedIcon: const UpdateBadgedSettingsIcon(icon: Icons.settings),
             icon: const UpdateBadgedSettingsIcon(icon: Icons.settings_outlined),
-            label: modifyNGetLabel('settings'.tr),
+            label: modifyNGetLabel(context.l10n.settings),
           ),
         ],
       ),

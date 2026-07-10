@@ -14,6 +14,22 @@ void main() {
     expect(pubspec, isNot(contains('mockito:')));
   });
 
+  test('bundled Auth0 environment contains only public client settings', () {
+    final envFile = File('.env');
+    expect(envFile.existsSync(), isTrue);
+
+    final keys = envFile
+        .readAsLinesSync()
+        .where((line) => line.contains('=') && !line.trimLeft().startsWith('#'))
+        .map((line) => line.split('=').first.trim())
+        .toSet();
+    expect(keys, {'AUTH0_DOMAIN', 'AUTH0_CLIENT_ID', 'AUTH0_REDIRECT_SCHEME'});
+    expect(
+      keys.where((key) => RegExp(r'SECRET|PASSWORD|TOKEN').hasMatch(key)),
+      isEmpty,
+    );
+  });
+
   test('Flutter gen-l10n baseline exposes the app title', () {
     expect(AppLocalizationsEn().appTitle, 'Harmony Music');
   });

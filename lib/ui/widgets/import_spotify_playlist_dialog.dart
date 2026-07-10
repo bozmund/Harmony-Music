@@ -411,129 +411,131 @@ class _ImportSpotifyPlaylistDialogState
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              Text(
-                "Import Spotify export",
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                "To import from Spotify, open Spotify's data/privacy page and "
-                "request your account data. Spotify will prepare a download "
-                "for you. When it is ready, download the ZIP file and choose "
-                "it here to import your liked songs and playlists at once.",
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "You can also choose a single Spotify Playlist JSON or Library "
-                "JSON file if you already extracted the ZIP.",
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: controller.isReading || controller.isImporting
-                      ? null
-                      : controller.openSpotifyDataPage,
-                  child: const Text("Open Spotify data page"),
+                Text(
+                  "Import Spotify export",
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                controller.status.value,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 14),
-              if (controller.isReading || controller.isImporting) ...[
-                const LinearProgressIndicator(),
                 const SizedBox(height: 14),
-              ],
-              if (controller.detectedPlaylists.isNotEmpty &&
-                  controller.result == null) ...[
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 260),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: controller.detectedPlaylists.length,
-                    itemBuilder: (context, index) {
-                      final playlist = controller.detectedPlaylists[index];
-                      return CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: controller.selectedIndexes.contains(index),
-                        onChanged: controller.isImporting
-                            ? null
-                            : (value) => controller.togglePlaylist(
-                                index,
-                                value ?? false,
-                              ),
-                        title: Text(playlist.name),
-                        subtitle: Text("${playlist.tracks.length} tracks"),
-                      );
-                    },
-                  ),
-                ),
-                if (controller.unsupportedItemCount > 0)
-                  Text(
-                    "${controller.unsupportedItemCount} non-song items ignored",
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                const SizedBox(height: 12),
-              ],
-              if (controller.error != null) ...[
                 Text(
-                  controller.error!,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (controller.result != null) ...[
-                Text(
-                  "${controller.result!.playlistsImported} playlists imported\n"
-                  "${controller.result!.importedSongCount} songs imported\n"
-                  "${controller.result!.conflictAddedCount} conflicts added\n"
-                  "${controller.result!.reviewAddedCount} weak matches added to review\n"
-                  "${controller.result!.skippedTrackCount} tracks skipped"
-                  "${controller.unsupportedItemCount > 0 ? "\n${controller.unsupportedItemCount} non-song items ignored" : ""}",
+                  "To import from Spotify, open Spotify's data/privacy page and "
+                  "request your account data. Spotify will prepare a download "
+                  "for you. When it is ready, download the ZIP file and choose "
+                  "it here to import your liked songs and playlists at once.",
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 12),
-              ],
-              Wrap(
-                alignment: WrapAlignment.end,
-                runSpacing: 8,
-                children: [
-                  TextButton(
+                const SizedBox(height: 8),
+                Text(
+                  "You can also choose a single Spotify Playlist JSON or Library "
+                  "JSON file if you already extracted the ZIP.",
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
                     onPressed: controller.isReading || controller.isImporting
                         ? null
-                        : () => Navigator.of(context).pop(),
-                    child: Text(controller.result == null ? "Cancel" : "Close"),
+                        : controller.openSpotifyDataPage,
+                    child: const Text("Open Spotify data page"),
                   ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: controller.isReading || controller.isImporting
-                        ? null
-                        : controller.pickExport,
-                    child: Text(
-                      controller.detectedPlaylists.isEmpty
-                          ? "Choose file"
-                          : "Choose another",
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  controller.status.value,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 14),
+                if (controller.isReading || controller.isImporting) ...[
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 14),
+                ],
+                if (controller.detectedPlaylists.isNotEmpty &&
+                    controller.result == null) ...[
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 260),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: controller.detectedPlaylists.length,
+                      itemBuilder: (context, index) {
+                        final playlist = controller.detectedPlaylists[index];
+                        return CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          value: controller.selectedIndexes.contains(index),
+                          onChanged: controller.isImporting
+                              ? null
+                              : (value) => controller.togglePlaylist(
+                                  index,
+                                  value ?? false,
+                                ),
+                          title: Text(playlist.name),
+                          subtitle: Text("${playlist.tracks.length} tracks"),
+                        );
+                      },
                     ),
                   ),
-                  if (controller.detectedPlaylists.isNotEmpty &&
-                      controller.result == null) ...[
+                  if (controller.unsupportedItemCount > 0)
+                    Text(
+                      "${controller.unsupportedItemCount} non-song items ignored",
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  const SizedBox(height: 12),
+                ],
+                if (controller.error != null) ...[
+                  Text(
+                    controller.error!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (controller.result != null) ...[
+                  Text(
+                    "${controller.result!.playlistsImported} playlists imported\n"
+                    "${controller.result!.importedSongCount} songs imported\n"
+                    "${controller.result!.conflictAddedCount} conflicts added\n"
+                    "${controller.result!.reviewAddedCount} weak matches added to review\n"
+                    "${controller.result!.skippedTrackCount} tracks skipped"
+                    "${controller.unsupportedItemCount > 0 ? "\n${controller.unsupportedItemCount} non-song items ignored" : ""}",
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: controller.isReading || controller.isImporting
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      child: Text(
+                        controller.result == null ? "Cancel" : "Close",
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     TextButton(
-                      onPressed: controller.isImporting
+                      onPressed: controller.isReading || controller.isImporting
                           ? null
-                          : controller.importSelectedPlaylists,
-                      child: const Text("Import"),
+                          : controller.pickExport,
+                      child: Text(
+                        controller.detectedPlaylists.isEmpty
+                            ? "Choose file"
+                            : "Choose another",
+                      ),
                     ),
+                    if (controller.detectedPlaylists.isNotEmpty &&
+                        controller.result == null) ...[
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: controller.isImporting
+                            ? null
+                            : controller.importSelectedPlaylists,
+                        child: const Text("Import"),
+                      ),
+                    ],
                   ],
-                ],
-              ),
+                ),
               ],
             ),
           ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:sidebar_with_animation/animated_side_bar.dart';
 
 import '../../app/providers/controller_providers.dart';
@@ -38,27 +38,27 @@ class SideNavBar extends ConsumerWidget {
                     //backgroundColor: Colors.green,
                     destinations: <NavigationRailDestination>[
                       railDestination(
-                        "home".tr,
+                        context.l10n.home,
                         isMobileOrTabScreen,
                         Icons.home,
                       ),
                       railDestination(
-                        "songs".tr,
+                        context.l10n.songs,
                         isMobileOrTabScreen,
                         Icons.art_track,
                       ),
                       railDestination(
-                        "playlists".tr,
+                        context.l10n.playlists,
                         isMobileOrTabScreen,
                         Icons.featured_play_list,
                       ),
                       railDestination(
-                        "albums".tr,
+                        context.l10n.albums,
                         isMobileOrTabScreen,
                         Icons.album,
                       ),
                       railDestination(
-                        "artists".tr,
+                        context.l10n.artists,
                         isMobileOrTabScreen,
                         Icons.people,
                       ),
@@ -97,28 +97,31 @@ class SideNavBar extends ConsumerWidget {
                   SideBarItem(
                     iconSelected: Icons.home,
                     iconUnselected: Icons.home_outlined,
-                    text: 'home'.tr,
+                    text: context.l10n.home,
                   ),
                   SideBarItem(
                     iconSelected: Icons.audiotrack,
                     iconUnselected: Icons.audiotrack,
-                    text: 'songs'.tr,
+                    text: context.l10n.songs,
                   ),
                   SideBarItem(
                     iconSelected: Icons.library_music,
                     iconUnselected: Icons.library_music_outlined,
-                    text: 'playlists'.tr,
+                    text: context.l10n.playlists,
                   ),
                   SideBarItem(
                     iconSelected: Icons.album,
                     iconUnselected: Icons.album_outlined,
-                    text: 'albums'.tr,
+                    text: context.l10n.albums,
                   ),
-                  SideBarItem(iconSelected: Icons.person, text: 'artists'.tr),
+                  SideBarItem(
+                    iconSelected: Icons.person,
+                    text: context.l10n.artists,
+                  ),
                   SideBarItem(
                     iconSelected: Icons.settings,
                     iconUnselected: Icons.settings_outlined,
-                    text: 'settings'.tr,
+                    text: context.l10n.settings,
                   ),
                 ],
               ),

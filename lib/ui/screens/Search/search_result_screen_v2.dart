@@ -1,6 +1,6 @@
 import 'package:buttons_tabbar/buttons_tabbar.dart';
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/ui/widgets/loader.dart';
 import 'package:harmonymusic/ui/widgets/search_related_widgets.dart';
 
@@ -43,7 +43,7 @@ class SearchResultScreenBN extends StatelessWidget {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          "searchRes".tr,
+                          context.l10n.searchRes,
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
@@ -52,7 +52,7 @@ class SearchResultScreenBN extends StatelessWidget {
                         child: AnimatedBuilder(
                           animation: searchResScrController,
                           builder: (context, _) => Text(
-                            "${"for1".tr} \"${searchResScrController.queryString}\"",
+                            "${context.l10n.for1} \"${searchResScrController.queryString}\"",
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
@@ -73,7 +73,7 @@ class SearchResultScreenBN extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            "nomatch".tr,
+                            context.l10n.nomatch,
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           Text("'${searchResScrController.queryString}'"),
@@ -120,14 +120,10 @@ class SearchResultScreenBN extends StatelessWidget {
                             ),
                             // Add your tabs here
                             tabs: [
-                              Tab(text: "results".tr),
+                              Tab(text: context.l10n.results),
                               ...searchResScrController.railItems.map(
-                                (item) => Tab(
-                                  text: item
-                                      .toLowerCase()
-                                      .removeAllWhitespace
-                                      .tr,
-                                ),
+                                (item) =>
+                                    Tab(text: context.l10n.sectionTitle(item)),
                               ),
                             ],
                           ),

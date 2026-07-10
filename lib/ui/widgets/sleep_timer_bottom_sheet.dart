@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../app/providers/controller_providers.dart';
 import '/ui/player/player_controller.dart';
@@ -25,7 +25,7 @@ class SleepTimerBottomSheet extends ConsumerWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.timer),
-              title: Text("sleepTimer".tr),
+              title: Text(context.l10n.sleepTimer),
             ),
             const Divider(),
             if (playerController.isSleepTimerActive.value)
@@ -85,7 +85,7 @@ class SleepTimerBottomSheet extends ConsumerWidget {
                             ).textTheme.titleMedium!.color!,
                           ),
                         ),
-                        child: Text("add5Minutes".tr),
+                        child: Text(context.l10n.add5Minutes),
                       ),
                     OutlinedButton(
                       onPressed: () {
@@ -97,7 +97,7 @@ class SleepTimerBottomSheet extends ConsumerWidget {
                         ScaffoldMessenger.of(context).showSnackBar(
                           snackbar(
                             context,
-                            "cancelTimerAlert".tr,
+                            context.l10n.cancelTimerAlert,
                             size: SanckBarSize.BIG,
                           ),
                         );
@@ -112,7 +112,7 @@ class SleepTimerBottomSheet extends ConsumerWidget {
                           ).textTheme.titleMedium!.color!,
                         ),
                       ),
-                      child: Text("cancelTimer".tr),
+                      child: Text(context.l10n.cancelTimer),
                     ),
                   ],
                 ),
@@ -140,7 +140,7 @@ class SleepTimerBottomSheet extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   snackbar(
                     context,
-                    "sleepTimeSetAlert".tr,
+                    context.l10n.sleepTimeSetAlert,
                     size: SanckBarSize.BIG,
                   ),
                 );
@@ -148,7 +148,7 @@ class SleepTimerBottomSheet extends ConsumerWidget {
               leading: Padding(
                 padding: const EdgeInsets.only(left: 10.0),
                 child: Text(
-                  "$dur ${'minutes'.tr}",
+                  "$dur ${context.l10n.minutes}",
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -165,7 +165,7 @@ class SleepTimerBottomSheet extends ConsumerWidget {
         leading: Padding(
           padding: const EdgeInsets.only(left: 10.0),
           child: Text(
-            "endOfThisSong".tr,
+            context.l10n.endOfThisSong,
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ),

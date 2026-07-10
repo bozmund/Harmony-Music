@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '/ui/screens/Artists/artist_screen.dart' show AboutArtist;
 import '../../navigator.dart';
@@ -39,11 +39,11 @@ class ArtistScreenBN extends StatelessWidget {
           controller: artistScreenController.tabController!,
           onTap: artistScreenController.onDestinationSelected,
           tabs: [
-            "about".tr,
-            "songs".tr,
-            "videos".tr,
-            "albums".tr,
-            "singles".tr,
+            context.l10n.about,
+            context.l10n.songs,
+            context.l10n.videos,
+            context.l10n.albums,
+            context.l10n.singles,
           ].map((e) => Tab(text: e)).toList(),
         ),
         title: AnimatedBuilder(

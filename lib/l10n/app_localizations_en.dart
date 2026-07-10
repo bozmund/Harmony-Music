@@ -868,4 +868,219 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appTitle => 'Harmony Music';
+
+  @override
+  String get accountSection => 'Account';
+
+  @override
+  String get optionalAccount => 'Optional Harmony account';
+
+  @override
+  String get optionalAccountDes =>
+      'Sign in or register through Auth0. Music and library features work without an account.';
+
+  @override
+  String get authNotConfigured => 'Auth0 is not configured for this build.';
+
+  @override
+  String get authUnsupportedPlatform =>
+      'Account login is not supported on this platform.';
+
+  @override
+  String get loggedInAs => 'Logged in as';
+
+  @override
+  String get loginOrRegister => 'Login / Register';
+
+  @override
+  String get logout => 'Logout';
+
+  @override
+  String get library => 'Library';
+
+  @override
+  String get createNewPlaylist => 'Create new playlist';
+
+  @override
+  String get musicAndPlayback => 'Music & Playback';
+
+  @override
+  String get dynamicTheme => 'Dynamic';
+
+  @override
+  String get export => 'Export';
+
+  @override
+  String get piped => 'Piped';
+
+  @override
+  String get checkUpdate => 'Check for updates';
+
+  @override
+  String get upToDate => 'App is up to date';
+
+  @override
+  String get checkingUpdate => 'Checking for updates...';
+
+  @override
+  String get chooseUpdateChannel => 'Choose your update channel';
+
+  @override
+  String get chooseUpdateChannelDes =>
+      'Harmony Music now offers two update channels. Pick how you want to receive updates — you can change this anytime in Settings.';
+
+  @override
+  String get stableChannelOption => 'Stable (recommended)';
+
+  @override
+  String get stableChannelOptionDes =>
+      'Tested, versioned releases. Fewer updates, more reliable.';
+
+  @override
+  String get rollingChannelOption => 'Rolling';
+
+  @override
+  String get rollingChannelOptionDes =>
+      'Every new build from development. Newest features first, but may be less stable.';
+
+  @override
+  String get tapToRemoveFromPlaylist => 'Added — tap to remove';
+
+  @override
+  String get songRemovedFromPlaylistAlert => 'Removed from playlist';
+
+  @override
+  String get listenTogether => 'Listen together';
+
+  @override
+  String get listenTogetherDes => 'Play in sync with nearby phones';
+
+  @override
+  String get hostSession => 'Host a session';
+
+  @override
+  String get hostSessionDes => 'Others join and listen with you';
+
+  @override
+  String get joinSession => 'Join a session';
+
+  @override
+  String get leaveSession => 'Leave session';
+
+  @override
+  String get endSession => 'End session';
+
+  @override
+  String get searchingForSessions => 'Searching for nearby sessions…';
+
+  @override
+  String get noSessionsFound => 'No sessions found yet';
+
+  @override
+  String get connectVia => 'Connect via';
+
+  @override
+  String get wifiTransport => 'Wi-Fi';
+
+  @override
+  String get bluetoothTransport => 'Bluetooth';
+
+  @override
+  String get hostingSession => 'Hosting — others can join';
+
+  @override
+  String get connectedToSession => 'Connected';
+
+  @override
+  String get connectingToSession => 'Connecting…';
+
+  @override
+  String get participants => 'Participants';
+
+  @override
+  String get you => 'You';
+
+  @override
+  String get listenTogetherUnavailable =>
+      'Listen together isn\'t available on this device';
+
+  @override
+  String get back => 'Back';
+
+  @override
+  String get addToLibrary => 'Add to library';
+
+  @override
+  String get removeFromLibrary => 'Remove from library';
+
+  @override
+  String get play => 'Play';
+
+  @override
+  String get enqueueAlbumSongs => 'Add album songs to queue';
+
+  @override
+  String get downloadAlbumSongs => 'Download album songs';
+
+  @override
+  String get shareAlbum => 'Share album';
+
+  @override
+  String get enqueueSongs => 'Add songs to queue';
+
+  @override
+  String get shuffle => 'Shuffle';
+
+  @override
+  String get downloadPlaylist => 'Download playlist';
+
+  @override
+  String get syncPlaylistSongs => 'Sync playlist songs';
+
+  @override
+  String get sharePlaylist => 'Share playlist';
+
+  @override
+  String get playlist => 'Playlist';
+
+  @override
+  String get sortByName => 'Sort by name';
+
+  @override
+  String get sortByDate => 'Sort by date';
+
+  @override
+  String get sortByDuration => 'Sort by duration';
+
+  @override
+  String get sortAscendNDescend => 'Sort ascending or descending';
+
+  @override
+  String get listBookmarkRemoveAlert => 'Removed from library';
+
+  @override
+  String get blacklistPipedPlaylist => 'Blacklist Piped playlist';
+
+  @override
+  String noItems(String title) {
+    return 'No $title!';
+  }
+
+  @override
+  String get imported => 'Imported';
+
+  @override
+  String get importedPlaylist => 'Imported playlist';
+
+  @override
+  String get permissionDenied => 'Permission denied';
+
+  @override
+  String get likedNotDownloaded => 'Liked not downloaded';
+
+  @override
+  String get importConflicts => 'Import conflicts';
+
+  @override
+  String get importNeedsReview => 'Import needs review';
 }

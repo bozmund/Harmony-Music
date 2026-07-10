@@ -57,6 +57,19 @@ android {
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        def auth0Domain = "auth0.invalid"
+        def auth0Scheme = "harmonymusic"
+        def envFile = rootProject.file("../.env")
+        if (envFile.exists()) {
+            envFile.eachLine { line ->
+                def parts = line.split("=", 2)
+                if (parts.size() == 2) {
+                    if (parts[0].trim() == "AUTH0_DOMAIN") auth0Domain = parts[1].trim()
+                    if (parts[0].trim() == "AUTH0_REDIRECT_SCHEME") auth0Scheme = parts[1].trim()
+                }
+            }
+        }
+        manifestPlaceholders += [auth0Domain: auth0Domain, auth0Scheme: auth0Scheme]
     }
 
     signingConfigs {

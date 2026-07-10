@@ -130,4 +130,3 @@ List<dynamic> getContinuationContents(
   }
   return [];
 }
-

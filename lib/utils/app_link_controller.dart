@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/app_localizations.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../app/navigation/app_navigator.dart';
 import '../models/playing_from.dart';
@@ -83,7 +84,7 @@ mixin ProcessLink {
         final browseId = uri.queryParameters['list'];
         await openPlaylistOrAlbum(browseId!);
       } else if (uri.pathSegments[0] == "shorts") {
-        _showSnackBar("notaSongVideo".tr);
+        _showSnackBar((l10n) => l10n.notaSongVideo);
       } else if (uri.pathSegments[0] == "watch") {
         final songId = uri.queryParameters['v'];
         await playSong(songId!);
@@ -96,7 +97,7 @@ mixin ProcessLink {
         await playSong(songId);
       }
     } else {
-      _showSnackBar("notaValidLink".tr);
+      _showSnackBar((l10n) => l10n.notaValidLink);
     }
   }
 
@@ -145,15 +146,15 @@ mixin ProcessLink {
         playFrom: PlayingFrom(type: PlayingFromType.SELECTION),
       );
     } else {
-      _showSnackBar("notaSongVideo".tr);
+      _showSnackBar((l10n) => l10n.notaSongVideo);
     }
   }
 
-  void _showSnackBar(String message) {
+  void _showSnackBar(String Function(AppLocalizations) message) {
     final context = AppNavigator.context;
     if (context == null) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(snackbar(context, message, size: SanckBarSize.MEDIUM));
+    ScaffoldMessenger.of(context).showSnackBar(
+      snackbar(context, message(context.l10n), size: SanckBarSize.MEDIUM),
+    );
   }
 }

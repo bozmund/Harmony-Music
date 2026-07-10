@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../utils/runtime_platform.dart';
@@ -264,7 +264,7 @@ class _HomeNetworkError extends StatelessWidget {
           Align(
             alignment: Alignment.topLeft,
             child: Text(
-              "home".tr,
+              context.l10n.home,
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
@@ -274,7 +274,7 @@ class _HomeNetworkError extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    "networkError1".tr,
+                    context.l10n.networkError1,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 10),
@@ -290,7 +290,7 @@ class _HomeNetworkError extends StatelessWidget {
                     child: InkWell(
                       onTap: onRetry,
                       child: Text(
-                        "retry".tr,
+                        context.l10n.retry,
                         style: TextStyle(color: Theme.of(context).canvasColor),
                       ),
                     ),

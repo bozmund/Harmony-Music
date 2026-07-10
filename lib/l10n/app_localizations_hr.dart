@@ -870,4 +870,222 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String get appTitle => 'Harmony Music';
+
+  @override
+  String get accountSection => 'Račun';
+
+  @override
+  String get optionalAccount => 'Neobavezni Harmony račun';
+
+  @override
+  String get optionalAccountDes =>
+      'Prijavite se ili registrirajte putem Auth0. Glazba i zbirka rade bez računa.';
+
+  @override
+  String get authNotConfigured =>
+      'Auth0 nije konfiguriran za ovu verziju aplikacije.';
+
+  @override
+  String get authUnsupportedPlatform =>
+      'Prijava na račun nije podržana na ovoj platformi.';
+
+  @override
+  String get loggedInAs => 'Prijavljeni kao';
+
+  @override
+  String get loginOrRegister => 'Prijava / Registracija';
+
+  @override
+  String get logout => 'Odjava';
+
+  @override
+  String get library => 'Biblioteka';
+
+  @override
+  String get createNewPlaylist => 'Izradi novi popis za reprodukciju';
+
+  @override
+  String get musicAndPlayback => 'Glazba i reprodukcija';
+
+  @override
+  String get dynamicTheme => 'Dinamična';
+
+  @override
+  String get export => 'Izvezi';
+
+  @override
+  String get piped => 'Piped';
+
+  @override
+  String get checkUpdate => 'Provjeri ažuriranja';
+
+  @override
+  String get upToDate => 'Aplikacija je ažurirana';
+
+  @override
+  String get checkingUpdate => 'Provjera ažuriranja...';
+
+  @override
+  String get chooseUpdateChannel => 'Odaberi kanal ažuriranja';
+
+  @override
+  String get chooseUpdateChannelDes =>
+      'Harmony Music sada nudi dva kanala ažuriranja. Odaberi kako želiš primati ažuriranja — to možeš u bilo kojem trenutku promijeniti u postavkama.';
+
+  @override
+  String get stableChannelOption => 'Stabilni (preporučeno)';
+
+  @override
+  String get stableChannelOptionDes =>
+      'Testirana, verzionirana izdanja. Rjeđa ažuriranja, veća pouzdanost.';
+
+  @override
+  String get rollingChannelOption => 'Rolling';
+
+  @override
+  String get rollingChannelOptionDes =>
+      'Svaka nova razvojna verzija. Najnovije značajke odmah, ali moguća nestabilnost.';
+
+  @override
+  String get tapToRemoveFromPlaylist => 'Dodano — dodirni za uklanjanje';
+
+  @override
+  String get songRemovedFromPlaylistAlert =>
+      'Uklonjeno s popisa za reprodukciju';
+
+  @override
+  String get listenTogether => 'Slušajte zajedno';
+
+  @override
+  String get listenTogetherDes =>
+      'Sinkronizirana reprodukcija s obližnjim telefonima';
+
+  @override
+  String get hostSession => 'Pokreni sesiju';
+
+  @override
+  String get hostSessionDes => 'Drugi se mogu pridružiti i slušati s tobom';
+
+  @override
+  String get joinSession => 'Pridruži se sesiji';
+
+  @override
+  String get leaveSession => 'Napusti sesiju';
+
+  @override
+  String get endSession => 'Završi sesiju';
+
+  @override
+  String get searchingForSessions => 'Traženje obližnjih sesija…';
+
+  @override
+  String get noSessionsFound => 'Još nema pronađenih sesija';
+
+  @override
+  String get connectVia => 'Poveži putem';
+
+  @override
+  String get wifiTransport => 'Wi-Fi';
+
+  @override
+  String get bluetoothTransport => 'Bluetooth';
+
+  @override
+  String get hostingSession => 'Domaćin — drugi se mogu pridružiti';
+
+  @override
+  String get connectedToSession => 'Povezano';
+
+  @override
+  String get connectingToSession => 'Povezivanje…';
+
+  @override
+  String get participants => 'Sudionici';
+
+  @override
+  String get you => 'Vi';
+
+  @override
+  String get listenTogetherUnavailable =>
+      'Zajedničko slušanje nije dostupno na ovom uređaju';
+
+  @override
+  String get back => 'Natrag';
+
+  @override
+  String get addToLibrary => 'Dodaj u zbirku';
+
+  @override
+  String get removeFromLibrary => 'Ukloni iz zbirke';
+
+  @override
+  String get play => 'Reproduciraj';
+
+  @override
+  String get enqueueAlbumSongs => 'Dodaj pjesme albuma u red čekanja';
+
+  @override
+  String get downloadAlbumSongs => 'Preuzmi pjesme albuma';
+
+  @override
+  String get shareAlbum => 'Podijeli album';
+
+  @override
+  String get enqueueSongs => 'Dodaj pjesme u red čekanja';
+
+  @override
+  String get shuffle => 'Nasumično';
+
+  @override
+  String get downloadPlaylist => 'Preuzmi popis za reprodukciju';
+
+  @override
+  String get syncPlaylistSongs => 'Sinkroniziraj pjesme popisa';
+
+  @override
+  String get sharePlaylist => 'Podijeli popis za reprodukciju';
+
+  @override
+  String get playlist => 'Popis za reprodukciju';
+
+  @override
+  String get sortByName => 'Poredaj po nazivu';
+
+  @override
+  String get sortByDate => 'Poredaj po datumu';
+
+  @override
+  String get sortByDuration => 'Poredaj po trajanju';
+
+  @override
+  String get sortAscendNDescend => 'Poredaj uzlazno ili silazno';
+
+  @override
+  String get listBookmarkRemoveAlert => 'Uklonjeno iz zbirke';
+
+  @override
+  String get blacklistPipedPlaylist => 'Blokiraj Piped popis za reprodukciju';
+
+  @override
+  String noItems(String title) {
+    return 'Nema stavki: $title!';
+  }
+
+  @override
+  String get imported => 'Uvezeno';
+
+  @override
+  String get importedPlaylist => 'Uvezeni popis za reprodukciju';
+
+  @override
+  String get permissionDenied => 'Dopuštenje odbijeno';
+
+  @override
+  String get likedNotDownloaded => 'Omiljeno, ali nije preuzeto';
+
+  @override
+  String get importConflicts => 'Sukobi pri uvozu';
+
+  @override
+  String get importNeedsReview => 'Uvoz zahtijeva pregled';
 }

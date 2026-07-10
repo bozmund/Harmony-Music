@@ -16,7 +16,7 @@ void main() {
     expect(source, contains('height: 50'));
     expect(source, contains('child: Text('));
     expect(
-      source.contains('Tab(text: key.tr)'),
+      source.contains('Tab(text:'),
       isFalse,
       reason: 'Tab(text:) uses Flutter\'s fixed ~22px internal label height',
     );

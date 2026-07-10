@@ -1,6 +1,6 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../screens/Search/search_result_screen_controller.dart';
 import '/models/album.dart';
@@ -42,7 +42,7 @@ class ResultWidget extends StatelessWidget {
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "searchRes".tr,
+                            context.l10n.searchRes,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ),
@@ -50,7 +50,7 @@ class ResultWidget extends StatelessWidget {
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            "${"for1".tr} \"${searchResScrController.queryString}\"",
+                            "${context.l10n.for1} \"${searchResScrController.queryString}\"",
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),

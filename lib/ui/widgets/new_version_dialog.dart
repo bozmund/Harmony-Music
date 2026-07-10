@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../app/providers/controller_providers.dart';
 import '../../utils/helper.dart';
@@ -27,7 +27,7 @@ class NewVersionDialog extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(top: 36),
               child: Text(
-                "newVersionAvailable".tr,
+                context.l10n.newVersionAvailable,
                 style: Theme.of(context).textTheme.titleMedium,
                 textAlign: TextAlign.center,
               ),
@@ -90,7 +90,7 @@ class NewVersionDialog extends ConsumerWidget {
                       shape: const CircleBorder(),
                     ),
                   ),
-                  Flexible(child: Text("dontShowInfoAgain".tr)),
+                  Flexible(child: Text(context.l10n.dontShowInfoAgain)),
                 ],
               ),
             ),
@@ -104,7 +104,7 @@ class NewVersionDialog extends ConsumerWidget {
                   runSpacing: 8,
                   children: [
                     _DialogActionButton(
-                      label: "download".tr,
+                      label: context.l10n.download,
                       enabled: !settingsController.isUpdateDownloading.value,
                       onTap: () async {
                         await settingsController.downloadAndInstallUpdate(
@@ -113,7 +113,7 @@ class NewVersionDialog extends ConsumerWidget {
                       },
                     ),
                     _DialogActionButton(
-                      label: "dismiss".tr,
+                      label: context.l10n.dismiss,
                       onTap: () {
                         // If the user just turned off the startup update
                         // popup, send them to the Settings App Info section

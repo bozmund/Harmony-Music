@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../app/providers/repository_providers.dart';
@@ -54,22 +54,22 @@ class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
   String _addResultMessage(PlaylistAddStatus result) {
     switch (result) {
       case PlaylistAddStatus.added:
-        return "songAddedToPlaylistAlert".tr;
+        return context.l10n.songAddedToPlaylistAlert;
       case PlaylistAddStatus.skipped:
-        return "songAlreadyExists".tr;
+        return context.l10n.songAlreadyExists;
       case PlaylistAddStatus.failed:
-        return "errorOccurredAlert".tr;
+        return context.l10n.errorOccurredAlert;
     }
   }
 
   String _removeResultMessage(PlaylistRemoveStatus result) {
     switch (result) {
       case PlaylistRemoveStatus.removed:
-        return "songRemovedFromPlaylistAlert".tr;
+        return context.l10n.songRemovedFromPlaylistAlert;
       case PlaylistRemoveStatus.skipped:
-        return "songAlreadyExists".tr;
+        return context.l10n.songAlreadyExists;
       case PlaylistRemoveStatus.failed:
-        return "errorOccurredAlert".tr;
+        return context.l10n.errorOccurredAlert;
     }
   }
 
@@ -100,7 +100,7 @@ class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
                             id: "createNewPlaylistx",
                             delay: const Duration(milliseconds: 300),
                             child: Text(
-                              "CreateNewPlaylist".tr,
+                              context.l10n.createNewPlaylist,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
@@ -108,22 +108,21 @@ class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
                       ),
                       const SizedBox(width: 10),
                       AwaitableIconButton(
-                        tooltip: "CreateNewPlaylist".tr,
+                        tooltip: context.l10n.createNewPlaylist,
                         icon: const Icon(Icons.playlist_add),
                         onPressed: () async {
                           Navigator.of(context).pop();
                           await showDialog(
                             context: context,
-                            builder:
-                                (context) => CreateNRenamePlaylistPopup(
-                                  isCreateNAdd: true,
-                                  songItems: widget.songItems,
-                                ),
+                            builder: (context) => CreateNRenamePlaylistPopup(
+                              isCreateNAdd: true,
+                              songItems: widget.songItems,
+                            ),
                           );
                         },
                       ),
                       IconButton(
-                        tooltip: "close".tr,
+                        tooltip: context.l10n.close,
                         icon: const Icon(Icons.done),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
@@ -133,54 +132,46 @@ class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
                 if (isPipedLinked)
                   AnimatedBuilder(
                     animation: addToPlaylistController,
-                    builder:
-                        (context, _) => RadioGroup<String>(
-                          groupValue:
-                              addToPlaylistController.playlistType.value,
-                          onChanged: (value) {
-                            if (value == null ||
-                                addToPlaylistController
-                                    .additionInProgress
-                                    .value) {
-                              return;
-                            }
-                            unawaited(
-                              addToPlaylistController.changePlaylistType(value),
-                            );
-                          },
-                          child: IgnorePointer(
-                            ignoring:
-                                addToPlaylistController
-                                    .additionInProgress
-                                    .value,
-                            child: Opacity(
-                              opacity:
-                                  addToPlaylistController
-                                          .additionInProgress
-                                          .value
-                                      ? 0.55
-                                      : 1,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.start,
+                    builder: (context, _) => RadioGroup<String>(
+                      groupValue: addToPlaylistController.playlistType.value,
+                      onChanged: (value) {
+                        if (value == null ||
+                            addToPlaylistController.additionInProgress.value) {
+                          return;
+                        }
+                        unawaited(
+                          addToPlaylistController.changePlaylistType(value),
+                        );
+                      },
+                      child: IgnorePointer(
+                        ignoring:
+                            addToPlaylistController.additionInProgress.value,
+                        child: Opacity(
+                          opacity:
+                              addToPlaylistController.additionInProgress.value
+                              ? 0.55
+                              : 1,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      const Radio<String>(value: 'piped'),
-                                      Text('Piped'.tr),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 15),
-                                  Row(
-                                    children: [
-                                      const Radio<String>(value: 'local'),
-                                      Text('local'.tr),
-                                    ],
-                                  ),
+                                  const Radio<String>(value: 'piped'),
+                                  Text(context.l10n.piped),
                                 ],
                               ),
-                            ),
+                              const SizedBox(width: 15),
+                              Row(
+                                children: [
+                                  const Radio<String>(value: 'local'),
+                                  Text(context.l10n.local),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
+                      ),
+                    ),
                   ),
                 Expanded(
                   child: Container(
@@ -191,114 +182,97 @@ class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
                     //color: Colors.green,
                     child: AnimatedBuilder(
                       animation: addToPlaylistController,
-                      builder:
-                          (context, _) =>
-                              addToPlaylistController.playlists.isNotEmpty
-                                  ? ListView.builder(
-                                    padding: EdgeInsets.zero,
-                                    itemCount:
-                                        addToPlaylistController
-                                            .playlists
-                                            .length,
-                                    itemBuilder: (context, index) {
-                                      final playlist =
-                                          addToPlaylistController
-                                              .playlists[index];
-                                      final isMembershipLoaded =
-                                          addToPlaylistController
-                                              .isPlaylistMembershipLoaded(
-                                                playlist.playlistId,
-                                              );
-                                      final isMembershipLoading =
-                                          addToPlaylistController
-                                              .isPlaylistMembershipLoading(
-                                                playlist.playlistId,
-                                              );
-                                      // Membership known and every selected song is
-                                      // already in this playlist: tapping now
-                                      // removes them instead of being a no-op.
-                                      final containsAll =
-                                          isMembershipLoaded &&
-                                          addToPlaylistController
-                                              .playlistContainsAllSongs(
-                                                playlist.playlistId,
-                                                widget.songItems,
-                                              );
-                                      final isBusy = addToPlaylistController
-                                          .isPlaylistAdding(
-                                            playlist.playlistId,
-                                          );
-                                      final canInteract =
-                                          !isBusy && !isMembershipLoading;
-                                      return Material(
-                                        type: MaterialType.transparency,
-                                        child: ListTile(
-                                          enabled: canInteract,
-                                          leading:
-                                              isBusy || isMembershipLoading
-                                                  ? const SizedBox.square(
-                                                    dimension: 20,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2,
+                      builder: (context, _) =>
+                          addToPlaylistController.playlists.isNotEmpty
+                          ? ListView.builder(
+                              padding: EdgeInsets.zero,
+                              itemCount:
+                                  addToPlaylistController.playlists.length,
+                              itemBuilder: (context, index) {
+                                final playlist =
+                                    addToPlaylistController.playlists[index];
+                                final isMembershipLoaded =
+                                    addToPlaylistController
+                                        .isPlaylistMembershipLoaded(
+                                          playlist.playlistId,
+                                        );
+                                final isMembershipLoading =
+                                    addToPlaylistController
+                                        .isPlaylistMembershipLoading(
+                                          playlist.playlistId,
+                                        );
+                                // Membership known and every selected song is
+                                // already in this playlist: tapping now
+                                // removes them instead of being a no-op.
+                                final containsAll =
+                                    isMembershipLoaded &&
+                                    addToPlaylistController
+                                        .playlistContainsAllSongs(
+                                          playlist.playlistId,
+                                          widget.songItems,
+                                        );
+                                final isBusy = addToPlaylistController
+                                    .isPlaylistAdding(playlist.playlistId);
+                                final canInteract =
+                                    !isBusy && !isMembershipLoading;
+                                return Material(
+                                  type: MaterialType.transparency,
+                                  child: ListTile(
+                                    enabled: canInteract,
+                                    leading: isBusy || isMembershipLoading
+                                        ? const SizedBox.square(
+                                            dimension: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : Icon(
+                                            containsAll
+                                                ? Icons.check_circle
+                                                : Icons.add_circle_outline,
+                                          ),
+                                    title: Text(playlist.title),
+                                    subtitle: containsAll
+                                        ? Text(
+                                            context
+                                                .l10n
+                                                .tapToRemoveFromPlaylist,
+                                          )
+                                        : null,
+                                    onTap: canInteract
+                                        ? () async {
+                                            final message = containsAll
+                                                ? _removeResultMessage(
+                                                    await addToPlaylistController
+                                                        .removeSongsFromPlaylist(
+                                                          widget.songItems,
+                                                          playlist.playlistId,
                                                         ),
                                                   )
-                                                  : Icon(
-                                                    containsAll
-                                                        ? Icons.check_circle
-                                                        : Icons
-                                                            .add_circle_outline,
-                                                  ),
-                                          title: Text(playlist.title),
-                                          subtitle:
-                                              containsAll
-                                                  ? Text(
-                                                    "tapToRemoveFromPlaylist"
-                                                        .tr,
-                                                  )
-                                                  : null,
-                                          onTap:
-                                              canInteract
-                                                  ? () async {
-                                                    final message =
-                                                        containsAll
-                                                            ? _removeResultMessage(
-                                                              await addToPlaylistController
-                                                                  .removeSongsFromPlaylist(
-                                                                    widget
-                                                                        .songItems,
-                                                                    playlist
-                                                                        .playlistId,
-                                                                  ),
-                                                            )
-                                                            : _addResultMessage(
-                                                              await addToPlaylistController
-                                                                  .addSongsToPlaylist(
-                                                                    widget
-                                                                        .songItems,
-                                                                    playlist
-                                                                        .playlistId,
-                                                                  ),
-                                                            );
-                                                    if (!context.mounted)
-                                                      return;
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).showSnackBar(
-                                                      snackbar(
-                                                        context,
-                                                        message,
-                                                        size:
-                                                            SanckBarSize.MEDIUM,
-                                                      ),
-                                                    );
-                                                  }
-                                                  : null,
-                                        ),
-                                      );
-                                    },
-                                  )
-                                  : Center(child: Text("noLibPlaylist".tr)),
+                                                : _addResultMessage(
+                                                    await addToPlaylistController
+                                                        .addSongsToPlaylist(
+                                                          widget.songItems,
+                                                          playlist.playlistId,
+                                                        ),
+                                                  );
+                                            if (!context.mounted) return;
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              snackbar(
+                                                context,
+                                                message,
+                                                size: SanckBarSize.MEDIUM,
+                                              ),
+                                            );
+                                          }
+                                        : null,
+                                  ),
+                                );
+                              },
+                            )
+                          : Center(child: Text(context.l10n.noLibPlaylist)),
                     ),
                   ),
                 ),
@@ -306,23 +280,22 @@ class _AddToPlaylistState extends ConsumerState<AddToPlaylist> {
             ),
             AnimatedBuilder(
               animation: addToPlaylistController,
-              builder:
-                  (context, _) =>
-                      (addToPlaylistController.additionInProgress.value &&
-                              isPipedLinked)
-                          ? const Positioned(
-                            top: 60,
-                            right: 8,
-                            child: SizedBox(
-                              height: 15,
-                              width: 15,
-                              child: CircularProgressIndicator(
-                                backgroundColor: Colors.transparent,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          )
-                          : const SizedBox.shrink(),
+              builder: (context, _) =>
+                  (addToPlaylistController.additionInProgress.value &&
+                      isPipedLinked)
+                  ? const Positioned(
+                      top: 60,
+                      right: 8,
+                      child: SizedBox(
+                        height: 15,
+                        width: 15,
+                        child: CircularProgressIndicator(
+                          backgroundColor: Colors.transparent,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ],
         ),
@@ -367,19 +340,18 @@ class AddToPlaylistController extends ChangeNotifier {
     final localMembershipsFuture = _preloadLocalMemberships();
     final res = await _pipedServices.getAllPlaylists();
     if (res.code == 1) {
-      pipedPlaylists =
-          res.response
-              .map(
-                (item) => Playlist(
-                  title: item['name'],
-                  playlistId: item['id'],
-                  description: "Piped Playlist",
-                  thumbnailUrl: item['thumbnail'],
-                  isPipedPlaylist: true,
-                ),
-              )
-              .whereType<Playlist>()
-              .toList();
+      pipedPlaylists = res.response
+          .map(
+            (item) => Playlist(
+              title: item['name'],
+              playlistId: item['id'],
+              description: "Piped Playlist",
+              thumbnailUrl: item['thumbnail'],
+              isPipedPlaylist: true,
+            ),
+          )
+          .whereType<Playlist>()
+          .toList();
     }
     notifyListeners();
     await localMembershipsFuture;
@@ -521,8 +493,9 @@ class AddToPlaylistController extends ChangeNotifier {
       return PlaylistRemoveStatus.failed;
     }
     final existingIds = playlistSongIds[playlistId] ?? <String>{};
-    final songsToRemove =
-        songs.where((song) => existingIds.contains(song.id)).toList();
+    final songsToRemove = songs
+        .where((song) => existingIds.contains(song.id))
+        .toList();
     if (songsToRemove.isEmpty) {
       return PlaylistRemoveStatus.skipped;
     }

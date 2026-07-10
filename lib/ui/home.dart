@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../app/providers/controller_providers.dart';
 import '../utils/helper.dart';
@@ -179,11 +179,11 @@ class _HomeState extends ConsumerState<Home> {
                                             animation:
                                                 playerController.currentQueue,
                                             builder: (context, _) => Text(
-                                              "${playerController.currentQueue.length} ${"songs".tr}",
+                                              "${playerController.currentQueue.length} ${context.l10n.songs}",
                                             ),
                                           ),
                                           Text(
-                                            "upNext".tr,
+                                            context.l10n.upNext,
                                             style: Theme.of(
                                               context,
                                             ).textTheme.titleLarge,
@@ -223,7 +223,7 @@ class _HomeState extends ConsumerState<Home> {
                                                     ),
                                                     child: Center(
                                                       child: Text(
-                                                        "queueLoop".tr,
+                                                        context.l10n.queueLoop,
                                                       ),
                                                     ),
                                                   ),
@@ -239,8 +239,9 @@ class _HomeState extends ConsumerState<Home> {
                                                     ).showSnackBar(
                                                       snackbar(
                                                         context,
-                                                        "queueShufflingDeniedMsg"
-                                                            .tr,
+                                                        context
+                                                            .l10n
+                                                            .queueShufflingDeniedMsg,
                                                         size: SanckBarSize.BIG,
                                                       ),
                                                     );

@@ -2,83 +2,56 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
-/// The localization/*.json files are the source of truth;
-/// lib/utils/get_localization.dart is generated from them
-/// (`dart run localization/generator.dart`). These tests fail whenever the
-/// two drift apart — e.g. someone edits a JSON without regenerating, or
-/// hand-edits the generated file.
 void main() {
-  late Map<String, Map<String, String>> generated;
-  late Map<String, Map<String, dynamic>> sources;
+  late Map<String, dynamic> english;
+  late Map<String, dynamic> croatian;
 
   setUpAll(() {
-    generated = Languages().keys;
-    sources = {
-      for (final file in Directory('localization')
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.json')))
-        file.uri.pathSegments.last.split('.').first:
-            jsonDecode(file.readAsStringSync()),
-    };
+    english = jsonDecode(File('lib/l10n/app_en.arb').readAsStringSync());
+    croatian = jsonDecode(File('lib/l10n/app_hr.arb').readAsStringSync());
   });
 
-  test('every localization JSON has a generated language and vice versa', () {
-    expect(generated.keys.toSet(), sources.keys.toSet());
+  test('English and Croatian ARBs expose identical resources', () {
+    Set<String> resources(Map<String, dynamic> arb) => arb.keys
+        .where((key) => key != '@@locale' && !key.startsWith('@'))
+        .toSet();
+
+    expect(resources(croatian), resources(english));
   });
 
-  test('generated strings match the JSON sources exactly', () {
+  test('localized placeholders have matching declarations', () {
     final problems = <String>[];
-    for (final lang in sources.keys) {
-      final source = sources[lang]!;
-      final built = generated[lang] ?? const <String, String>{};
-      for (final key in source.keys) {
-        if (!built.containsKey(key)) {
-          problems.add('$lang: "$key" missing from generated file');
-        } else if (built[key] != source[key]) {
-          problems.add('$lang: "$key" value differs from JSON');
-        }
-      }
-      for (final key in built.keys) {
-        if (!source.containsKey(key)) {
-          problems.add('$lang: "$key" exists only in the generated file');
-        }
+    for (final key in english.keys.where((key) => key.startsWith('@'))) {
+      if (key == '@@locale') continue;
+      final enPlaceholders =
+          (english[key] as Map<String, dynamic>?)?['placeholders'];
+      final hrPlaceholders =
+          (croatian[key] as Map<String, dynamic>?)?['placeholders'];
+      if (jsonEncode(enPlaceholders) != jsonEncode(hrPlaceholders)) {
+        problems.add(key.substring(1));
       }
     }
-    expect(
-      problems,
-      isEmpty,
-      reason:
-          'Regenerate with: dart run localization/generator.dart '
-          '&& dart format lib/utils/get_localization.dart',
-    );
+    expect(problems, isEmpty, reason: 'Placeholder declarations differ');
   });
 
-  test('the runtime Chinese lookup keys exist as languages', () {
-    // The .tr extension resolves Traditional/Simplified Chinese via the
-    // zh_Hant / zh_Hans keys; the old generator emitted zh-TW / zh-CN,
-    // which silently made Chinese fall back to English.
-    expect(generated.containsKey('zh_Hant'), isTrue);
-    expect(generated.containsKey('zh_Hans'), isTrue);
-  });
-
-  test('English covers every key used with .tr fallback safety', () {
-    // English is the final fallback for every other locale, so any key
-    // present in another language must exist in English too.
-    final english = generated['en']!;
-    final missing = <String>{};
-    for (final lang in generated.keys) {
-      if (lang == 'en') continue;
-      for (final key in generated[lang]!.keys) {
-        if (!english.containsKey(key)) missing.add('$lang→$key');
+  test('legacy localization runtime is not referenced', () {
+    final violations = <String>[];
+    for (final entity in Directory('lib').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final source = entity.readAsStringSync();
+      if (source.contains(RegExp(r'\.tr\b')) ||
+          source.contains('get_localization.dart')) {
+        violations.add(entity.path);
       }
     }
-    expect(
-      missing,
-      isEmpty,
-      reason: 'Keys translated elsewhere but missing from en.json',
-    );
+    expect(violations, isEmpty);
+  });
+
+  test('background labels follow the persisted language code', () {
+    expect(appLocalizationsForLanguageCode('en').songs, 'Songs');
+    expect(appLocalizationsForLanguageCode('hr').songs, 'Pjesme');
+    expect(appLocalizationsForLanguageCode('unsupported').songs, 'Songs');
   });
 }

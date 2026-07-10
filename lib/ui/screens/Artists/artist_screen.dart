@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../app/providers/repository_providers.dart';
@@ -102,7 +102,7 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen>
                     ScaffoldMessenger.of(context).showSnackBar(
                       snackbar(
                         context,
-                        "radioNotAvailable".tr,
+                        context.l10n.radioNotAvailable,
                         size: SanckBarSize.BIG,
                       ),
                     );
@@ -142,11 +142,11 @@ class _ArtistScreenState extends ConsumerState<ArtistScreen>
                               artistScreenController.onDestinationSelected,
                           minWidth: 60,
                           destinations: [
-                            "about".tr,
-                            "songs".tr,
-                            "videos".tr,
-                            "albums".tr,
-                            "singles".tr,
+                            context.l10n.about,
+                            context.l10n.songs,
+                            context.l10n.videos,
+                            context.l10n.albums,
+                            context.l10n.singles,
                           ].map((e) => railDestination(e)).toList(),
                           leading: Column(
                             children: [
@@ -327,11 +327,15 @@ class AboutArtist extends StatelessWidget {
                                                 context,
                                                 value
                                                     ? add
-                                                          ? "artistBookmarkAddAlert"
-                                                                .tr
-                                                          : "artistBookmarkRemoveAlert"
-                                                                .tr
-                                                    : "operationFailed".tr,
+                                                          ? context
+                                                                .l10n
+                                                                .artistBookmarkAddAlert
+                                                          : context
+                                                                .l10n
+                                                                .artistBookmarkRemoveAlert
+                                                    : context
+                                                          .l10n
+                                                          .operationFailed,
                                                 size: SanckBarSize.MEDIUM,
                                               ),
                                             );
@@ -385,7 +389,7 @@ class AboutArtist extends StatelessWidget {
                             height: 300,
                             child: Center(
                               child: Text(
-                                "artistDesNotAvailable".tr,
+                                context.l10n.artistDesNotAvailable,
                                 style: Theme.of(context).textTheme.titleSmall,
                               ),
                             ),

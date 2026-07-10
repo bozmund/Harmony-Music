@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../app/providers/repository_providers.dart';
@@ -24,7 +24,9 @@ class SongsLibraryWidget extends ConsumerWidget {
     final libSongsController = ref.watch(librarySongsControllerProvider);
     LibrarySongsControllerRegistry.register(libSongsController);
     final topPadding =
-        MediaQuery.orientationOf(context) == Orientation.landscape ? 50.0 : 90.0;
+        MediaQuery.orientationOf(context) == Orientation.landscape
+        ? 50.0
+        : 90.0;
     return Padding(
       padding: isBottomNavActive
           ? const EdgeInsets.only(left: 15)
@@ -37,7 +39,7 @@ class SongsLibraryWidget extends ConsumerWidget {
               : Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    "libSongs".tr,
+                    context.l10n.libSongs,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
@@ -95,7 +97,7 @@ class SongsLibraryWidget extends ConsumerWidget {
                   : Expanded(
                       child: Center(
                         child: Text(
-                          "noOfflineSong".tr,
+                          context.l10n.noOfflineSong,
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ),
@@ -132,7 +134,9 @@ class PlaylistNAlbumLibraryWidget extends ConsumerWidget {
     const double itemHeight = 180;
     const double itemWidth = 130;
     final topPadding =
-        MediaQuery.orientationOf(context) == Orientation.landscape ? 50.0 : 90.0;
+        MediaQuery.orientationOf(context) == Orientation.landscape
+        ? 50.0
+        : 90.0;
 
     return Padding(
       padding: isBottomNavActive
@@ -150,7 +154,9 @@ class PlaylistNAlbumLibraryWidget extends ConsumerWidget {
                     : Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          isAlbumContent ? "libAlbums".tr : "libPlaylists".tr,
+                          isAlbumContent
+                              ? context.l10n.libAlbums
+                              : context.l10n.libPlaylists,
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
@@ -173,7 +179,7 @@ class PlaylistNAlbumLibraryWidget extends ConsumerWidget {
                     isAdditionalOperationRequired: false,
                     isSearchFeatureRequired: true,
                     itemCountTitle:
-                        "${libraryAlbumController.libraryAlbums.length} ${"items".tr}",
+                        "${libraryAlbumController.libraryAlbums.length} ${context.l10n.items}",
                     requiredSortTypes: buildSortTypeSet(true),
                     onSort: (type, ascending) {
                       libraryAlbumController.onSort(type, ascending);
@@ -192,7 +198,7 @@ class PlaylistNAlbumLibraryWidget extends ConsumerWidget {
                     isAdditionalOperationRequired: false,
                     isSearchFeatureRequired: true,
                     itemCountTitle:
-                        "${libraryPlaylistController.libraryPlaylists.length} ${"items".tr}",
+                        "${libraryPlaylistController.libraryPlaylists.length} ${context.l10n.items}",
                     requiredSortTypes: buildSortTypeSet(),
                     onSort: (type, ascending) {
                       libraryPlaylistController.onSort(type, ascending);
@@ -276,7 +282,7 @@ class _LibraryContentGrid extends StatelessWidget {
           )
         : Center(
             child: Text(
-              "noBookmarks".tr,
+              context.l10n.noBookmarks,
               style: Theme.of(context).textTheme.titleMedium,
             ),
           );
@@ -294,7 +300,9 @@ class LibraryArtistWidget extends ConsumerWidget {
     );
     LibraryArtistsControllerRegistry.register(libraryArtistsController);
     final topPadding =
-        MediaQuery.orientationOf(context) == Orientation.landscape ? 50.0 : 90.0;
+        MediaQuery.orientationOf(context) == Orientation.landscape
+        ? 50.0
+        : 90.0;
     return Padding(
       padding: isBottomNavActive
           ? const EdgeInsets.only(left: 15)
@@ -306,7 +314,7 @@ class LibraryArtistWidget extends ConsumerWidget {
               : Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    "libArtists".tr,
+                    context.l10n.libArtists,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
@@ -318,7 +326,7 @@ class LibraryArtistWidget extends ConsumerWidget {
               isAdditionalOperationRequired: false,
               isSearchFeatureRequired: true,
               itemCountTitle:
-                  "${libraryArtistsController.libraryArtists.length} ${"items".tr}",
+                  "${libraryArtistsController.libraryArtists.length} ${context.l10n.items}",
               onSort: (type, ascending) {
                 libraryArtistsController.onSort(type, ascending);
               },
@@ -340,7 +348,7 @@ class LibraryArtistWidget extends ConsumerWidget {
                 : Expanded(
                     child: Center(
                       child: Text(
-                        "noBookmarks".tr,
+                        context.l10n.noBookmarks,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
@@ -382,7 +390,9 @@ class _LibrarySearchWidgetState extends ConsumerState<LibrarySearchWidget> {
   @override
   Widget build(BuildContext context) {
     final topPadding =
-        MediaQuery.orientationOf(context) == Orientation.landscape ? 50.0 : 90.0;
+        MediaQuery.orientationOf(context) == Orientation.landscape
+        ? 50.0
+        : 90.0;
     return Padding(
       padding: widget.isBottomNavActive
           ? const EdgeInsets.only(left: 15)
@@ -394,7 +404,7 @@ class _LibrarySearchWidgetState extends ConsumerState<LibrarySearchWidget> {
               : Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    "searches".tr,
+                    context.l10n.searches,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
@@ -456,7 +466,7 @@ class _LibrarySearchWidgetState extends ConsumerState<LibrarySearchWidget> {
                     )
                   : Center(
                       child: Text(
-                        "noSavedSearches".tr,
+                        context.l10n.noSavedSearches,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),

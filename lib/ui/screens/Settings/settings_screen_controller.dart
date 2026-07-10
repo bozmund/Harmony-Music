@@ -10,7 +10,7 @@ import '../../../domain/repositories/storage_admin_repository.dart';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/services/app_platform_service.dart';
 import 'package:harmonymusic/services/permission_service.dart';
 import 'package:path_provider/path_provider.dart';
@@ -381,7 +381,7 @@ class SettingsScreenController extends ChangeNotifier
 
   Future<void> checkUpdate(BuildContext context) async {
     ScaffoldMessenger.of(context).showSnackBar(
-      snackbar(context, "checkingUpdate".tr, size: SanckBarSize.MEDIUM),
+      snackbar(context, context.l10n.checkingUpdate, size: SanckBarSize.MEDIUM),
     );
     final info = await checkNewVersion();
     if (info != null) {
@@ -394,7 +394,7 @@ class SettingsScreenController extends ChangeNotifier
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
-        snackbar(context, "upToDate".tr, size: SanckBarSize.MEDIUM),
+        snackbar(context, context.l10n.upToDate, size: SanckBarSize.MEDIUM),
       );
     }
   }
@@ -993,12 +993,12 @@ class SettingsScreenController extends ChangeNotifier
     return value;
   }
 
-  Future<void> unlinkPiped() async {
+  Future<void> unlinkPiped(BuildContext context) async {
     await _pipedServices().logout();
     isLinkedWithPiped.value = false;
     LibraryPlaylistsControllerRegistry.current?.removePipedPlaylists();
     await _playlistRepository.clearBlacklistedPlaylistIds();
-    _showSettingsSnack("unlinkAlert".tr);
+    _showSettingsSnack(context.l10n.unlinkAlert);
     notifyListeners();
   }
 

@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
+import 'package:harmonymusic/l10n/app_localizations_en.dart';
 import 'package:harmonymusic/ui/widgets/snackbar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_selector/file_selector.dart';
@@ -448,13 +449,13 @@ class LibraryPlaylistsController extends ChangeNotifier
   String playlistCreationMode = "local";
   static final initialPlaylists = [
     Playlist(
-      title: "recentlyPlayed".tr,
+      title: AppLocalizationsEn().recentlyPlayed,
       playlistId: BoxNames.libRP,
       thumbnailUrl: Playlist.thumbPlaceholderUrl,
       isCloudPlaylist: false,
     ),
     Playlist(
-      title: "favorites".tr,
+      title: AppLocalizationsEn().favorites,
       playlistId: BoxNames.libFav,
       thumbnailUrl: Playlist.thumbPlaceholderUrl,
       isCloudPlaylist: false,
@@ -478,13 +479,13 @@ class LibraryPlaylistsController extends ChangeNotifier
       isCloudPlaylist: false,
     ),
     Playlist(
-      title: "cachedOrOffline".tr,
+      title: AppLocalizationsEn().cachedOrOffline,
       playlistId: BoxNames.songsCache,
       thumbnailUrl: Playlist.thumbPlaceholderUrl,
       isCloudPlaylist: false,
     ),
     Playlist(
-      title: "downloads".tr,
+      title: AppLocalizationsEn().downloads,
       playlistId: BoxNames.songDownloads,
       thumbnailUrl: Playlist.thumbPlaceholderUrl,
       isCloudPlaylist: false,
@@ -506,7 +507,9 @@ class LibraryPlaylistsController extends ChangeNotifier
     ];
   }
 
-  late ObservableList<Playlist> libraryPlaylists = ObservableList(initialPlaylists);
+  late ObservableList<Playlist> libraryPlaylists = ObservableList(
+    initialPlaylists,
+  );
   final isContentFetched = ObservableValue(false);
   bool creationInProgress = false;
   final textInputController = TextEditingController();
@@ -1086,7 +1089,7 @@ class LibraryPlaylistsController extends ChangeNotifier
         acceptedTypeGroups: [
           const XTypeGroup(label: 'JSON', extensions: ['json']),
         ],
-        confirmButtonText: 'importPlaylist'.tr,
+        confirmButtonText: context.l10n.importPlaylist,
       );
 
       if (result == null) {
@@ -1100,7 +1103,7 @@ class LibraryPlaylistsController extends ChangeNotifier
 
       final file = File(result.path);
       if (!await file.exists()) {
-        throw FileSystemException("fileNotFound".tr);
+        throw FileSystemException(context.l10n.fileNotFound);
       }
 
       final jsonString = await file.readAsString();
@@ -1112,7 +1115,7 @@ class LibraryPlaylistsController extends ChangeNotifier
       // Validate JSON structure
       if (!jsonData.containsKey('playlistInfo') ||
           !jsonData.containsKey('songs')) {
-        throw FormatException("invalidPlaylistFile".tr);
+        throw FormatException(context.l10n.invalidPlaylistFile);
       }
 
       // Create new playlist ID
@@ -1122,7 +1125,7 @@ class LibraryPlaylistsController extends ChangeNotifier
 
       // Create playlist object
       final newPlaylist = Playlist(
-        title: "${playlistInfo['title']} (${"imported".tr})",
+        title: "${playlistInfo['title']} (${context.l10n.imported})",
         playlistId: newPlaylistId,
         thumbnailUrl:
             playlistInfo['thumbnailUrl'] ??
@@ -1130,7 +1133,8 @@ class LibraryPlaylistsController extends ChangeNotifier
                     playlistInfo['thumbnails'].isNotEmpty
                 ? playlistInfo['thumbnails'][0]['url']
                 : Playlist.thumbPlaceholderUrl),
-        description: playlistInfo['description'] ?? "importedPlaylist".tr,
+        description:
+            playlistInfo['description'] ?? context.l10n.importedPlaylist,
         isCloudPlaylist: false,
       );
       _setImportProgress(0.6);
@@ -1168,7 +1172,7 @@ class LibraryPlaylistsController extends ChangeNotifier
         ScaffoldMessenger.of(context).showSnackBar(
           snackbar(
             context,
-            "${"playlistImportedMsg".tr}: ${newPlaylist.title}",
+            "${context.l10n.playlistImportedMsg}: ${newPlaylist.title}",
             size: SanckBarSize.MEDIUM,
           ),
         );
@@ -1179,13 +1183,13 @@ class LibraryPlaylistsController extends ChangeNotifier
 
       printERROR("Error importing playlist: $e");
 
-      String errorMsg = "importError".tr;
+      String errorMsg = context.l10n.importError;
       if (e is FileSystemException) {
-        errorMsg = "importErrorFileAccess".tr;
+        errorMsg = context.l10n.importErrorFileAccess;
       } else if (e is FormatException) {
-        errorMsg = "importErrorFormat".tr;
+        errorMsg = context.l10n.importErrorFormat;
       } else if (e.toString().contains("invalidPlaylistFile")) {
-        errorMsg = "invalidPlaylistFile".tr;
+        errorMsg = context.l10n.invalidPlaylistFile;
       }
 
       if (context.mounted) {
@@ -1224,7 +1228,7 @@ class LibraryPlaylistsController extends ChangeNotifier
             borderRadius: BorderRadius.circular(15),
           ),
           title: Text(
-            "importingPlaylist".tr,
+            context.l10n.importingPlaylist,
             style: Theme.of(dialogContext).textTheme.titleLarge,
           ),
           content: AnimatedBuilder(

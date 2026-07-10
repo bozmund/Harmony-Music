@@ -1054,4 +1054,3 @@ Map<String, dynamic> parseChartsItemBrowseId(dynamic result) {
     return {'title': title, 'browseId': browseId};
   }
 }
-

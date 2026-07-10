@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 class ProceedButton extends StatelessWidget {
   const ProceedButton({
@@ -40,7 +40,7 @@ class CancelButton extends StatelessWidget {
     return InkWell(
       child: Padding(
         padding: const EdgeInsets.all(10.0),
-        child: Text("cancel".tr),
+        child: Text(context.l10n.cancel),
       ),
       onTap: () {
         Navigator.of(context).pop();

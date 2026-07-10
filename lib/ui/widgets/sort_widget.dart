@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/app/providers/repository_providers.dart';
 import 'package:harmonymusic/ui/screens/Library/library_controller.dart';
 
@@ -131,70 +131,66 @@ class _SortWidgetState extends State<SortWidget> {
   Future<void> _showImportDialog(BuildContext context) async {
     await showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: Theme.of(context).cardColor,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Text(
+          context.l10n.importPlaylist,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.l10n.importPlaylistDesc,
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
-            title: Text(
-              "importPlaylist".tr,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "importPlaylistDesc".tr,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  "importLargeFileNote".tr,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontStyle: FontStyle.italic,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Center(
-                  child: AwaitableButton.elevated(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                      foregroundColor:
-                          Theme.of(context).colorScheme.onSecondary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    icon: const Icon(Icons.file_open),
-                    label: Text("selectFile".tr),
-                    onPressed: () async {
-                      await LibraryPlaylistsControllerRegistry.current
-                          ?.importPlaylistFromJson(context);
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.secondary,
-                ),
-                onPressed: () => Navigator.pop(context),
-                child: Text("close".tr),
+            const SizedBox(height: 12),
+            Text(
+              context.l10n.importLargeFileNote,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontStyle: FontStyle.italic,
+                color: Theme.of(context).colorScheme.secondary,
               ),
-            ],
+            ),
+            const SizedBox(height: 24),
+            Center(
+              child: AwaitableButton.elevated(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.secondary,
+                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.file_open),
+                label: Text(context.l10n.selectFile),
+                onPressed: () async {
+                  await LibraryPlaylistsControllerRegistry.current
+                      ?.importPlaylistFromJson(context);
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.secondary,
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.l10n.close),
           ),
+        ],
+      ),
     );
   }
 
@@ -207,215 +203,205 @@ class _SortWidgetState extends State<SortWidget> {
         height: 40,
         child: AnimatedBuilder(
           animation: controller,
-          builder:
-              (context, _) => Stack(
-                children: [
-                  if (!controller.isSearchingEnabled)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(
-                            left: widget.titleLeftPadding,
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Text(widget.itemCountTitle),
-                              if (widget.itemIcon != null)
-                                Icon(
-                                  Icons.music_note,
-                                  size: 15,
-                                  color:
-                                      Theme.of(context).colorScheme.secondary,
-                                ),
-                            ],
-                          ),
-                        ),
-                        _customIconButton(
-                          context,
-                          isSelected: controller.sortType == SortType.name,
-                          icon: Icons.sort_by_alpha,
-                          tooltip: "sortByName".tr,
-                          onPressed: () {
-                            controller.onSortByName(widget.onSort);
-                          },
-                        ),
-                        widget.requiredSortTypes.contains(SortType.date)
-                            ? _customIconButton(
-                              context,
-                              isSelected: controller.sortType == SortType.date,
-                              icon: Icons.calendar_month,
-                              tooltip: "sortByDate".tr,
-                              onPressed: () {
-                                controller.onSortByDate(widget.onSort);
-                              },
-                            )
-                            : const SizedBox.shrink(),
-                        widget.requiredSortTypes.contains(SortType.duration)
-                            ? _customIconButton(
-                              context,
-                              isSelected:
-                                  controller.sortType == SortType.duration,
-                              tooltip: "sortByDuration".tr,
-                              icon: Icons.timer,
-                              onPressed: () {
-                                controller.onSortByDuration(widget.onSort);
-                              },
-                            )
-                            : const SizedBox.shrink(),
-                        const Expanded(child: SizedBox()),
-                        _customIconButton(
-                          context,
-                          icon:
-                              controller.isAscending
-                                  ? Icons.arrow_downward
-                                  : Icons.arrow_upward,
-                          tooltip: "sortAscendNDescend".tr,
-                          onPressed: () {
-                            controller.onAscendNDescend(widget.onSort);
-                          },
-                        ),
-                        if (widget.isImportFeatureRequired)
-                          _customIconButton(
-                            context,
-                            icon: Icons.import_contacts,
-                            tooltip: "importPlaylist".tr,
-                            onPressed: () async {
-                              await _showImportDialog(context);
-                            },
-                          ),
-                        if (widget.isSearchFeatureRequired)
-                          _customIconButton(
-                            context,
-                            icon: Icons.search,
-                            tooltip: "search".tr,
-                            onPressed: () {
-                              widget.onSearchStart!(widget.tag);
-                              controller.toggleSearch();
-                            },
-                          ),
-                        if (widget.isAdditionalOperationRequired)
-                          PopupMenuButton(
-                            child: const Icon(Icons.more_vert, size: 20),
-                            // Callback that sets the selected popup menu item.
-                            onSelected: (mode) async {
-                              await showDialog(
-                                context: context,
-                                builder:
-                                    (context) => AdditionalOperationDialog(
-                                      operationMode: mode,
-                                      screenController: widget.screenController,
-                                      controller: controller,
-                                    ),
-                              );
-
-                              controller.setActiveMode(mode);
-                              widget.startAdditionalOperation!(
-                                controller,
-                                mode,
-                              );
-                            },
-                            itemBuilder:
-                                (BuildContext context) => <PopupMenuEntry>[
-                                  if (widget.isPlaylistRearrangeFeatureRequired)
-                                    PopupMenuItem(
-                                      value: OperationMode.arrange,
-                                      child: Text("reArrangePlaylist".tr),
-                                    ),
-                                  if (widget.isSongDeletionFeatureRequired)
-                                    PopupMenuItem(
-                                      value: OperationMode.delete,
-                                      child: Text("removeMultiple".tr),
-                                    ),
-                                  PopupMenuItem(
-                                    value: OperationMode.addToPlaylist,
-                                    child: Text("addMultipleSongs".tr),
-                                  ),
-                                ],
-                          ),
-                        const SizedBox(width: 15),
-                      ],
-                    ),
-                  if (controller.isSearchingEnabled)
-                    Container(
-                      height: 40,
-                      padding: const EdgeInsets.only(left: 5, right: 20),
-                      // color:
-                      //     Theme.of(context).scaffoldBackgroundColor.withAlpha(125),
-                      child: ColoredBox(
-                        color: Theme.of(
-                          context,
-                        ).scaffoldBackgroundColor.withAlpha(125),
-                        child: ModifiedTextField(
-                          controller: controller.textEditingController,
-                          textAlignVertical: TextAlignVertical.center,
-                          autofocus: true,
-                          onChanged: (value) {
-                            widget.onSearch!(value, widget.tag);
-                          },
-                          cursorColor:
-                              Theme.of(context).textTheme.titleSmall!.color,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            contentPadding: const EdgeInsets.all(8),
-                            filled: true,
-                            border: const OutlineInputBorder(),
-                            hintText:
-                                widget.tag.startsWith("Lib")
-                                    ? "searchHint".tr
-                                    : "search".tr,
-                            suffixIconColor:
-                                Theme.of(context).colorScheme.secondary,
-                            suffixIcon: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (canSaveLibrarySearch)
-                                  AwaitableIconButton(
-                                    splashRadius: 10,
-                                    iconSize: 20,
-                                    icon: const Icon(Icons.save),
-                                    onPressed: () async {
-                                      final query =
-                                          controller.textEditingController.text
-                                              .trim();
-                                      if (query.isEmpty) return;
-                                      await ProviderScope.containerOf(
-                                            context,
-                                            listen: false,
-                                          )
-                                          .read(libraryRepositoryProvider)
-                                          .addSearch(query);
-                                      if (!context.mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            "${"searchSaved".tr}: $query",
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                IconButton(
-                                  splashRadius: 10,
-                                  iconSize: 20,
-                                  icon: const Icon(Icons.cancel),
-                                  onPressed: () {
-                                    widget.onSearchClose!(widget.tag);
-                                    controller.toggleSearch();
-                                  },
-                                ),
-                              ],
+          builder: (context, _) => Stack(
+            children: [
+              if (!controller.isSearchingEnabled)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(left: widget.titleLeftPadding),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(widget.itemCountTitle),
+                          if (widget.itemIcon != null)
+                            Icon(
+                              Icons.music_note,
+                              size: 15,
+                              color: Theme.of(context).colorScheme.secondary,
                             ),
+                        ],
+                      ),
+                    ),
+                    _customIconButton(
+                      context,
+                      isSelected: controller.sortType == SortType.name,
+                      icon: Icons.sort_by_alpha,
+                      tooltip: context.l10n.sortByName,
+                      onPressed: () {
+                        controller.onSortByName(widget.onSort);
+                      },
+                    ),
+                    widget.requiredSortTypes.contains(SortType.date)
+                        ? _customIconButton(
+                            context,
+                            isSelected: controller.sortType == SortType.date,
+                            icon: Icons.calendar_month,
+                            tooltip: context.l10n.sortByDate,
+                            onPressed: () {
+                              controller.onSortByDate(widget.onSort);
+                            },
+                          )
+                        : const SizedBox.shrink(),
+                    widget.requiredSortTypes.contains(SortType.duration)
+                        ? _customIconButton(
+                            context,
+                            isSelected:
+                                controller.sortType == SortType.duration,
+                            tooltip: context.l10n.sortByDuration,
+                            icon: Icons.timer,
+                            onPressed: () {
+                              controller.onSortByDuration(widget.onSort);
+                            },
+                          )
+                        : const SizedBox.shrink(),
+                    const Expanded(child: SizedBox()),
+                    _customIconButton(
+                      context,
+                      icon: controller.isAscending
+                          ? Icons.arrow_downward
+                          : Icons.arrow_upward,
+                      tooltip: context.l10n.sortAscendNDescend,
+                      onPressed: () {
+                        controller.onAscendNDescend(widget.onSort);
+                      },
+                    ),
+                    if (widget.isImportFeatureRequired)
+                      _customIconButton(
+                        context,
+                        icon: Icons.import_contacts,
+                        tooltip: context.l10n.importPlaylist,
+                        onPressed: () async {
+                          await _showImportDialog(context);
+                        },
+                      ),
+                    if (widget.isSearchFeatureRequired)
+                      _customIconButton(
+                        context,
+                        icon: Icons.search,
+                        tooltip: context.l10n.search,
+                        onPressed: () {
+                          widget.onSearchStart!(widget.tag);
+                          controller.toggleSearch();
+                        },
+                      ),
+                    if (widget.isAdditionalOperationRequired)
+                      PopupMenuButton(
+                        child: const Icon(Icons.more_vert, size: 20),
+                        // Callback that sets the selected popup menu item.
+                        onSelected: (mode) async {
+                          await showDialog(
+                            context: context,
+                            builder: (context) => AdditionalOperationDialog(
+                              operationMode: mode,
+                              screenController: widget.screenController,
+                              controller: controller,
+                            ),
+                          );
+
+                          controller.setActiveMode(mode);
+                          widget.startAdditionalOperation!(controller, mode);
+                        },
+                        itemBuilder: (BuildContext context) => <PopupMenuEntry>[
+                          if (widget.isPlaylistRearrangeFeatureRequired)
+                            PopupMenuItem(
+                              value: OperationMode.arrange,
+                              child: Text(context.l10n.reArrangePlaylist),
+                            ),
+                          if (widget.isSongDeletionFeatureRequired)
+                            PopupMenuItem(
+                              value: OperationMode.delete,
+                              child: Text(context.l10n.removeMultiple),
+                            ),
+                          PopupMenuItem(
+                            value: OperationMode.addToPlaylist,
+                            child: Text(context.l10n.addMultipleSongs),
                           ),
+                        ],
+                      ),
+                    const SizedBox(width: 15),
+                  ],
+                ),
+              if (controller.isSearchingEnabled)
+                Container(
+                  height: 40,
+                  padding: const EdgeInsets.only(left: 5, right: 20),
+                  // color:
+                  //     Theme.of(context).scaffoldBackgroundColor.withAlpha(125),
+                  child: ColoredBox(
+                    color: Theme.of(
+                      context,
+                    ).scaffoldBackgroundColor.withAlpha(125),
+                    child: ModifiedTextField(
+                      controller: controller.textEditingController,
+                      textAlignVertical: TextAlignVertical.center,
+                      autofocus: true,
+                      onChanged: (value) {
+                        widget.onSearch!(value, widget.tag);
+                      },
+                      cursorColor: Theme.of(
+                        context,
+                      ).textTheme.titleSmall!.color,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.all(8),
+                        filled: true,
+                        border: const OutlineInputBorder(),
+                        hintText: widget.tag.startsWith("Lib")
+                            ? context.l10n.searchHint
+                            : context.l10n.search,
+                        suffixIconColor: Theme.of(
+                          context,
+                        ).colorScheme.secondary,
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (canSaveLibrarySearch)
+                              AwaitableIconButton(
+                                splashRadius: 10,
+                                iconSize: 20,
+                                icon: const Icon(Icons.save),
+                                onPressed: () async {
+                                  final query = controller
+                                      .textEditingController
+                                      .text
+                                      .trim();
+                                  if (query.isEmpty) return;
+                                  await ProviderScope.containerOf(
+                                        context,
+                                        listen: false,
+                                      )
+                                      .read(libraryRepositoryProvider)
+                                      .addSearch(query);
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "${context.l10n.searchSaved}: $query",
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            IconButton(
+                              splashRadius: 10,
+                              iconSize: 20,
+                              icon: const Icon(Icons.cancel),
+                              onPressed: () {
+                                widget.onSearchClose!(widget.tag);
+                                controller.toggleSearch();
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                ],
-              ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -431,10 +417,9 @@ class _SortWidgetState extends State<SortWidget> {
     return IconButton(
       icon: Icon(icon),
       padding: const EdgeInsets.all(0),
-      color:
-          isSelected == null || isSelected == true
-              ? Theme.of(context).textTheme.bodySmall!.color
-              : Theme.of(context).colorScheme.secondary,
+      color: isSelected == null || isSelected == true
+          ? Theme.of(context).textTheme.bodySmall!.color
+          : Theme.of(context).colorScheme.secondary,
       iconSize: 20,
       splashRadius: 20,
       visualDensity: const VisualDensity(horizontal: -3, vertical: -3),

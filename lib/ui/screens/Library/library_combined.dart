@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '/services/constant.dart';
@@ -97,56 +97,59 @@ class _CombinedLibraryState extends ConsumerState<CombinedLibrary>
           playerController,
         ]),
         builder: (context, _) => SizedBox.expand(
-        child: Column(
-          children: [
-            _LibraryHeader(settingsController: settingScreenController),
-            Expanded(
-              child: Builder(builder: (context) {
-                const double tabBarHeight = 50;
-                final bottomOffset = _tabBarBottomOffset(
-                  context,
-                  settingScreenController,
-                  homeScreenController,
-                  playerController,
-                );
+          child: Column(
+            children: [
+              _LibraryHeader(settingsController: settingScreenController),
+              Expanded(
+                child: Builder(
+                  builder: (context) {
+                    const double tabBarHeight = 50;
+                    final bottomOffset = _tabBarBottomOffset(
+                      context,
+                      settingScreenController,
+                      homeScreenController,
+                      playerController,
+                    );
 
-                return Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          bottom: bottomOffset + tabBarHeight,
-                        ),
-                        child: TabBarView(
-                          controller: tabController,
-                          children: getOrderedLibraryWidgets(
-                            settingScreenController.libraryFirstTab.value,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: bottomOffset,
-                      child: ColoredBox(
-                        color: Theme.of(context).canvasColor,
-                        child: SizedBox(
-                          height: tabBarHeight,
-                          child: _LibraryTabBar(
-                            controller: tabController,
-                            firstTabIndex:
+                    return Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              bottom: bottomOffset + tabBarHeight,
+                            ),
+                            child: TabBarView(
+                              controller: tabController,
+                              children: getOrderedLibraryWidgets(
                                 settingScreenController.libraryFirstTab.value,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ],
-                );
-              }),
-            ),
-          ],
-        ),
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: bottomOffset,
+                          child: ColoredBox(
+                            color: Theme.of(context).canvasColor,
+                            child: SizedBox(
+                              height: tabBarHeight,
+                              child: _LibraryTabBar(
+                                controller: tabController,
+                                firstTabIndex: settingScreenController
+                                    .libraryFirstTab
+                                    .value,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -224,13 +227,14 @@ class _LibraryHeader extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'library'.tr,
+                  context.l10n.library,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
               AnimatedBuilder(
                 animation: settingsController,
-                builder: (context, _) => settingsController.isLinkedWithPiped.value
+                builder: (context, _) =>
+                    settingsController.isLinkedWithPiped.value
                     ? const PipedSyncWidget(padding: EdgeInsets.only(right: 10))
                     : const SizedBox.shrink(),
               ),
@@ -283,14 +287,12 @@ class _LibraryTabBar extends StatelessWidget {
         ),
         insets: const EdgeInsets.symmetric(horizontal: 16.0),
       ),
-      tabs: getOrderedTabKeys(
-        firstTabIndex,
-      )
+      tabs: getOrderedTabKeys(firstTabIndex)
           .map(
             (key) => Tab(
               height: 50,
               child: Text(
-                key.tr,
+                context.l10n.libraryTab(key),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),

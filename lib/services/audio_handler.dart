@@ -5,7 +5,8 @@ import 'dart:math';
 
 import 'package:flutter/services.dart';
 
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/app_localizations.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path_provider/path_provider.dart';
@@ -143,6 +144,7 @@ class MyAudioHandler extends BaseAudioHandler {
     _mediaLibrary = MediaLibrary(
       libraryRepository: _libraryRepository,
       playlistRepository: _playlistRepository,
+      settingsRepository: _settingsRepository,
     );
 
     _player = AudioPlayer(
@@ -895,9 +897,7 @@ class MyAudioHandler extends BaseAudioHandler {
   Future<bool> _localSourceFileExists(String url) async {
     try {
       final uri = Uri.tryParse(url);
-      final path = uri != null && uri.scheme == 'file'
-          ? uri.toFilePath()
-          : url;
+      final path = uri != null && uri.scheme == 'file' ? uri.toFilePath() : url;
       return await File(path).exists();
     } catch (_) {
       return false;
@@ -2005,11 +2005,14 @@ class MediaLibrary {
   MediaLibrary({
     required LibraryRepository libraryRepository,
     required PlaylistRepository playlistRepository,
+    required SettingsRepository settingsRepository,
   }) : _libraryRepository = libraryRepository,
-       _playlistRepository = playlistRepository;
+       _playlistRepository = playlistRepository,
+       _settingsRepository = settingsRepository;
 
   final LibraryRepository _libraryRepository;
   final PlaylistRepository _playlistRepository;
+  final SettingsRepository _settingsRepository;
 
   static const albumsRootId = 'albums';
   static const songsRootId = 'songs';
@@ -2042,11 +2045,12 @@ class MediaLibrary {
   }
 
   List<MediaItem> getRoot() {
+    final l10n = _localizations;
     return [
-      MediaItem(id: songsRootId, title: "songs".tr, playable: false),
-      MediaItem(id: favoritesRootId, title: "favorites".tr, playable: false),
-      MediaItem(id: albumsRootId, title: "albums".tr, playable: false),
-      MediaItem(id: playlistsRootId, title: "playlists".tr, playable: false),
+      MediaItem(id: songsRootId, title: l10n.songs, playable: false),
+      MediaItem(id: favoritesRootId, title: l10n.favorites, playable: false),
+      MediaItem(id: albumsRootId, title: l10n.albums, playable: false),
+      MediaItem(id: playlistsRootId, title: l10n.playlists, playable: false),
     ];
   }
 
@@ -2057,11 +2061,29 @@ class MediaLibrary {
   }
 
   Future<List<MediaItem>> getPlaylists() async {
-    final playlists = LibraryPlaylistsController.withInitialPlaylistsTail(
-      (await _playlistRepository.getPlaylists()).reversed,
-    ).map((e) => e.toMediaItem()).toList();
+    final l10n = _localizations;
+    final playlists =
+        LibraryPlaylistsController.withInitialPlaylistsTail(
+          (await _playlistRepository.getPlaylists()).reversed,
+        ).map((playlist) {
+          final item = playlist.toMediaItem();
+          final title = switch (playlist.playlistId) {
+            BoxNames.libRP => l10n.recentlyPlayed,
+            BoxNames.libFav => l10n.favorites,
+            BoxNames.libFavNotDownloaded => l10n.likedNotDownloaded,
+            BoxNames.libImportDuplicates => l10n.importConflicts,
+            BoxNames.libImportReview => l10n.importNeedsReview,
+            BoxNames.songsCache => l10n.cachedOrOffline,
+            BoxNames.songDownloads => l10n.downloads,
+            _ => playlist.title,
+          };
+          return item.copyWith(title: title);
+        }).toList();
     return playlists;
   }
+
+  AppLocalizations get _localizations =>
+      appLocalizationsForLanguageCode(_settingsRepository.getLanguageCode());
 
   Future<List<MediaItem>> getLibSongs(String libId) async {
     final songs = switch (libId) {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import 'components/search_item.dart';
@@ -64,7 +64,7 @@ class SearchScreen extends ConsumerWidget {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        "search".tr,
+                        context.l10n.search,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ),
@@ -95,7 +95,7 @@ class SearchScreen extends ConsumerWidget {
                       decoration: InputDecoration(
                         contentPadding: const EdgeInsets.only(left: 5),
                         focusColor: Colors.white,
-                        hintText: "searchDes".tr,
+                        hintText: context.l10n.searchDes,
                         suffix: IconButton(
                           onPressed: searchScreenController.reset,
                           icon: const Icon(Icons.close),
@@ -142,7 +142,7 @@ class SearchScreen extends ConsumerWidget {
                                           height: 60,
                                           child: Center(
                                             child: Text(
-                                              "urlSearchDes".tr,
+                                              context.l10n.urlSearchDes,
                                               style: Theme.of(
                                                 context,
                                               ).textTheme.titleMedium,

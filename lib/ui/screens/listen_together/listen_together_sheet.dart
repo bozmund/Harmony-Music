@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers/controller_providers.dart';
 import '../../../services/listen_together/listen_together_controller.dart';
 import '../../../services/listen_together/sync_transport.dart';
-import '../../../utils/get_localization.dart';
+import '../../../l10n/l10n.dart';
 import '../../widgets/awaitable_button.dart';
 
 /// Opens the "Listen Together" bottom sheet.
@@ -42,9 +42,9 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
       await action();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("listenTogetherUnavailable".tr)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.listenTogetherUnavailable)),
+      );
     }
   }
 
@@ -61,30 +61,29 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
         ),
         child: AnimatedBuilder(
           animation: controller,
-          builder:
-              (context, _) => Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+          builder: (context, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.groups_2_outlined),
-                      const SizedBox(width: 10),
-                      Text(
-                        "listenTogether".tr,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ],
+                  const Icon(Icons.groups_2_outlined),
+                  const SizedBox(width: 10),
+                  Text(
+                    context.l10n.listenTogether,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 16),
-                  if (controller.isActive || _endingSession)
-                    _activeView(controller)
-                  else if (_browsing)
-                    _browseView(controller)
-                  else
-                    _menuView(),
                 ],
               ),
+              const SizedBox(height: 16),
+              if (controller.isActive || _endingSession)
+                _activeView(controller)
+              else if (_browsing)
+                _browseView(controller)
+              else
+                _menuView(),
+            ],
+          ),
         ),
       ),
     );
@@ -103,14 +102,14 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
             await _guard(() => _controller.startHosting(_kind));
           },
           icon: const Icon(Icons.wifi_tethering),
-          label: Text("hostSession".tr),
+          label: Text(context.l10n.hostSession),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         ),
         const SizedBox(height: 4),
         Padding(
           padding: const EdgeInsets.only(left: 4),
           child: Text(
-            "hostSessionDes".tr,
+            context.l10n.hostSessionDes,
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -121,7 +120,7 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
             if (mounted) setState(() => _browsing = true);
           },
           icon: const Icon(Icons.search),
-          label: Text("joinSession".tr),
+          label: Text(context.l10n.joinSession),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
           ),
@@ -134,18 +133,25 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("connectVia".tr, style: Theme.of(context).textTheme.bodySmall),
+        Text(
+          context.l10n.connectVia,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         const SizedBox(height: 8),
         Row(
           children: [
-            _transportChip(TransportKind.lan, Icons.wifi, "wifiTransport".tr),
+            _transportChip(
+              TransportKind.lan,
+              Icons.wifi,
+              context.l10n.wifiTransport,
+            ),
             const SizedBox(width: 8),
             // Bluetooth transport is not wired up yet (no compatible plugin);
             // keep it visible but disabled so the intent is clear.
             _transportChip(
               TransportKind.nearby,
               Icons.bluetooth,
-              "bluetoothTransport".tr,
+              context.l10n.bluetoothTransport,
               enabled: false,
             ),
           ],
@@ -164,12 +170,11 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
       selected: _kind == kind,
       avatar: Icon(icon, size: 18),
       label: Text(label),
-      onSelected:
-          enabled
-              ? (_) => setState(() => _kind = kind)
-              : (_) => ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("listenTogetherUnavailable".tr)),
-              ),
+      onSelected: enabled
+          ? (_) => setState(() => _kind = kind)
+          : (_) => ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.l10n.listenTogetherUnavailable)),
+            ),
     );
   }
 
@@ -190,7 +195,9 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                sessions.isEmpty ? "searchingForSessions".tr : "joinSession".tr,
+                sessions.isEmpty
+                    ? context.l10n.searchingForSessions
+                    : context.l10n.joinSession,
               ),
             ),
           ],
@@ -200,7 +207,7 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(
-              "noSessionsFound".tr,
+              context.l10n.noSessionsFound,
               style: Theme.of(context).textTheme.bodySmall,
             ),
           )
@@ -225,7 +232,7 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
             await _controller.leave();
             if (mounted) setState(() => _browsing = false);
           },
-          label: Text("back".tr),
+          label: Text(context.l10n.back),
         ),
       ],
     );
@@ -234,12 +241,11 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
   // ---- Active session -------------------------------------------------------
 
   Widget _activeView(ListenTogetherController controller) {
-    final statusText =
-        (controller.isHost || _endingSessionWasHost)
-            ? "hostingSession".tr
-            : (controller.connectionState == TransportConnectionState.connecting
-                ? "connectingToSession".tr
-                : "connectedToSession".tr);
+    final statusText = (controller.isHost || _endingSessionWasHost)
+        ? context.l10n.hostingSession
+        : (controller.connectionState == TransportConnectionState.connecting
+              ? context.l10n.connectingToSession
+              : context.l10n.connectedToSession);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -256,12 +262,15 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
           ],
         ),
         const SizedBox(height: 16),
-        Text("participants".tr, style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          context.l10n.participants,
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
         const SizedBox(height: 8),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.person),
-          title: Text('${controller.selfName} (${"you".tr})'),
+          title: Text('${controller.selfName} (${context.l10n.you})'),
         ),
         ...controller.peers.map(
           (p) => ListTile(
@@ -283,8 +292,8 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
           icon: const Icon(Icons.logout),
           label: Text(
             controller.isHost || _endingSessionWasHost
-                ? "endSession".tr
-                : "leaveSession".tr,
+                ? context.l10n.endSession
+                : context.l10n.leaveSession,
           ),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         ),

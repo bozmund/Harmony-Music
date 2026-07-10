@@ -1,7 +1,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:harmonymusic/utils/get_localization.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:widget_marquee/widget_marquee.dart';
 
 import '../../app/providers/service_providers.dart';
@@ -53,8 +53,8 @@ class CreateNRenamePlaylistPopup extends ConsumerWidget {
                       id: "createPlaylist",
                       child: Text(
                         renamePlaylist
-                            ? "renamePlaylist".tr
-                            : "CreateNewPlaylist".tr,
+                            ? context.l10n.renamePlaylist
+                            : context.l10n.createNewPlaylist,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
@@ -76,14 +76,14 @@ class CreateNRenamePlaylistPopup extends ConsumerWidget {
                           Row(
                             children: [
                               const Radio<String>(value: 'piped'),
-                              Text('Piped'.tr),
+                              Text(context.l10n.piped),
                             ],
                           ),
                           const SizedBox(width: 15),
                           Row(
                             children: [
                               const Radio<String>(value: 'local'),
-                              Text('local'.tr),
+                              Text(context.l10n.local),
                             ],
                           ),
                         ],
@@ -108,7 +108,7 @@ class CreateNRenamePlaylistPopup extends ConsumerWidget {
                       InkWell(
                         child: Padding(
                           padding: const EdgeInsets.all(10.0),
-                          child: Text("cancel".tr),
+                          child: Text(context.l10n.cancel),
                         ),
                         onTap: () => Navigator.of(context).pop(),
                       ),
@@ -125,10 +125,10 @@ class CreateNRenamePlaylistPopup extends ConsumerWidget {
                             ),
                             child: Text(
                               isCreateNAdd
-                                  ? "createNAdd".tr
+                                  ? context.l10n.createNAdd
                                   : renamePlaylist
-                                  ? "rename".tr
-                                  : "create".tr,
+                                  ? context.l10n.rename
+                                  : context.l10n.create,
                               style: TextStyle(
                                 color: Theme.of(context).canvasColor,
                               ),
@@ -147,7 +147,7 @@ class CreateNRenamePlaylistPopup extends ConsumerWidget {
                                       ).showSnackBar(
                                         snackbar(
                                           context,
-                                          "playlistRenameAlert".tr,
+                                          context.l10n.playlistRenameAlert,
                                           size: SanckBarSize.MEDIUM,
                                         ),
                                       );
@@ -168,9 +168,12 @@ class CreateNRenamePlaylistPopup extends ConsumerWidget {
                                         snackbar(
                                           context,
                                           isCreateNAdd
-                                              ? "playlistCreatedNSongAddedAlert"
-                                                    .tr
-                                              : "playlistCreatedAlert".tr,
+                                              ? context
+                                                    .l10n
+                                                    .playlistCreatedNSongAddedAlert
+                                              : context
+                                                    .l10n
+                                                    .playlistCreatedAlert,
                                           size: SanckBarSize.MEDIUM,
                                         ),
                                       );
@@ -180,7 +183,7 @@ class CreateNRenamePlaylistPopup extends ConsumerWidget {
                                       ).showSnackBar(
                                         snackbar(
                                           context,
-                                          "errorOccurredAlert".tr,
+                                          context.l10n.errorOccurredAlert,
                                           size: SanckBarSize.MEDIUM,
                                         ),
                                       );
