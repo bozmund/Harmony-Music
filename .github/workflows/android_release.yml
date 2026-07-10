@@ -37,9 +37,9 @@ jobs:
       - name: Configure Auth0
         shell: bash
         env:
-          AUTH0_DOMAIN: ${{ vars.AUTH0_DOMAIN }}
-          AUTH0_CLIENT_ID: ${{ vars.AUTH0_CLIENT_ID }}
-          AUTH0_REDIRECT_SCHEME: ${{ vars.AUTH0_REDIRECT_SCHEME }}
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_REDIRECT_SCHEME: ${{ secrets.AUTH0_REDIRECT_SCHEME }}
         run: |
           test -n "${AUTH0_DOMAIN}" || (echo "AUTH0_DOMAIN is missing" && exit 1)
           test -n "${AUTH0_CLIENT_ID}" || (echo "AUTH0_CLIENT_ID is missing" && exit 1)
