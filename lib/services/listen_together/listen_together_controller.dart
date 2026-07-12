@@ -3,14 +3,19 @@ import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../../models/media_Item_builder.dart';
 import '../../ui/player/player_controller.dart';
 import '../constant.dart';
 import '../playback_command_service.dart';
 import '../../utils/helper.dart';
+import '../../app/navigation/app_navigator.dart';
+import '../../ui/widgets/snackbar.dart';
 import 'listen_together_gate.dart';
 import 'session_message.dart';
+import 'session_payload.dart';
 import 'sync_clock.dart';
 import 'sync_transport.dart';
 
@@ -80,6 +85,25 @@ class ListenTogetherController extends ChangeNotifier
   List<DiscoveredSession> _discovered = const [];
   List<DiscoveredSession> get discoveredSessions => _discovered;
 
+  // ---- Playback mode (sync vs party) ----------------------------------------
+
+  /// Mode chosen by the host when starting the session.
+  SessionPlaybackMode _hostMode = SessionPlaybackMode.sync;
+
+  /// Mode learned from the host's helloAck (guest only). Null until known —
+  /// sync/playback application is deferred until then so a party-mode guest's
+  /// phone never audibly starts playing.
+  SessionPlaybackMode? _guestMode;
+
+  SessionMessage? _pendingQueueSync;
+  PlaybackSnapshot? _pendingPlaybackSnapshot;
+
+  SessionPlaybackMode? get sessionMode => isHost ? _hostMode : _guestMode;
+
+  @override
+  bool get isPartyModeGuest =>
+      isGuest && _guestMode == SessionPlaybackMode.party;
+
   String get selfName => _selfName;
   String get selfId => _selfId;
   set deviceName(String value) {
@@ -103,11 +127,15 @@ class ListenTogetherController extends ChangeNotifier
   // Hosting
   // ---------------------------------------------------------------------------
 
-  Future<void> startHosting(TransportKind kind) async {
+  Future<void> startHosting(
+    TransportKind kind, {
+    SessionPlaybackMode mode = SessionPlaybackMode.sync,
+  }) async {
     await leave();
     final transport = _transportFactory(kind);
     _transport = transport;
     _role = LTRole.host;
+    _hostMode = mode;
     _clockOffsetMs = 0;
     _wireTransport(transport);
     _observePlayer();
@@ -204,6 +232,10 @@ class ListenTogetherController extends ChangeNotifier
     _bestClockSyncRttMs = null;
     _clockSyncSamplesSent = 0;
     _lastDriftSeekMs = 0;
+    _hostMode = SessionPlaybackMode.sync;
+    _guestMode = null;
+    _pendingQueueSync = null;
+    _pendingPlaybackSnapshot = null;
     notifyListeners();
 
     try {
@@ -323,7 +355,8 @@ class ListenTogetherController extends ChangeNotifier
   void _onMessage(SessionMessage message) {
     switch (message.type) {
       case SessionMessageType.hello:
-        // Host: reply so the guest can estimate the clock offset.
+        // Host: reply so the guest can estimate the clock offset. The mode
+        // rides along so the guest learns it before applying any sync state.
         if (isHost) {
           unawaited(
             _transport?.sendTo(
@@ -333,6 +366,7 @@ class ListenTogetherController extends ChangeNotifier
                 senderName: _selfName,
                 clientTimeMs: message.clientTimeMs,
                 hostTimeMs: _nowMs(),
+                mode: _hostMode.wireName,
               ),
             ),
           );
@@ -343,15 +377,32 @@ class ListenTogetherController extends ChangeNotifier
         break;
       case SessionMessageType.helloAck:
         _updateClockOffset(message);
+        _learnSessionModeFrom(message);
         break;
       case SessionMessageType.queueSync:
-        if (isGuest) unawaited(_applyQueueSync(message));
+        if (isGuest) {
+          if (_guestMode == null) {
+            // Mode not known yet — stash instead of applying, so a party-mode
+            // guest's local player is never touched.
+            _pendingQueueSync = message;
+          } else if (_guestMode == SessionPlaybackMode.sync) {
+            unawaited(_applyQueueSync(message));
+          }
+        }
         break;
       case SessionMessageType.playbackSync:
-        if (isGuest) unawaited(_applyPlaybackSync(message.snapshot));
+        if (isGuest) {
+          if (_guestMode == null) {
+            _pendingPlaybackSnapshot = message.snapshot;
+          } else if (_guestMode == SessionPlaybackMode.sync) {
+            unawaited(_applyPlaybackSync(message.snapshot));
+          }
+        }
         break;
       case SessionMessageType.command:
-        if (isHost) unawaited(_applyCommand(message.command));
+        if (isHost) {
+          unawaited(_applyCommand(message.command, message.senderName));
+        }
         break;
       case SessionMessageType.peerList:
         if (isGuest) {
@@ -363,6 +414,23 @@ class ListenTogetherController extends ChangeNotifier
         // A peer left; the transport's peers stream reflects the removal.
         break;
     }
+  }
+
+  /// On the first helloAck, learn the host's playback mode and flush any
+  /// stashed sync state (applied only in sync mode; dropped in party mode).
+  void _learnSessionModeFrom(SessionMessage ack) {
+    if (!isGuest || _guestMode != null) return;
+    _guestMode = SessionPlaybackMode.fromWire(ack.sessionModeName);
+    printINFO('session mode: ${_guestMode!.name}', tag: LogTags.listenTogether);
+    if (_guestMode == SessionPlaybackMode.sync) {
+      final pendingQueue = _pendingQueueSync;
+      if (pendingQueue != null) unawaited(_applyQueueSync(pendingQueue));
+      final pendingSnap = _pendingPlaybackSnapshot;
+      if (pendingSnap != null) unawaited(_applyPlaybackSync(pendingSnap));
+    }
+    _pendingQueueSync = null;
+    _pendingPlaybackSnapshot = null;
+    notifyListeners();
   }
 
   /// rtt = now - echoedClientTime; estimated host clock at our "now" is
@@ -387,7 +455,7 @@ class ListenTogetherController extends ChangeNotifier
   // Host: execute a guest command locally (which triggers a re-broadcast)
   // ---------------------------------------------------------------------------
 
-  Future<void> _applyCommand(SessionCommand command) async {
+  Future<void> _applyCommand(SessionCommand command, String senderName) async {
     switch (command.action) {
       case SessionCommand.actionPlay:
         await _playbackCommands.play();
@@ -420,10 +488,64 @@ class ListenTogetherController extends ChangeNotifier
       case SessionCommand.actionToggleLoop:
         await _player.toggleLoopMode();
         break;
+      case SessionCommand.actionEnqueue:
+        await _applyGuestSong(command, senderName, _player.enqueueSong);
+        break;
+      case SessionCommand.actionPlayNext:
+        await _applyGuestSong(command, senderName, _player.playNext);
+        break;
+      case SessionCommand.actionEnqueueList:
+        try {
+          final items = command.songsJson
+              .map(MediaItemBuilder.fromJson)
+              .toList();
+          if (items.isEmpty) break;
+          await _player.enqueueSongList(items);
+          _showGuestAddedSnackbar(senderName, count: items.length);
+        } catch (e) {
+          // Malformed payloads must not kill the host session.
+          printERROR('enqueueList failed: $e', tag: LogTags.listenTogether);
+        }
+        break;
     }
     // Reflect the resulting state immediately (seek in particular is not
     // covered by an observed field).
     _broadcastPlayback();
+  }
+
+  /// Host: reconstruct a guest-sent song and hand it to [apply]
+  /// (enqueueSong/playNext). Queue rebroadcast happens automatically via the
+  /// currentQueue observer.
+  Future<void> _applyGuestSong(
+    SessionCommand command,
+    String senderName,
+    Future<void> Function(MediaItem) apply,
+  ) async {
+    final json = command.songJson;
+    if (json == null) return;
+    try {
+      final item = MediaItemBuilder.fromJson(json);
+      await apply(item);
+      _showGuestAddedSnackbar(senderName, title: item.title);
+    } catch (e) {
+      // Malformed payloads must not kill the host session.
+      printERROR('guest song apply failed: $e', tag: LogTags.listenTogether);
+    }
+  }
+
+  void _showGuestAddedSnackbar(String senderName, {String? title, int? count}) {
+    if (!isHost) return;
+    final context = AppNavigator.context;
+    if (context == null) return;
+    final what = title ?? context.l10n.songsAddedCount(count ?? 0);
+    ScaffoldMessenger.of(context).showSnackBar(
+      snackbar(
+        context,
+        context.l10n.listenTogetherGuestAdded(senderName, what),
+        size: SanckBarSize.BIG,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -431,12 +553,17 @@ class ListenTogetherController extends ChangeNotifier
   // ---------------------------------------------------------------------------
 
   Future<void> _applyQueueSync(SessionMessage message) async {
-    final ids =
-        message.queue.map((e) => e['videoId']?.toString() ?? '').toList();
+    // A guest that had a local radio running must not keep radio semantics
+    // (auto-continuation) against the mirrored queue.
+    _player.isRadioModeOn = false;
+    final ids = message.queue
+        .map((e) => e['videoId']?.toString() ?? '')
+        .toList();
     if (listEquals(ids, _lastAppliedQueueIds)) return;
     _lastAppliedQueueIds = ids;
-    final items =
-        message.queue.map((json) => MediaItemBuilder.fromJson(json)).toList();
+    final items = message.queue
+        .map((json) => MediaItemBuilder.fromJson(json))
+        .toList();
     await _playbackCommands.updateQueue(items);
   }
 
@@ -562,22 +689,8 @@ class ListenTogetherController extends ChangeNotifier
   bool get _isPlaying => _player.buttonState.value == PlayButtonState.playing;
 
   @visibleForTesting
-  static Map<String, dynamic> sessionSafeQueueJson(MediaItem item) {
-    final json = MediaItemBuilder.toJson(item);
-    final url = json['url'];
-    if (url is String && _isLocalSourceUrl(url)) {
-      json.remove('url');
-    }
-    return json;
-  }
-
-  static bool _isLocalSourceUrl(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return false;
-    if (uri.scheme == 'file') return true;
-    if (uri.scheme == 'http' || uri.scheme == 'https') return false;
-    return url.startsWith('/') || url.contains('/cache');
-  }
+  static Map<String, dynamic> sessionSafeQueueJson(MediaItem item) =>
+      sessionSafeSongJson(item);
 
   static int _nowMs() => DateTime.now().millisecondsSinceEpoch;
 

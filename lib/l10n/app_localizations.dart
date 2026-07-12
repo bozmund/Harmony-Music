@@ -2006,6 +2006,48 @@ abstract class AppLocalizations {
   /// **'Listen together isn\'t available on this device'**
   String get listenTogetherUnavailable;
 
+  /// No description provided for @partyMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Party mode'**
+  String get partyMode;
+
+  /// No description provided for @partyModeDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the host plays audio; guests control the shared queue.'**
+  String get partyModeDes;
+
+  /// No description provided for @partyModeGuestHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Party mode is active: this phone is a remote and will not play audio.'**
+  String get partyModeGuestHint;
+
+  /// No description provided for @addedToSharedQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the shared queue'**
+  String get addedToSharedQueue;
+
+  /// No description provided for @notAvailableInSession.
+  ///
+  /// In en, this message translates to:
+  /// **'This action is not available in the current session'**
+  String get notAvailableInSession;
+
+  /// No description provided for @listenTogetherGuestAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'\"{name}\" added {title}'**
+  String listenTogetherGuestAdded(String name, String title);
+
+  /// No description provided for @songsAddedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} songs'**
+  String songsAddedCount(int count);
+
   /// No description provided for @back.
   ///
   /// In en, this message translates to:
@@ -2161,6 +2203,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Import needs review'**
   String get importNeedsReview;
+
+  /// No description provided for @resolverBackend.
+  ///
+  /// In en, this message translates to:
+  /// **'Harmony Resolver'**
+  String get resolverBackend;
+
+  /// No description provided for @resolverBackendDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the configured Resolver server as an additional playback source.'**
+  String get resolverBackendDescription;
+
+  /// No description provided for @resolverTestConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get resolverTestConnection;
+
+  /// No description provided for @resolverDiscover.
+  ///
+  /// In en, this message translates to:
+  /// **'Discover on LAN'**
+  String get resolverDiscover;
+
+  /// No description provided for @resolverReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver is ready.'**
+  String get resolverReady;
+
+  /// No description provided for @resolverUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver could not be reached. Check the address, Wi-Fi, and firewall.'**
+  String get resolverUnavailable;
+
+  /// No description provided for @resolverNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver address is not configured.'**
+  String get resolverNotConfigured;
+
+  /// No description provided for @resolverAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver address'**
+  String get resolverAddress;
+
+  /// No description provided for @resolverSaveAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Save address'**
+  String get resolverSaveAddress;
+
+  /// No description provided for @resolverResetAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset address'**
+  String get resolverResetAddress;
+
+  /// No description provided for @resolverEnvironment.
+  ///
+  /// In en, this message translates to:
+  /// **'Environment'**
+  String get resolverEnvironment;
+
+  /// No description provided for @resolverPlaybackFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'This song could not be loaded from either playback source. Check your connection and try again.'**
+  String get resolverPlaybackFailed;
 }
 
 class _AppLocalizationsDelegate

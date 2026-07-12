@@ -36,6 +36,23 @@ enum SessionMessageType {
 SessionMessageType _typeFromName(String name) => SessionMessageType.values
     .firstWhere((t) => t.name == name, orElse: () => SessionMessageType.bye);
 
+/// How audio is played across the session.
+enum SessionPlaybackMode {
+  /// Every phone plays the audio in sync (original behavior).
+  sync,
+
+  /// Only the host phone plays (e.g. plugged into a car/speaker); guests are
+  /// remotes that add songs to the queue and control playback.
+  party;
+
+  String get wireName => name;
+
+  /// Unknown/missing wire values (old hosts) decode as [sync] — the exact
+  /// pre-party-mode behavior, keeping the protocol backward compatible.
+  static SessionPlaybackMode fromWire(String? name) =>
+      name == party.name ? party : sync;
+}
+
 /// A single control action a participant can request.
 ///
 /// Guests never mutate playback directly; they send a [SessionCommand] to the
@@ -57,6 +74,9 @@ class SessionCommand {
   static const actionPlayByIndex = 'playByIndex';
   static const actionToggleShuffle = 'toggleShuffle';
   static const actionToggleLoop = 'toggleLoop';
+  static const actionEnqueue = 'enqueue';
+  static const actionEnqueueList = 'enqueueList';
+  static const actionPlayNext = 'playNext';
 
   factory SessionCommand.play() => const SessionCommand(actionPlay);
   factory SessionCommand.pause() => const SessionCommand(actionPause);
@@ -71,10 +91,28 @@ class SessionCommand {
       const SessionCommand(actionToggleShuffle);
   factory SessionCommand.toggleLoop() => const SessionCommand(actionToggleLoop);
 
+  /// [songJson] is a [MediaItemBuilder.toJson]-shaped map (local file `url`
+  /// stripped via `sessionSafeSongJson`).
+  factory SessionCommand.enqueue(Map<String, dynamic> songJson) =>
+      SessionCommand(actionEnqueue, {'song': songJson});
+  factory SessionCommand.enqueueList(List<Map<String, dynamic>> songsJson) =>
+      SessionCommand(actionEnqueueList, {'songs': songsJson});
+  factory SessionCommand.playNextSong(Map<String, dynamic> songJson) =>
+      SessionCommand(actionPlayNext, {'song': songJson});
+
   Duration get seekPosition =>
       Duration(milliseconds: (args['positionMs'] as num?)?.toInt() ?? 0);
 
   int get index => (args['index'] as num?)?.toInt() ?? 0;
+
+  Map<String, dynamic>? get songJson => args['song'] is Map
+      ? Map<String, dynamic>.from(args['song'] as Map)
+      : null;
+
+  List<Map<String, dynamic>> get songsJson => ((args['songs'] as List?) ?? const [])
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .toList();
 
   Map<String, dynamic> toJson() => {'action': action, 'args': args};
 
@@ -163,11 +201,16 @@ class SessionMessage {
     required String senderName,
     required int clientTimeMs,
     required int hostTimeMs,
+    String? mode,
   }) => SessionMessage(
     type: SessionMessageType.helloAck,
     senderId: senderId,
     senderName: senderName,
-    data: {'clientTimeMs': clientTimeMs, 'hostTimeMs': hostTimeMs},
+    data: {
+      'clientTimeMs': clientTimeMs,
+      'hostTimeMs': hostTimeMs,
+      if (mode != null) 'mode': mode,
+    },
   );
 
   factory SessionMessage.queueSync({
@@ -228,6 +271,10 @@ class SessionMessage {
 
   int get clientTimeMs => (data['clientTimeMs'] as num?)?.toInt() ?? 0;
   int get hostTimeMs => (data['hostTimeMs'] as num?)?.toInt() ?? 0;
+
+  /// helloAck only: the host's [SessionPlaybackMode] wire name (null on old
+  /// hosts that predate party mode).
+  String? get sessionModeName => data['mode'] as String?;
 
   int get queueIndex => (data['index'] as num?)?.toInt() ?? 0;
 

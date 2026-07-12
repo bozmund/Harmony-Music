@@ -4,7 +4,7 @@
         android:label="Harmony Music"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"

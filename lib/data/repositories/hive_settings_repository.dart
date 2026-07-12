@@ -188,6 +188,31 @@ class HiveSettingsRepository implements SettingsRepository {
       _box.put(PrefKeys.developerSettingsEnabled, value);
 
   @override
+  bool getResolverEnabled() => _box.get(PrefKeys.resolverEnabled) ?? true;
+
+  @override
+  Future<void> setResolverEnabled(bool value) =>
+      _box.put(PrefKeys.resolverEnabled, value);
+
+  @override
+  String? getResolverDebugOverride() =>
+      _box.get(PrefKeys.resolverDebugOverride) as String?;
+
+  @override
+  Future<void> setResolverDebugOverride(String? value) => value == null
+      ? _box.delete(PrefKeys.resolverDebugOverride)
+      : _box.put(PrefKeys.resolverDebugOverride, value);
+
+  @override
+  String? getResolverProductionOverride() =>
+      _box.get(PrefKeys.resolverProductionOverride) as String?;
+
+  @override
+  Future<void> setResolverProductionOverride(String? value) => value == null
+      ? _box.delete(PrefKeys.resolverProductionOverride)
+      : _box.put(PrefKeys.resolverProductionOverride, value);
+
+  @override
   int getPlaybackModeIndex() => _box.get(PrefKeys.playbackMode) ?? 0;
 
   @override

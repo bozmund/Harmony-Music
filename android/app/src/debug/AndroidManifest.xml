@@ -5,8 +5,8 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
-
     <application
         android:label="Harmony Music Dev"
-        tools:replace="android:label"/>
+        android:usesCleartextTraffic="true"
+        tools:replace="android:label,android:usesCleartextTraffic"/>
 </manifest>

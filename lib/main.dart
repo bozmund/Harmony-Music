@@ -20,6 +20,9 @@ import 'l10n/app_localizations.dart';
 import '/services/constant.dart';
 import 'services/app_contracts.dart';
 import 'services/app_platform_service.dart';
+import 'services/auth0_service.dart';
+import 'services/resolver/resolver_playback_client.dart';
+import 'services/resolver/resolver_discovery_service.dart';
 import 'services/crash_diagnostics_service.dart';
 import 'services/system_ui_mode_service.dart';
 import 'utils/app_link_controller.dart';
@@ -45,8 +48,12 @@ Future<void> main() async {
       await setAppInitPrefs(
         bootstrapContainer.read(settingsRepositoryProvider),
       );
+      final settingsRepository = bootstrapContainer.read(
+        settingsRepositoryProvider,
+      );
+      final auth0Service = Auth0Service.create();
       final audioHandler = await initAudioService(
-        settingsRepository: bootstrapContainer.read(settingsRepositoryProvider),
+        settingsRepository: settingsRepository,
         libraryRepository: bootstrapContainer.read(libraryRepositoryProvider),
         downloadRepository: bootstrapContainer.read(downloadRepositoryProvider),
         songCacheRepository: bootstrapContainer.read(
@@ -55,6 +62,11 @@ Future<void> main() async {
         playlistRepository: bootstrapContainer.read(playlistRepositoryProvider),
         playbackSessionRepository: bootstrapContainer.read(
           playbackSessionRepositoryProvider,
+        ),
+        resolverPlaybackClient: ResolverPlaybackClient(
+          settings: settingsRepository,
+          accessToken: auth0Service.accessToken,
+          discovery: ResolverDiscoveryService(),
         ),
       );
       bootstrapContainer.dispose();

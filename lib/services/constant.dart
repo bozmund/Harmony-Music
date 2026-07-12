@@ -79,6 +79,9 @@ class PrefKeys {
   static const String playbackMode = 'playbackMode';
   static const String playbackPreloadRange = 'playbackPreloadRange';
   static const String developerSettingsEnabled = 'developerSettingsEnabled';
+  static const String resolverEnabled = 'resolverEnabled';
+  static const String resolverDebugOverride = 'resolverDebugOverride';
+  static const String resolverProductionOverride = 'resolverProductionOverride';
 }
 
 enum PlaybackMode { classic, preloaded }

@@ -31,6 +31,8 @@ import '/services/stream_service.dart';
 import '/models/hm_streaming_data.dart';
 import '/services/background_task.dart';
 import '/services/permission_service.dart';
+import 'resolver/resolver_audio_source.dart';
+import 'resolver/resolver_playback_client.dart';
 import '../utils/helper.dart';
 import '/models/media_Item_builder.dart';
 import '/services/utils.dart';
@@ -49,6 +51,7 @@ Future<AudioHandler> initAudioService({
   required SongCacheRepository songCacheRepository,
   required PlaylistRepository playlistRepository,
   required PlaybackSessionRepository playbackSessionRepository,
+  ResolverPlaybackClient? resolverPlaybackClient,
 }) async {
   final handler = await MyAudioHandler.create(
     settingsRepository: settingsRepository,
@@ -57,6 +60,13 @@ Future<AudioHandler> initAudioService({
     songCacheRepository: songCacheRepository,
     playlistRepository: playlistRepository,
     playbackSessionRepository: playbackSessionRepository,
+    resolverPlaybackClient:
+        resolverPlaybackClient ??
+        ResolverPlaybackClient(
+          settings: settingsRepository,
+          accessToken: () async => null,
+          enabled: false,
+        ),
   );
   return await AudioService.init(
     builder: () => handler,
@@ -84,6 +94,8 @@ class MyAudioHandler extends BaseAudioHandler {
   late final SongCacheRepository _songCacheRepository;
   late final PlaylistRepository _playlistRepository;
   late final PlaybackSessionRepository _playbackSessionRepository;
+  late final ResolverPlaybackClient _resolverPlaybackClient;
+  final Map<String, ResolverAudioSource> _resolverSources = {};
 
   // ignore: prefer_typing_uninitialized_variables
   dynamic currentIndex;
@@ -128,6 +140,7 @@ class MyAudioHandler extends BaseAudioHandler {
     required SongCacheRepository songCacheRepository,
     required PlaylistRepository playlistRepository,
     required PlaybackSessionRepository playbackSessionRepository,
+    required ResolverPlaybackClient resolverPlaybackClient,
   }) {
     _settingsRepository = settingsRepository;
     _libraryRepository = libraryRepository;
@@ -135,6 +148,7 @@ class MyAudioHandler extends BaseAudioHandler {
     _songCacheRepository = songCacheRepository;
     _playlistRepository = playlistRepository;
     _playbackSessionRepository = playbackSessionRepository;
+    _resolverPlaybackClient = resolverPlaybackClient;
 
     if (RuntimePlatform.isWindows || RuntimePlatform.isLinux) {
       JustAudioMediaKit.title = 'Harmony music';
@@ -167,6 +181,7 @@ class MyAudioHandler extends BaseAudioHandler {
     required SongCacheRepository songCacheRepository,
     required PlaylistRepository playlistRepository,
     required PlaybackSessionRepository playbackSessionRepository,
+    required ResolverPlaybackClient resolverPlaybackClient,
   }) async {
     final handler = MyAudioHandler._(
       settingsRepository: settingsRepository,
@@ -175,6 +190,7 @@ class MyAudioHandler extends BaseAudioHandler {
       songCacheRepository: songCacheRepository,
       playlistRepository: playlistRepository,
       playbackSessionRepository: playbackSessionRepository,
+      resolverPlaybackClient: resolverPlaybackClient,
     );
     await handler._init();
     return handler;
@@ -184,7 +200,14 @@ class MyAudioHandler extends BaseAudioHandler {
     await _createCacheDir();
     _preloadService = PlaybackPreloadService(
       preloadDirectory: Directory("$_cacheDir/preloadedSongs"),
-      resolveStreamInfo: checkNGetUrl,
+      resolveStreamInfo:
+          (songId, {generateNewUrl = false, offlineReplacementUrl = false}) =>
+              checkNGetUrl(
+                songId,
+                generateNewUrl: generateNewUrl,
+                offlineReplacementUrl: offlineReplacementUrl,
+                allowResolver: false,
+              ),
       settingsRepository: _settingsRepository,
       songCacheRepository: _songCacheRepository,
     );
@@ -331,11 +354,12 @@ class MyAudioHandler extends BaseAudioHandler {
                     ProcessingState.ready: AudioProcessingState.ready,
                     ProcessingState.completed: AudioProcessingState.completed,
                   }[_player.processingState]!,
-            repeatMode: const {
-              LoopMode.off: AudioServiceRepeatMode.none,
-              LoopMode.one: AudioServiceRepeatMode.one,
-              LoopMode.all: AudioServiceRepeatMode.all,
-            }[_player.loopMode]!,
+            // Single source of truth for repeat is the loopModeEnabled field
+            // (always written together with _player.setLoopMode) — keeps this
+            // event in agreement with _emitPlaybackSnapshot.
+            repeatMode: loopModeEnabled
+                ? AudioServiceRepeatMode.one
+                : AudioServiceRepeatMode.none,
             shuffleMode: shuffleModeEnabled
                 ? AudioServiceShuffleMode.all
                 : AudioServiceShuffleMode.none,
@@ -1078,6 +1102,10 @@ class MyAudioHandler extends BaseAudioHandler {
 
   AudioSource _createAudioSource(MediaItem mediaItem) {
     final url = mediaItem.extras!['url'] as String;
+    if (url.startsWith('resolver://')) {
+      final source = _resolverSources.remove(mediaItem.id);
+      if (source != null) return source.withTag(mediaItem);
+    }
     final cacheSongsEnabled = _settingsRepository.getCacheSongs();
     final preloadedSource = _preloadService.createAudioSource(
       mediaItem,
@@ -1238,8 +1266,23 @@ class MyAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
-    loopModeEnabled = repeatMode != AudioServiceRepeatMode.none;
-    await _player.setLoopMode(loopModeEnabled ? LoopMode.one : LoopMode.off);
+    final enabled = repeatMode != AudioServiceRepeatMode.none;
+    if (enabled != loopModeEnabled) {
+      // A *change* arriving here first is typically an external controller —
+      // e.g. Ford SYNC replays its stored repeat state over AVRCP on connect.
+      printINFO(
+        'setRepeatMode -> $repeatMode (media session / external controller)',
+        tag: LogTags.audioHandler,
+      );
+    }
+    loopModeEnabled = enabled;
+    await _player.setLoopMode(enabled ? LoopMode.one : LoopMode.off);
+    // Intentionally no settings write: external repeat commands (car/BT AVRCP
+    // replays) must not overwrite the user's chosen default. In-app toggles
+    // persist separately via PlaybackCommandService.toggleLoop.
+    // Broadcast so UI observers (PlayerController) see the new repeatMode —
+    // _player.setLoopMode alone produces no playbackEventStream event.
+    _emitPlaybackSnapshot();
   }
 
   @override
@@ -1871,6 +1914,7 @@ class MyAudioHandler extends BaseAudioHandler {
     String songId, {
     bool generateNewUrl = false,
     bool offlineReplacementUrl = false,
+    bool allowResolver = true,
   }) async {
     printINFO("Requested id : $songId", tag: LogTags.audioHandler);
     if (!offlineReplacementUrl &&
@@ -1911,7 +1955,12 @@ class MyAudioHandler extends BaseAudioHandler {
           "Download entry for $songId disappeared during stream lookup",
           tag: LogTags.audioHandler,
         );
-        return checkNGetUrl(songId, offlineReplacementUrl: true);
+        return checkNGetUrl(
+          songId,
+          generateNewUrl: generateNewUrl,
+          offlineReplacementUrl: true,
+          allowResolver: allowResolver,
+        );
       }
 
       final path = song['url'];
@@ -1920,7 +1969,12 @@ class MyAudioHandler extends BaseAudioHandler {
           "Download entry for $songId has invalid path: $path",
           tag: LogTags.audioHandler,
         );
-        return checkNGetUrl(songId, offlineReplacementUrl: true);
+        return checkNGetUrl(
+          songId,
+          generateNewUrl: generateNewUrl,
+          offlineReplacementUrl: true,
+          allowResolver: allowResolver,
+        );
       }
 
       final streamInfoJson = song["streamInfo"];
@@ -1965,7 +2019,12 @@ class MyAudioHandler extends BaseAudioHandler {
         return streamInfo;
       }
       //in case file doesnot found in storage, song will be played online
-      return checkNGetUrl(songId, offlineReplacementUrl: true);
+      return checkNGetUrl(
+        songId,
+        generateNewUrl: generateNewUrl,
+        offlineReplacementUrl: true,
+        allowResolver: allowResolver,
+      );
     } else {
       //check if song stream url is cached and allocate url accordingly
       final qualityIndex = _settingsRepository.getStreamingQualityIndex();
@@ -1982,21 +2041,96 @@ class MyAudioHandler extends BaseAudioHandler {
       }
 
       if (streamInfo == null) {
-        final token = RootIsolateToken.instance;
-        final streamInfoJson = await Isolate.run(
-          () => getStreamInfo(songId, token),
-        );
-        streamInfo = HMStreamingData.fromJson(streamInfoJson);
-        if (streamInfo.playable)
+        streamInfo = allowResolver
+            ? await _raceOnlineResolvers(songId)
+            : await _resolveLocalOnline(songId);
+        if (streamInfo.playable &&
+            !streamInfo.audio!.url.startsWith('resolver://')) {
           await _songCacheRepository.saveStreamCacheEntry(
             songId,
-            streamInfoJson,
+            streamInfo.toJson(),
           );
+        }
       }
 
       streamInfo.setQualityIndex(qualityIndex);
       return streamInfo;
     }
+  }
+
+  Future<HMStreamingData> _raceOnlineResolvers(String songId) async {
+    for (final pending in _resolverSources.values.toList()) {
+      await pending.disposeInitial();
+    }
+    _resolverSources.clear();
+    final completer = Completer<HMStreamingData>();
+    var failures = 0;
+
+    void failed() {
+      failures++;
+      if (failures == 2 && !completer.isCompleted) {
+        completer.complete(
+          HMStreamingData(playable: false, statusMSG: 'resolverPlaybackFailed'),
+        );
+      }
+    }
+
+    final local = _resolveLocalOnline(songId);
+    final resolver = _resolverPlaybackClient.open(songId);
+
+    unawaited(() async {
+      try {
+        final result = await local;
+        if (result.playable && !completer.isCompleted) {
+          completer.complete(result);
+        } else if (!result.playable) {
+          failed();
+        }
+      } catch (_) {
+        failed();
+      }
+    }());
+    unawaited(() async {
+      try {
+        final source = await resolver;
+        if (source == null) {
+          failed();
+          return;
+        }
+        if (completer.isCompleted) {
+          await source.disposeInitial();
+          return;
+        }
+        _resolverSources[songId] = source;
+        final audio = Audio(
+          itag: 0,
+          audioCodec: Codec.opus,
+          bitrate: 0,
+          duration: 0,
+          loudnessDb: 0,
+          url: 'resolver:///$songId',
+          size: 0,
+        );
+        completer.complete(
+          HMStreamingData(
+            playable: true,
+            statusMSG: 'OK',
+            lowQualityAudio: audio,
+            highQualityAudio: audio,
+          ),
+        );
+      } catch (_) {
+        failed();
+      }
+    }());
+    final winner = await completer.future;
+    return winner;
+  }
+
+  Future<HMStreamingData> _resolveLocalOnline(String songId) async {
+    final token = RootIsolateToken.instance;
+    final json = await Isolate.run(() => getStreamInfo(songId, token));
+    return HMStreamingData.fromJson(json);
   }
 }
 

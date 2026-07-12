@@ -12,6 +12,10 @@ abstract class ListenTogetherGate {
   /// control to the host.
   bool get isGuest;
 
+  /// True when this device is a guest in a party-mode session (the host phone
+  /// is the only audio sink; the local queue is not mirrored).
+  bool get isPartyModeGuest;
+
   /// Forward a control request to the host.
   void sendCommand(SessionCommand command);
 }

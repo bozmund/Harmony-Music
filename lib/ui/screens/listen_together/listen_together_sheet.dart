@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../services/listen_together/listen_together_controller.dart';
+import '../../../services/listen_together/session_message.dart';
 import '../../../services/listen_together/sync_transport.dart';
 import '../../../l10n/l10n.dart';
 import '../../widgets/awaitable_button.dart';
@@ -30,6 +31,7 @@ class ListenTogetherSheet extends ConsumerStatefulWidget {
 
 class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
   TransportKind _kind = TransportKind.lan;
+  bool _partyMode = false;
   bool _browsing = false;
   bool _endingSession = false;
   bool _endingSessionWasHost = false;
@@ -96,10 +98,25 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _transportSelector(),
+        const SizedBox(height: 8),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: _partyMode,
+          onChanged: (value) => setState(() => _partyMode = value),
+          title: Text(context.l10n.partyMode),
+          subtitle: Text(context.l10n.partyModeDes),
+        ),
         const SizedBox(height: 16),
         AwaitableButton.filled(
           onPressed: () async {
-            await _guard(() => _controller.startHosting(_kind));
+            await _guard(
+              () => _controller.startHosting(
+                _kind,
+                mode: _partyMode
+                    ? SessionPlaybackMode.party
+                    : SessionPlaybackMode.sync,
+              ),
+            );
           },
           icon: const Icon(Icons.wifi_tethering),
           label: Text(context.l10n.hostSession),
@@ -261,6 +278,14 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
             Expanded(child: Text(statusText)),
           ],
         ),
+        if (!controller.isHost &&
+            controller.sessionMode == SessionPlaybackMode.party) ...[
+          const SizedBox(height: 8),
+          Text(
+            context.l10n.partyModeGuestHint,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         const SizedBox(height: 16),
         Text(
           context.l10n.participants,

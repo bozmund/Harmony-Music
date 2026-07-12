@@ -604,6 +604,12 @@ class SongInfoController extends ChangeNotifier
     }
     isCurrentSongFav = !isCurrentSongFav;
     notifyListeners();
+    // Favorites/liked built-in tiles derive artwork from their first song.
+    unawaited(
+      LibraryPlaylistsControllerRegistry.current
+              ?.refreshInitialPlaylistThumbs() ??
+          Future.value(),
+    );
     if (_settingsScreenController.autoDownloadFavoriteSongEnabled.value &&
         isCurrentSongFav) {
       await _downloader.download(song);
@@ -657,6 +663,12 @@ mixin RemoveSongFromPlaylistMixin {
       } catch (e) {
         printERROR(e, tag: LogTags.library);
       }
+      // Built-in tiles derive artwork from their first song.
+      unawaited(
+        LibraryPlaylistsControllerRegistry.current
+                ?.refreshInitialPlaylistThumbs() ??
+            Future.value(),
+      );
       return;
     }
     if (playlist.playlistId == BoxNames.libImportDuplicates ||

@@ -11,6 +11,7 @@ import '../../app/providers/service_providers.dart';
 import '../../domain/repositories/playlist_repository.dart';
 import '../../services/piped_service.dart';
 import '../../utils/helper.dart';
+import '../screens/Library/library_controller.dart';
 import '/ui/widgets/create_playlist_dialog.dart';
 import '../../models/playlist.dart';
 import 'awaitable_button.dart';
@@ -454,6 +455,13 @@ class AddToPlaylistController extends ChangeNotifier {
         );
         if (actuallyAddedSongs.isEmpty) return PlaylistAddStatus.skipped;
         markSongsAddedToPlaylist(playlistId, actuallyAddedSongs);
+        // Playlist tiles derive artwork from their first song; recompute
+        // since this add happened outside the playlist screen.
+        unawaited(
+          LibraryPlaylistsControllerRegistry.current
+                  ?.recomputeLocalPlaylistThumb(playlistId) ??
+              Future.value(),
+        );
         return PlaylistAddStatus.added;
       } else {
         final videosId = missingSongs.map((e) => e.id).toList();
@@ -510,6 +518,12 @@ class AddToPlaylistController extends ChangeNotifier {
           songsToRemove,
         );
         markSongsRemovedFromPlaylist(playlistId, songsToRemove);
+        // Keep tile artwork in sync when the first song may have changed.
+        unawaited(
+          LibraryPlaylistsControllerRegistry.current
+                  ?.recomputeLocalPlaylistThumb(playlistId) ??
+              Future.value(),
+        );
         return PlaylistRemoveStatus.removed;
       } else {
         final removed = await _removePipedSongs(playlistId, songsToRemove);

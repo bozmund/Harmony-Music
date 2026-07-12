@@ -13,10 +13,17 @@ import '../utils/runtime_platform.dart';
 /// - Windows          → flutter_secure_storage (SDK doesn't manage
 ///                      credentials on desktop).
 class Auth0Service {
-  Auth0Service._(this._auth0, this._scheme, this._storage, this.isConfigured);
+  Auth0Service._(
+    this._auth0,
+    this._scheme,
+    this._audience,
+    this._storage,
+    this.isConfigured,
+  );
 
   late final Auth0 _auth0;
   late final String _scheme;
+  late final String _audience;
   late final FlutterSecureStorage _storage;
 
   final bool isConfigured;
@@ -38,9 +45,11 @@ class Auth0Service {
       'AUTH0_REDIRECT_SCHEME',
       fallback: 'harmonymusic',
     );
+    final audience = dotenv.get('AUTH0_AUDIENCE', fallback: '');
     return Auth0Service._(
       Auth0(domain, clientId),
       scheme,
+      audience,
       const FlutterSecureStorage(),
       domain.isNotEmpty && clientId.isNotEmpty,
     );
@@ -79,8 +88,11 @@ class Auth0Service {
     final credentials = RuntimePlatform.isWindows
         ? await _auth0.windowsWebAuthentication().login(
             appCustomURL: '$_scheme://callback',
+            audience: _audience.isEmpty ? null : _audience,
           )
-        : await _auth0.webAuthentication(scheme: _scheme).login();
+        : await _auth0
+              .webAuthentication(scheme: _scheme)
+              .login(audience: _audience.isEmpty ? null : _audience);
     await _persistCredentials(credentials);
     return credentials.user;
   }
@@ -104,6 +116,27 @@ class Auth0Service {
 
   /// The underlying Auth0 client (for advanced use).
   Auth0 get auth0 => _auth0;
+
+  /// Returns a refreshed Resolver API access token when a session exists.
+  /// Missing sessions remain anonymous; token values must never be logged.
+  Future<String?> accessToken() async {
+    if (!isAvailable || _audience.isEmpty) return null;
+    try {
+      if (RuntimePlatform.isWindows) {
+        final raw = await _storage.read(key: 'auth0_credentials');
+        if (raw == null) return null;
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        return map['accessToken'] as String?;
+      }
+      final credentials = await _auth0.credentialsManager.credentials(
+        minTtl: 60,
+        parameters: {'audience': _audience},
+      );
+      return credentials.accessToken;
+    } catch (_) {
+      return null;
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Persistence helpers

@@ -1010,6 +1010,34 @@ class AppLocalizationsHr extends AppLocalizations {
       'Zajedničko slušanje nije dostupno na ovom uređaju';
 
   @override
+  String get partyMode => 'Party način rada';
+
+  @override
+  String get partyModeDes =>
+      'Samo domaćin reproducira zvuk; gosti upravljaju zajedničkim redom čekanja.';
+
+  @override
+  String get partyModeGuestHint =>
+      'Party način rada je aktivan: ovaj telefon je daljinski upravljač i neće reproducirati zvuk.';
+
+  @override
+  String get addedToSharedQueue => 'Dodano u zajednički red čekanja';
+
+  @override
+  String get notAvailableInSession =>
+      'Ova radnja nije dostupna u trenutačnoj sesiji';
+
+  @override
+  String listenTogetherGuestAdded(String name, String title) {
+    return '\"$name\" je dodao $title';
+  }
+
+  @override
+  String songsAddedCount(int count) {
+    return '$count pjesama';
+  }
+
+  @override
   String get back => 'Natrag';
 
   @override
@@ -1088,4 +1116,43 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String get importNeedsReview => 'Uvoz zahtijeva pregled';
+
+  @override
+  String get resolverBackend => 'Harmony Resolver';
+
+  @override
+  String get resolverBackendDescription =>
+      'Koristi konfigurirani Resolver poslužitelj kao dodatni izvor reprodukcije.';
+
+  @override
+  String get resolverTestConnection => 'Provjeri vezu';
+
+  @override
+  String get resolverDiscover => 'Pronađi na LAN-u';
+
+  @override
+  String get resolverReady => 'Resolver je spreman.';
+
+  @override
+  String get resolverUnavailable =>
+      'Resolver nije dostupan. Provjerite adresu, Wi-Fi i vatrozid.';
+
+  @override
+  String get resolverNotConfigured => 'Adresa Resolvera nije konfigurirana.';
+
+  @override
+  String get resolverAddress => 'Adresa Resolvera';
+
+  @override
+  String get resolverSaveAddress => 'Spremi adresu';
+
+  @override
+  String get resolverResetAddress => 'Vrati zadanu adresu';
+
+  @override
+  String get resolverEnvironment => 'Okruženje';
+
+  @override
+  String get resolverPlaybackFailed =>
+      'Pjesmu nije moguće učitati ni iz jednog izvora. Provjerite vezu i pokušajte ponovno.';
 }

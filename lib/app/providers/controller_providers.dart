@@ -15,6 +15,7 @@ import '../../ui/screens/Search/search_screen_controller.dart';
 import '../../ui/screens/Settings/settings_screen_controller.dart';
 import '../../ui/utils/theme_controller.dart';
 import 'app_locale_provider.dart';
+import 'auth_providers.dart';
 import 'repository_providers.dart';
 import 'service_providers.dart';
 
@@ -129,6 +130,8 @@ settingsScreenControllerProvider =
         // read, NOT watch: a locale change would otherwise dispose and
         // recreate this controller while the settings UI still holds it.
         appLocaleController: ref.read(appLocaleControllerProvider),
+        resolverClient: ref.watch(resolverClientProvider),
+        resolverDiscovery: ref.watch(resolverDiscoveryServiceProvider),
       );
       unawaited(controller.init());
       return controller;

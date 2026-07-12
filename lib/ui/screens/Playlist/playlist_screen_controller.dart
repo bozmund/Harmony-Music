@@ -383,16 +383,14 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       return;
     }
 
-    Playlist updatedPlaylist;
-    if (songList.isNotEmpty) {
-      updatedPlaylist = currentPlaylist.copyWith(
-        thumbnailUrl: songList[0].artUri.toString(),
-      );
-    } else {
-      updatedPlaylist = currentPlaylist.copyWith(
-        thumbnailUrl: Playlist.thumbPlaceholderUrl,
-      );
+    // An emptied playlist keeps its last artwork instead of resetting to the
+    // placeholder (it may be the user's chosen/previous art).
+    if (songList.isEmpty) {
+      return;
     }
+    final updatedPlaylist = currentPlaylist.copyWith(
+      thumbnailUrl: songList[0].artUri.toString(),
+    );
 
     // Check if the thumbnail URL is the same as the current one
     // If it is, no need to update the playlist

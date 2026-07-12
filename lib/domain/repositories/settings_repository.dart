@@ -49,6 +49,12 @@ abstract class SettingsRepository {
   Future<void> setCacheHomeScreenData(bool value);
   bool getDeveloperSettingsEnabled();
   Future<void> setDeveloperSettingsEnabled(bool value);
+  bool getResolverEnabled();
+  Future<void> setResolverEnabled(bool value);
+  String? getResolverDebugOverride();
+  Future<void> setResolverDebugOverride(String? value);
+  String? getResolverProductionOverride();
+  Future<void> setResolverProductionOverride(String? value);
   int getPlaybackModeIndex();
   PlaybackMode getPlaybackMode();
   Future<void> setPlaybackMode(PlaybackMode mode);

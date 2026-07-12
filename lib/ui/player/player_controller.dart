@@ -17,6 +17,7 @@ import '../../services/app_platform_service.dart';
 import '../../services/downloader.dart';
 import '../../services/listen_together/listen_together_gate.dart';
 import '../../services/listen_together/session_message.dart';
+import '../../services/listen_together/session_payload.dart';
 import '../../services/playback_command_service.dart';
 import '../../utils/runtime_platform.dart';
 import '../../utils/observable_state.dart';
@@ -142,6 +143,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   var _newSongFlag = true;
   final isCurrentSongBuffered = ObservableValue(false);
+
+  // Edge detection for externally-initiated repeat/shuffle changes
+  // (see _reflectExternalRepeatShuffleChanges).
+  AudioServiceRepeatMode? _lastSeenRepeatMode;
+  AudioServiceShuffleMode? _lastSeenShuffleMode;
 
   StreamSubscription<bool>? keyboardSubscription;
   var _initialized = false;
@@ -382,6 +388,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     _audioHandler.playbackState.listen((playerState) {
       final isPlaying = playerState.playing;
       final processingState = playerState.processingState;
+      _reflectExternalRepeatShuffleChanges(playerState);
       if (_isWaitingForCurrentSourceStart && _isReadySourceStart(playerState)) {
         _clearPendingSourceStart();
       }
@@ -419,6 +426,38 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
           processingState != AudioProcessingState.idle;
       _setPlaybackWakeLock(shouldHoldPlaybackWakeLock);
     });
+  }
+
+  /// Mirror repeat/shuffle changes made by external media controllers (car
+  /// head units over Bluetooth/AVRCP, notification, Android Auto) into the UI
+  /// observables so the icons stay truthful. Edge-detected: the BehaviorSubject
+  /// replays an initial PlaybackState (repeatMode none) on subscribe, which
+  /// must not clobber the settings-seeded values during startup.
+  void _reflectExternalRepeatShuffleChanges(PlaybackState playerState) {
+    final repeatMode = playerState.repeatMode;
+    if (_lastSeenRepeatMode != null && repeatMode != _lastSeenRepeatMode) {
+      final enabled = repeatMode != AudioServiceRepeatMode.none;
+      if (isLoopModeEnabled.value != enabled) {
+        isLoopModeEnabled.value = enabled;
+      }
+    }
+    _lastSeenRepeatMode = repeatMode;
+
+    final shuffleMode = playerState.shuffleMode;
+    if (_lastSeenShuffleMode != null && shuffleMode != _lastSeenShuffleMode) {
+      final enabled = shuffleMode != AudioServiceShuffleMode.none;
+      if (isShuffleModeEnabled.value != enabled) {
+        isShuffleModeEnabled.value = enabled;
+        // Mirror the queue-loop coupling from toggleShuffleMode.
+        if (enabled && !isQueueLoopModeEnabled.value) {
+          isQueueLoopModeEnabled.value = true;
+        } else if (!enabled) {
+          isQueueLoopModeEnabled.value = _settingsRepository
+              .getQueueLoopModeEnabled();
+        }
+      }
+    }
+    _lastSeenShuffleMode = shuffleMode;
   }
 
   void _setButtonState(PlayButtonState state) {
@@ -695,6 +734,19 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     String? playlistId,
     bool radio = false,
   }) async {
+    // A guest's "play now" would otherwise replace the host's queue. Treat a
+    // concrete song as a request instead; radio/playlist-id expansion remains
+    // host-controlled because it cannot be represented as one safe song.
+    if (_isSessionGuest) {
+      if (mediaItem == null) {
+        _showSessionUnavailableSnackbar();
+        return;
+      }
+      _routeToHost(SessionCommand.enqueue(sessionSafeSongJson(mediaItem)));
+      _showAddedToSharedQueueSnackbar();
+      return;
+    }
+
     /// update playing from value
     playingFrom.value = PlayingFrom(type: PlayingFromType.SELECTION, name: '');
 
@@ -761,6 +813,17 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     int index, {
     PlayingFrom? playFrom,
   }) async {
+    // A guest cannot safely replace the shared queue or play a local index.
+    // Request the selected song as an append on the host instead.
+    if (_isSessionGuest) {
+      if (index < 0 || index >= mediaItems.length) return;
+      _routeToHost(
+        SessionCommand.enqueue(sessionSafeSongJson(mediaItems[index])),
+      );
+      _showAddedToSharedQueueSnackbar();
+      return;
+    }
+
     isRadioModeOn = false;
     //open player pane,set current song and push first song into playing list,
 
@@ -796,6 +859,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> _addRadioContinuation(dynamic item) async {
+    if (_isSessionGuest) return;
     final isSong = item.runtimeType.toString() == "MediaItem";
     final content = await _musicServices.getWatchPlaylist(
       videoId: isSong ? item.id : "",
@@ -811,6 +875,9 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   ///enqueueSong   append a song to current queue
   ///if current queue is empty, push the song into Queue and play that song
   Future<void> enqueueSong(MediaItem mediaItem) async {
+    if (_routeToHost(SessionCommand.enqueue(sessionSafeSongJson(mediaItem)))) {
+      return;
+    }
     if (currentQueue.isEmpty) {
       await playPlayListSong([mediaItem], 0);
       return;
@@ -823,6 +890,14 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   ///enqueueSongList method add song List to current queue
   Future<void> enqueueSongList(List<MediaItem> mediaItems) async {
+    if (_isSessionGuest) {
+      for (final chunk in chunkList(mediaItems, 50)) {
+        _routeToHost(
+          SessionCommand.enqueueList(chunk.map(sessionSafeSongJson).toList()),
+        );
+      }
+      return;
+    }
     if (currentQueue.isEmpty) {
       await playPlayListSong(mediaItems, 0);
       return;
@@ -855,6 +930,9 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> playNext(MediaItem song) async {
+    if (_routeToHost(SessionCommand.playNextSong(sessionSafeSongJson(song)))) {
+      return;
+    }
     if (currentQueue.isEmpty) {
       await enqueueSong(song);
       return;
@@ -978,6 +1056,8 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// Returns true and forwards the intent to the host when this device is a
   /// guest in a Listen Together session, so callers can short-circuit local
   /// execution.
+  bool get _isSessionGuest => listenTogetherGate?.isGuest ?? false;
+
   bool _routeToHost(SessionCommand command) {
     final gate = listenTogetherGate;
     if (gate != null && gate.isGuest) {
@@ -985,6 +1065,31 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       return true;
     }
     return false;
+  }
+
+  void _showSessionSnackbar(String message) {
+    final context = AppNavigator.context;
+    if (context == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      snackbar(
+        context,
+        message,
+        size: SanckBarSize.BIG,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showAddedToSharedQueueSnackbar() {
+    final context = AppNavigator.context;
+    if (context == null) return;
+    _showSessionSnackbar(context.l10n.addedToSharedQueue);
+  }
+
+  void _showSessionUnavailableSnackbar() {
+    final context = AppNavigator.context;
+    if (context == null) return;
+    _showSessionSnackbar(context.l10n.notAvailableInSession);
   }
 
   Future<void> play() async {
@@ -1052,6 +1157,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   }
 
   Future<void> seekByIndex(int index) async {
+    if (listenTogetherGate?.isPartyModeGuest ?? false) {
+      _showSessionUnavailableSnackbar();
+      return;
+    }
     if (_routeToHost(SessionCommand.playByIndex(index))) return;
     await _playbackCommands.playByIndex(index);
   }
@@ -1203,6 +1312,12 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       // ignore: empty_catches
     } catch (e) {}
     isCurrentSongFav.value = !isCurrentSongFav.value;
+    // Favorites/liked built-in tiles derive artwork from their first song.
+    unawaited(
+      LibraryPlaylistsControllerRegistry.current
+              ?.refreshInitialPlaylistThumbs() ??
+          Future.value(),
+    );
     if (_settingsController.autoDownloadFavoriteSongEnabled.value &&
         isCurrentSongFav.value) {
       await _downloader.download(currMediaItem);
@@ -1242,6 +1357,12 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
         // ignore: empty_catches
       } catch (e) {}
+      // Recently-played built-in tile derives artwork from its newest song.
+      unawaited(
+        LibraryPlaylistsControllerRegistry.current
+                ?.refreshInitialPlaylistThumbs() ??
+            Future.value(),
+      );
     }
     recentItem = mediaItem;
   }
@@ -1381,11 +1502,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     final context = AppNavigator.context;
     if (context == null) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      snackbar(
-        context,
-        message == "networkError" ? context.l10n.networkError : message,
-        size: SanckBarSize.MEDIUM,
-      ),
+      snackbar(context, switch (message) {
+        "networkError" => context.l10n.networkError,
+        "resolverPlaybackFailed" => context.l10n.resolverPlaybackFailed,
+        _ => message,
+      }, size: SanckBarSize.MEDIUM),
     );
   }
 

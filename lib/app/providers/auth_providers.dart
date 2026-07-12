@@ -6,9 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../../services/auth0_service.dart';
+import '../../services/resolver/resolver_client.dart';
+import '../../services/resolver/resolver_discovery_service.dart';
 
 final auth0ServiceProvider = Provider<Auth0Service>(
   (ref) => Auth0Service.create(),
+);
+
+final resolverClientProvider = Provider<ResolverClient>(
+  (ref) =>
+      ResolverClient(accessToken: ref.watch(auth0ServiceProvider).accessToken),
+);
+
+final resolverDiscoveryServiceProvider = Provider<ResolverDiscoveryService>(
+  (ref) => ResolverDiscoveryService(),
 );
 
 final authControllerProvider = ChangeNotifierProvider<AuthController>((ref) {

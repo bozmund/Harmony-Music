@@ -26,7 +26,7 @@ import '/ui/widgets/link_piped.dart';
 import '/services/music_service.dart';
 import '/ui/utils/theme_controller.dart';
 import 'components/custom_expansion_tile.dart';
-import 'settings_screen_controller.dart';
+import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key, this.isBottomNavActive = false});
@@ -131,6 +131,55 @@ class SettingsScreen extends ConsumerWidget {
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.error,
                             ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  CustomExpansionTile(
+                    title: context.l10n.resolverBackend,
+                    icon: Icons.dns_outlined,
+                    childrenBuilder: (context) => [
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text(context.l10n.resolverBackend),
+                        subtitle: Text(context.l10n.resolverBackendDescription),
+                        trailing: CustomSwitch(
+                          value: settingsController.resolverEnabled.value,
+                          onChanged: settingsController.setResolverEnabled,
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        title: Text(context.l10n.resolverTestConnection),
+                        subtitle: Text(
+                          settingsController.resolverEffectiveUrl.value.isEmpty
+                              ? context.l10n.resolverNotConfigured
+                              : settingsController.resolverEffectiveUrl.value,
+                        ),
+                        trailing: AwaitableIconButton(
+                          icon: const Icon(Icons.network_check),
+                          onPressed: () async {
+                            await settingsController.testResolverConnection();
+                          },
+                        ),
+                      ),
+                      if (settingsController.resolverStatus.value == 'ready' ||
+                          settingsController.resolverStatus.value ==
+                              'unreachable' ||
+                          settingsController.resolverStatus.value ==
+                              'not_ready')
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(5, 0, 10, 12),
+                          child: Text(
+                            settingsController.resolverStatus.value == 'ready'
+                                ? context.l10n.resolverReady
+                                : context.l10n.resolverUnavailable,
                           ),
                         ),
                     ],
@@ -1176,6 +1225,44 @@ class _DeveloperSettingsInspector extends ConsumerWidget {
       childrenBuilder: (context) => [
         ListTile(
           contentPadding: const EdgeInsets.only(left: 5, right: 10),
+          title: Text(context.l10n.resolverAddress),
+          subtitle: SelectableText(
+            settingsController.resolverEffectiveUrl.value.isEmpty
+                ? context.l10n.resolverNotConfigured
+                : settingsController.resolverEffectiveUrl.value,
+          ),
+          trailing: IconButton(
+            tooltip: context.l10n.resolverAddress,
+            icon: const Icon(Icons.edit),
+            onPressed: () => _editResolverAddress(context, settingsController),
+          ),
+        ),
+        ListTile(
+          contentPadding: const EdgeInsets.only(left: 5, right: 10),
+          title: Text(context.l10n.resolverDiscover),
+          subtitle: Text(
+            settingsController.resolverDiscoveredUrls.isEmpty
+                ? settingsController.resolverStatus.value
+                : settingsController.resolverDiscoveredUrls.join('\n'),
+          ),
+          trailing: AwaitableIconButton(
+            icon: const Icon(Icons.radar),
+            onPressed: () async {
+              await settingsController.discoverResolvers();
+            },
+          ),
+        ),
+        ListTile(
+          contentPadding: const EdgeInsets.only(left: 5, right: 10),
+          title: Text(context.l10n.resolverResetAddress),
+          trailing: IconButton(
+            icon: const Icon(Icons.restore),
+            onPressed: () => settingsController.setResolverOverride(null),
+          ),
+        ),
+        const Divider(),
+        ListTile(
+          contentPadding: const EdgeInsets.only(left: 5, right: 10),
           title: const Text("Refresh values"),
           subtitle: Text(
             "Reloads current AppPrefs, build, and update debug values.",
@@ -1211,6 +1298,41 @@ class _DeveloperSettingsInspector extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _editResolverAddress(
+    BuildContext context,
+    SettingsScreenController controller,
+  ) async {
+    final textController = TextEditingController(
+      text: controller.resolverEffectiveUrl.value,
+    );
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.resolverAddress),
+        content: TextField(
+          controller: textController,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          decoration: const InputDecoration(
+            hintText: 'http://192.168.1.10:8088',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, textController.text),
+            child: Text(context.l10n.resolverSaveAddress),
+          ),
+        ],
+      ),
+    );
+    textController.dispose();
+    if (value != null) await controller.setResolverOverride(value);
   }
 }
 

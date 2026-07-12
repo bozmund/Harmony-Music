@@ -40,15 +40,18 @@ jobs:
           AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
           AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
           AUTH0_REDIRECT_SCHEME: ${{ secrets.AUTH0_REDIRECT_SCHEME }}
+          AUTH0_AUDIENCE: ${{ vars.AUTH0_AUDIENCE }}
         run: |
           test -n "${AUTH0_DOMAIN}" || (echo "AUTH0_DOMAIN is missing" && exit 1)
           test -n "${AUTH0_CLIENT_ID}" || (echo "AUTH0_CLIENT_ID is missing" && exit 1)
           test -n "${AUTH0_REDIRECT_SCHEME}" || (echo "AUTH0_REDIRECT_SCHEME is missing" && exit 1)
+          test -n "${AUTH0_AUDIENCE}" || (echo "AUTH0_AUDIENCE variable is missing" && exit 1)
 
           printf '%s\n' \
             "AUTH0_DOMAIN=${AUTH0_DOMAIN}" \
             "AUTH0_CLIENT_ID=${AUTH0_CLIENT_ID}" \
             "AUTH0_REDIRECT_SCHEME=${AUTH0_REDIRECT_SCHEME}" \
+            "AUTH0_AUDIENCE=${AUTH0_AUDIENCE}" \
             > .env
 
       - name: Install packages
@@ -90,12 +93,14 @@ jobs:
           test -n "${ANDROID_KEY_ALIAS}" || (echo "ANDROID_KEY_ALIAS is missing" && exit 1)
           test -n "${ANDROID_KEY_PASSWORD}" || (echo "ANDROID_KEY_PASSWORD is missing" && exit 1)
           test -n "${ISSUE_REPORT_ENDPOINT}" || (echo "ISSUE_REPORT_ENDPOINT is missing" && exit 1)
+          test -n "${RESOLVER_PRODUCTION_BASE_URL}" || (echo "RESOLVER_PRODUCTION_BASE_URL variable is missing" && exit 1)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ISSUE_REPORT_ENDPOINT: ${{ secrets.ISSUE_REPORT_ENDPOINT }}
+          RESOLVER_PRODUCTION_BASE_URL: ${{ vars.RESOLVER_PRODUCTION_BASE_URL }}
 
       - name: Decode Android release keystore
         run: |
@@ -111,6 +116,7 @@ jobs:
           --dart-define=BUILD_CHANNEL="${BUILD_CHANNEL}"
           --dart-define=BUILD_VERSION="${BUILD_VERSION}"
           --dart-define=BUILD_SHA="${GITHUB_SHA}"
+          --dart-define=RESOLVER_PRODUCTION_BASE_URL="${RESOLVER_PRODUCTION_BASE_URL}"
         env:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/android/app/keystore/release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -119,6 +125,7 @@ jobs:
           ISSUE_REPORT_ENDPOINT: ${{ secrets.ISSUE_REPORT_ENDPOINT }}
           BUILD_CHANNEL: ${{ steps.build_meta.outputs.channel }}
           BUILD_VERSION: ${{ steps.build_meta.outputs.version }}
+          RESOLVER_PRODUCTION_BASE_URL: ${{ vars.RESOLVER_PRODUCTION_BASE_URL }}
 
       - name: Prepare APK asset
         id: asset
