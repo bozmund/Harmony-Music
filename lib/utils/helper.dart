@@ -236,22 +236,8 @@ class GithubUpdateService implements UpdateServiceContract {
       if (semanticTags.isEmpty) return null;
       semanticTags.sort((a, b) => _compareSemanticVersions(b, a));
 
-      final currentVersion_ = currentVersion
-          .toLowerCase()
-          .replaceFirst('v', '')
-          .split(".");
       final latestTag = semanticTags.first;
-      final availableVersion_ = latestTag.substring(1).split(".");
-      final isNewer =
-          int.parse(availableVersion_[0]) > int.parse(currentVersion_[0]) ||
-          (int.parse(availableVersion_[1]) > int.parse(currentVersion_[1]) &&
-              int.parse(availableVersion_[0]) ==
-                  int.parse(currentVersion_[0])) ||
-          (int.parse(availableVersion_[2]) > int.parse(currentVersion_[2]) &&
-              int.parse(availableVersion_[0]) ==
-                  int.parse(currentVersion_[0]) &&
-              int.parse(availableVersion_[1]) == int.parse(currentVersion_[1]));
-      if (!isNewer) return null;
+      if (!isSemanticVersionNewer(latestTag, currentVersion)) return null;
 
       final releasePage =
           "https://github.com/bozmund/Harmony-Music/releases/tag/$latestTag";
@@ -330,12 +316,30 @@ String? _rollingReleaseSha(dynamic release) {
   return null;
 }
 
+/// True when [candidateVersion] is newer than [currentVersion]. Accepts a
+/// leading `v`/`V` and ignores build/pre-release suffixes for stable checks.
+bool isSemanticVersionNewer(String candidateVersion, String currentVersion) =>
+    _compareSemanticVersions(candidateVersion, currentVersion) > 0;
+
 int _compareSemanticVersions(String a, String b) {
-  final aParts = a.substring(1).split('.').map(int.parse).toList();
-  final bParts = b.substring(1).split('.').map(int.parse).toList();
+  final aParts = _semanticVersionParts(a);
+  final bParts = _semanticVersionParts(b);
   for (int i = 0; i < 3; i++) {
     final diff = aParts[i].compareTo(bParts[i]);
     if (diff != 0) return diff;
   }
   return 0;
+}
+
+List<int> _semanticVersionParts(String version) {
+  final core = version
+      .trim()
+      .replaceFirst(RegExp(r'^[vV]'), '')
+      .split(RegExp(r'[+-]'))
+      .first;
+  final parts = core.split('.');
+  if (parts.length != 3) {
+    throw FormatException('Expected semantic version, got: $version');
+  }
+  return parts.map(int.parse).toList();
 }

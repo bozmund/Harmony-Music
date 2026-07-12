@@ -63,6 +63,16 @@ jobs:
         run: |
           pubspec_version="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            tag_version="${GITHUB_REF_NAME#v}"
+            pubspec_semantic_version="${pubspec_version%%+*}"
+            if [[ ! "${tag_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Stable release tag must have the form vX.Y.Z; got ${GITHUB_REF_NAME}" >&2
+              exit 1
+            fi
+            if [[ "${tag_version}" != "${pubspec_semantic_version}" ]]; then
+              echo "Stable tag ${GITHUB_REF_NAME} does not match pubspec version ${pubspec_version}" >&2
+              exit 1
+            fi
             channel="stable"
             build_version="${pubspec_version}"
           else
