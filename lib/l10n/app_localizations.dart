@@ -1970,6 +1970,48 @@ abstract class AppLocalizations {
   /// **'Bluetooth'**
   String get bluetoothTransport;
 
+  /// No description provided for @bothTransports.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth + Wi-Fi'**
+  String get bothTransports;
+
+  /// No description provided for @bluetoothDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on Bluetooth to use this connection mode.'**
+  String get bluetoothDisabled;
+
+  /// No description provided for @wifiDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on Wi-Fi to use this connection mode. You do not need to connect to the internet.'**
+  String get wifiDisabled;
+
+  /// No description provided for @playServicesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Google Play services are required for Bluetooth discovery.'**
+  String get playServicesUnavailable;
+
+  /// No description provided for @transportReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected connection mode is ready.'**
+  String get transportReady;
+
+  /// No description provided for @transportStartupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected connection mode could not be started.'**
+  String get transportStartupFailed;
+
+  /// No description provided for @grantPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Grant permissions'**
+  String get grantPermissions;
+
   /// No description provided for @hostingSession.
   ///
   /// In en, this message translates to:
@@ -2005,6 +2047,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Listen together isn\'t available on this device'**
   String get listenTogetherUnavailable;
+
+  /// No description provided for @confirmConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm connection'**
+  String get confirmConnection;
+
+  /// No description provided for @listenTogetherDeviceName.
+  ///
+  /// In en, this message translates to:
+  /// **'Device name'**
+  String get listenTogetherDeviceName;
+
+  /// No description provided for @save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// No description provided for @nearbyPermissionRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth and Nearby devices permissions are required. Open Android settings and allow them.'**
+  String get nearbyPermissionRequired;
+
+  /// No description provided for @nearbyWithWifiFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Nearby + Wi-Fi fallback'**
+  String get nearbyWithWifiFallback;
 
   /// No description provided for @partyMode.
   ///

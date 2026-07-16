@@ -82,6 +82,8 @@ class PrefKeys {
   static const String resolverEnabled = 'resolverEnabled';
   static const String resolverDebugOverride = 'resolverDebugOverride';
   static const String resolverProductionOverride = 'resolverProductionOverride';
+  static const String listenTogetherDeviceName = 'listenTogetherDeviceName';
+  static const String listenTogetherTransport = 'listenTogetherTransport';
 }
 
 enum PlaybackMode { classic, preloaded }

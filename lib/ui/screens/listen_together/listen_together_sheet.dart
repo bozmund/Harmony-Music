@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,8 @@ import '../../../services/listen_together/session_message.dart';
 import '../../../services/listen_together/sync_transport.dart';
 import '../../../l10n/l10n.dart';
 import '../../widgets/awaitable_button.dart';
+import '../../../utils/runtime_platform.dart';
+import 'listen_together_transport_selector.dart';
 
 /// Opens the "Listen Together" bottom sheet.
 Future<void> showListenTogetherSheet(BuildContext context) {
@@ -29,30 +33,68 @@ class ListenTogetherSheet extends ConsumerStatefulWidget {
       _ListenTogetherSheetState();
 }
 
-class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
-  TransportKind _kind = TransportKind.lan;
+class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet>
+    with WidgetsBindingObserver {
   bool _partyMode = false;
   bool _browsing = false;
   bool _endingSession = false;
   bool _endingSessionWasHost = false;
+  Object? _shownTransportError;
+  ScaffoldMessengerState? _messenger;
+  ModalRoute<dynamic>? _route;
 
   ListenTogetherController get _controller =>
       ref.read(listenTogetherControllerProvider);
 
-  Future<void> _guard(Future<void> Function() action) async {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_controller.refreshAvailability());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_controller.refreshAvailability());
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.maybeOf(context);
+    _route = ModalRoute.of(context);
+  }
+
+  Future<bool> _guard(Future<void> Function() action) async {
     try {
       await action();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.listenTogetherUnavailable)),
-      );
+      return true;
+    } catch (error) {
+      if (!mounted || _route?.isCurrent != true) return false;
+      _messenger?.showSnackBar(SnackBar(content: Text(_failureMessage(error))));
+      return false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final controller = ref.watch(listenTogetherControllerProvider);
+    final transportError = controller.lastTransportError;
+    if (transportError != null && transportError != _shownTransportError) {
+      _shownTransportError = transportError;
+      controller.clearTransportError();
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _showTransportError(transportError),
+      );
+    }
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
@@ -83,7 +125,7 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
               else if (_browsing)
                 _browseView(controller)
               else
-                _menuView(),
+                _menuView(controller),
             ],
           ),
         ),
@@ -93,11 +135,19 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
 
   // ---- Idle menu ------------------------------------------------------------
 
-  Widget _menuView() {
+  Widget _menuView(ListenTogetherController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _transportSelector(),
+        ListenTogetherTransportSelector(
+          selected: controller.selectedTransport,
+          availability: controller.availability,
+          isAndroid: RuntimePlatform.isAndroid,
+          onSelected: (kind) =>
+              unawaited(controller.setSelectedTransport(kind)),
+          onRequestPermissions: () =>
+              unawaited(_guard(controller.requestBluetoothPermissions)),
+        ),
         const SizedBox(height: 8),
         SwitchListTile.adaptive(
           contentPadding: EdgeInsets.zero,
@@ -108,16 +158,18 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
         ),
         const SizedBox(height: 16),
         AwaitableButton.filled(
-          onPressed: () async {
-            await _guard(
-              () => _controller.startHosting(
-                _kind,
-                mode: _partyMode
-                    ? SessionPlaybackMode.party
-                    : SessionPlaybackMode.sync,
-              ),
-            );
-          },
+          onPressed: !controller.selectedTransportReady
+              ? null
+              : () async {
+                  await _guard(
+                    () => _controller.startHosting(
+                      controller.selectedTransport,
+                      mode: _partyMode
+                          ? SessionPlaybackMode.party
+                          : SessionPlaybackMode.sync,
+                    ),
+                  );
+                },
           icon: const Icon(Icons.wifi_tethering),
           label: Text(context.l10n.hostSession),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
@@ -132,10 +184,15 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
         ),
         const SizedBox(height: 12),
         AwaitableButton.outlined(
-          onPressed: () async {
-            await _guard(() => _controller.startBrowsing(_kind));
-            if (mounted) setState(() => _browsing = true);
-          },
+          onPressed: !controller.selectedTransportReady
+              ? null
+              : () async {
+                  final started = await _guard(
+                    () =>
+                        _controller.startBrowsing(controller.selectedTransport),
+                  );
+                  if (mounted && started) setState(() => _browsing = true);
+                },
           icon: const Icon(Icons.search),
           label: Text(context.l10n.joinSession),
           style: OutlinedButton.styleFrom(
@@ -146,53 +203,26 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
     );
   }
 
-  Widget _transportSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          context.l10n.connectVia,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _transportChip(
-              TransportKind.lan,
-              Icons.wifi,
-              context.l10n.wifiTransport,
-            ),
-            const SizedBox(width: 8),
-            // Bluetooth transport is not wired up yet (no compatible plugin);
-            // keep it visible but disabled so the intent is clear.
-            _transportChip(
-              TransportKind.nearby,
-              Icons.bluetooth,
-              context.l10n.bluetoothTransport,
-              enabled: false,
-            ),
-          ],
-        ),
-      ],
-    );
+  void _showTransportError(Object error) {
+    if (!mounted || _route?.isCurrent != true) return;
+    _messenger?.showSnackBar(SnackBar(content: Text(_failureMessage(error))));
   }
 
-  Widget _transportChip(
-    TransportKind kind,
-    IconData icon,
-    String label, {
-    bool enabled = true,
-  }) {
-    return ChoiceChip(
-      selected: _kind == kind,
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-      onSelected: enabled
-          ? (_) => setState(() => _kind = kind)
-          : (_) => ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(context.l10n.listenTogetherUnavailable)),
-            ),
-    );
+  String _failureMessage(Object error) {
+    if (error is! TransportFailure) {
+      return context.l10n.transportStartupFailed;
+    }
+    return switch (error.code) {
+      TransportFailureCode.bluetoothDisabled => context.l10n.bluetoothDisabled,
+      TransportFailureCode.wifiDisabled => context.l10n.wifiDisabled,
+      TransportFailureCode.permissionDenied =>
+        context.l10n.nearbyPermissionRequired,
+      TransportFailureCode.playServicesUnavailable =>
+        context.l10n.playServicesUnavailable,
+      TransportFailureCode.radioFailure ||
+      TransportFailureCode.startupFailure =>
+        context.l10n.transportStartupFailed,
+    };
   }
 
   // ---- Browsing for hosts ---------------------------------------------------
@@ -233,13 +263,13 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
             (s) => ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(
-                s.kind == TransportKind.lan ? Icons.wifi : Icons.bluetooth,
+                s.kind == TransportKind.wifi ? Icons.wifi : Icons.bluetooth,
               ),
               title: Text(s.name),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
-                await _guard(() => _controller.joinSession(s));
-                if (mounted) setState(() => _browsing = false);
+                final joined = await _guard(() => _controller.joinSession(s));
+                if (mounted && joined) setState(() => _browsing = false);
               },
             ),
           ),
@@ -296,6 +326,10 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.person),
           title: Text('${controller.selfName} (${context.l10n.you})'),
+          trailing: IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => _editDeviceName(controller),
+          ),
         ),
         ...controller.peers.map(
           (p) => ListTile(
@@ -324,5 +358,28 @@ class _ListenTogetherSheetState extends ConsumerState<ListenTogetherSheet> {
         ),
       ],
     );
+  }
+
+  Future<void> _editDeviceName(ListenTogetherController controller) async {
+    final input = TextEditingController(text: controller.selfName);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.listenTogetherDeviceName),
+        content: TextField(controller: input, autofocus: true, maxLength: 40),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, input.text),
+            child: Text(context.l10n.save),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (value != null) controller.deviceName = value;
   }
 }

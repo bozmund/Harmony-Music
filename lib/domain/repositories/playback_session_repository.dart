@@ -9,6 +9,10 @@ abstract class PlaybackSessionRepository {
     required int index,
     required int position,
   });
+
+  /// Lightweight update of only the current index and position, leaving the
+  /// stored queue untouched. Safe to call frequently while playing.
+  Future<void> savePosition({required int index, required int position});
   Future<void> clearSession();
 
   /// Applies [transform] to every song JSON map in the saved session queue.

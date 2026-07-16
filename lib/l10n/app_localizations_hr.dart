@@ -991,6 +991,31 @@ class AppLocalizationsHr extends AppLocalizations {
   String get bluetoothTransport => 'Bluetooth';
 
   @override
+  String get bothTransports => 'Bluetooth + Wi-Fi';
+
+  @override
+  String get bluetoothDisabled =>
+      'Uključite Bluetooth za ovaj način povezivanja.';
+
+  @override
+  String get wifiDisabled =>
+      'Uključite Wi-Fi za ovaj način povezivanja. Internetska veza nije potrebna.';
+
+  @override
+  String get playServicesUnavailable =>
+      'Za Bluetooth pretraživanje potrebne su ažurne Google Play usluge.';
+
+  @override
+  String get transportReady => 'Odabrani način povezivanja je spreman.';
+
+  @override
+  String get transportStartupFailed =>
+      'Odabrani način povezivanja nije se mogao pokrenuti.';
+
+  @override
+  String get grantPermissions => 'Dopusti dozvole';
+
+  @override
   String get hostingSession => 'Domaćin — drugi se mogu pridružiti';
 
   @override
@@ -1008,6 +1033,22 @@ class AppLocalizationsHr extends AppLocalizations {
   @override
   String get listenTogetherUnavailable =>
       'Zajedničko slušanje nije dostupno na ovom uređaju';
+
+  @override
+  String get confirmConnection => 'Potvrdi vezu';
+
+  @override
+  String get listenTogetherDeviceName => 'Naziv uređaja';
+
+  @override
+  String get save => 'Spremi';
+
+  @override
+  String get nearbyPermissionRequired =>
+      'Potrebne su dozvole za Bluetooth i obližnje uređaje. Otvorite Android postavke i dopustite ih.';
+
+  @override
+  String get nearbyWithWifiFallback => 'Nearby + Wi-Fi pričuva';
 
   @override
   String get partyMode => 'Party način rada';

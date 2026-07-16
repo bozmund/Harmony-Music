@@ -13,14 +13,21 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
     required this.contentType,
     this.sourceLength,
     this.headers,
+    this.stallTimeout = defaultStallTimeout,
     super.tag,
   });
+
+  static const defaultStallTimeout = Duration(seconds: 15);
 
   final Uri uri;
   final File prefixFile;
   final String contentType;
   final int? sourceLength;
   final Map<String, String>? headers;
+
+  /// Bounds connection setup, response headers, and each gap between body
+  /// chunks. Backpressure pauses from the player do not count against it.
+  final Duration stallTimeout;
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
@@ -69,8 +76,9 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
 
   Future<StreamAudioResponse> _networkResponse(int? start, int? end) async {
     final client = HttpClient();
+    client.connectionTimeout = stallTimeout;
     try {
-      final request = await client.getUrl(uri);
+      final request = await client.getUrl(uri).timeout(stallTimeout);
       headers?.forEach((name, value) {
         request.headers.set(name, value);
       });
@@ -81,7 +89,7 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
         );
       }
 
-      final response = await request.close();
+      final response = await request.close().timeout(stallTimeout);
       final isRangeRequest = start != null;
       final isValidStatus = isRangeRequest
           ? response.statusCode == HttpStatus.partialContent
@@ -156,7 +164,16 @@ class PreloadedPrefixAudioSource extends StreamAudioSource {
     Stream<List<int>> stream,
   ) async* {
     try {
-      await for (final chunk in stream) {
+      // Stream.timeout suspends its timer while the subscription is paused,
+      // so only a genuinely stalled connection trips it — not the player
+      // pausing reads because its buffers are full.
+      await for (final chunk in stream.timeout(
+        stallTimeout,
+        onTimeout: (sink) {
+          sink.addError(TimeoutException('Audio stream stalled', stallTimeout));
+          sink.close();
+        },
+      )) {
         yield chunk;
       }
     } finally {

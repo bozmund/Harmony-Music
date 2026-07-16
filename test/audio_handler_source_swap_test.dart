@@ -208,7 +208,10 @@ void main() {
           block,
           contains('current.id == nextItem.id ? current : nextItem'),
         );
-        expect(block, isNot(contains('mediaItem.add(nextQueue[clampedIndex])')));
+        expect(
+          block,
+          isNot(contains('mediaItem.add(nextQueue[clampedIndex])')),
+        );
       },
     );
 
@@ -318,6 +321,37 @@ void main() {
       expect(pauseBlock, contains('_stopCompletionWatchdog();'));
       expect(stopMethodBlock, contains('_stopCompletionWatchdog();'));
       expect(disposeCase, contains('_stopCompletionWatchdog();'));
+    });
+
+    test('buffering stall watchdog recovers with a fresh stream url', () {
+      final startBlock = _methodBlock(source, '_startCompletionWatchdog');
+      final stopBlock = _methodBlock(source, '_stopCompletionWatchdog');
+      final stallBlock = _methodBlock(source, '_checkBufferingStallWatchdog');
+      final recoverBlock = _methodBlock(source, '_recoverFromStalledSource');
+      final eventBlock = _methodBlock(
+        source,
+        '_notifyAudioHandlerAboutPlaybackEvents',
+      );
+
+      expect(source, contains('Duration? _stallWatchPosition;'));
+      expect(source, contains('DateTime? _stallWatchSince;'));
+      expect(source, contains('bool _stallRecoveryInFlight = false;'));
+      expect(source, contains('const _bufferingStallThreshold'));
+      expect(source, contains('const _bufferingStallPositionTolerance'));
+      expect(startBlock, contains('_checkBufferingStallWatchdog();'));
+      expect(stopBlock, contains('_resetBufferingStallWatch();'));
+      expect(stallBlock, contains('isSongLoading'));
+      expect(stallBlock, contains('_completionInProgress'));
+      expect(stallBlock, contains('_sourceSwitchInProgress'));
+      expect(stallBlock, contains('_stallRecoveryInFlight'));
+      expect(stallBlock, contains('ProcessingState.buffering'));
+      expect(stallBlock, contains('_bufferingStallThreshold'));
+      expect(stallBlock, contains('_recoverFromStalledSource'));
+      // Both the stall watchdog and the player error handler share the same
+      // recovery: regenerate the stream URL and reseek to where we stalled.
+      expect(eventBlock, contains('_recoverFromStalledSource'));
+      expect(recoverBlock, contains("'newUrl': true"));
+      expect(recoverBlock, contains('_player.seek(resumePosition, index: 0)'));
     });
 
     test('watchdog defers early completed state until expected media end', () {

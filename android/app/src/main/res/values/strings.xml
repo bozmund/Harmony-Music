@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="listen_together_notification_channel">Listen Together</string>
+    <string name="listen_together_notification_title">Listen Together</string>
+    <string name="listen_together_notification_text">Nearby session is active</string>
+</resources>

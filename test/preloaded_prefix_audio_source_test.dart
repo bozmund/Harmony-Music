@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -96,6 +97,61 @@ void main() {
       expect(prefixOnlyResponse.stream.isBroadcast, isFalse);
       expect(combinedResponse.stream.isBroadcast, isFalse);
       expect(networkResponse.stream.isBroadcast, isFalse);
+    });
+
+    test('unanswered network request times out instead of hanging', () async {
+      final stalledServer = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(() => stalledServer.close(force: true));
+      stalledServer.listen((request) {
+        // Accept the connection but never respond.
+      });
+
+      final source = PreloadedPrefixAudioSource(
+        Uri.parse(
+          'http://${stalledServer.address.host}:${stalledServer.port}/song.opus',
+        ),
+        prefixFile: File('${tempDir.path}/missing.prefix'),
+        contentType: 'audio/opus',
+        sourceLength: 64,
+        stallTimeout: const Duration(milliseconds: 500),
+      );
+
+      await expectLater(source.request(), throwsA(isA<TimeoutException>()));
+    });
+
+    test('stalled response body times out instead of hanging', () async {
+      final stalledServer = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(() => stalledServer.close(force: true));
+      stalledServer.listen((request) async {
+        request.response.statusCode = HttpStatus.ok;
+        request.response.headers.contentType = ContentType('audio', 'opus');
+        request.response.contentLength = 64;
+        request.response.add(List<int>.filled(8, 0));
+        await request.response.flush();
+        // Never send the remaining bytes or close the response.
+      });
+
+      final source = PreloadedPrefixAudioSource(
+        Uri.parse(
+          'http://${stalledServer.address.host}:${stalledServer.port}/song.opus',
+        ),
+        prefixFile: File('${tempDir.path}/missing.prefix'),
+        contentType: 'audio/opus',
+        sourceLength: 64,
+        stallTimeout: const Duration(milliseconds: 500),
+      );
+
+      final response = await source.request();
+      await expectLater(
+        _readAll(response.stream),
+        throwsA(isA<TimeoutException>()),
+      );
     });
   });
 }

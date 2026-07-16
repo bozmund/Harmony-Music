@@ -109,10 +109,11 @@ class SessionCommand {
       ? Map<String, dynamic>.from(args['song'] as Map)
       : null;
 
-  List<Map<String, dynamic>> get songsJson => ((args['songs'] as List?) ?? const [])
-      .whereType<Map>()
-      .map((e) => Map<String, dynamic>.from(e))
-      .toList();
+  List<Map<String, dynamic>> get songsJson =>
+      ((args['songs'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
 
   Map<String, dynamic> toJson() => {'action': action, 'args': args};
 

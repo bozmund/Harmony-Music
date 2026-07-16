@@ -14,6 +14,8 @@ import '../../utils/helper.dart';
 import '../../app/navigation/app_navigator.dart';
 import '../../ui/widgets/snackbar.dart';
 import 'listen_together_gate.dart';
+import 'listen_together_availability.dart';
+import 'nearby_permissions.dart';
 import 'session_message.dart';
 import 'session_payload.dart';
 import 'sync_clock.dart';
@@ -40,19 +42,36 @@ class ListenTogetherController extends ChangeNotifier
     required PlayerController playerController,
     required PlaybackCommandService playbackCommands,
     required TransportFactory transportFactory,
+    ListenTogetherAvailabilityService? availabilityService,
+    TransportKind initialTransport = TransportKind.both,
+    Future<void> Function(TransportKind)? saveTransport,
     String? deviceName,
+    Future<void> Function(String)? saveDeviceName,
   }) : _player = playerController,
        _playbackCommands = playbackCommands,
        _transportFactory = transportFactory,
+       _availabilityService =
+           availabilityService ?? ListenTogetherAvailabilityService(),
+       _selectedTransport = initialTransport,
+       _saveTransport = saveTransport,
        _selfName = deviceName ?? 'Harmony device',
+       _saveDeviceName = saveDeviceName,
        _selfId = _generateId() {
     // Expose ourselves to the player so guest control routing works.
     _player.listenTogetherGate = this;
+    _availabilitySub = _availabilityService.changes.listen((value) {
+      _availability = value;
+      notifyListeners();
+    });
+    unawaited(refreshAvailability());
   }
 
   final PlayerController _player;
   final PlaybackCommandService _playbackCommands;
   final TransportFactory _transportFactory;
+  final ListenTogetherAvailabilityService _availabilityService;
+  final Future<void> Function(String)? _saveDeviceName;
+  final Future<void> Function(TransportKind)? _saveTransport;
 
   final String _selfId;
   String _selfName;
@@ -62,6 +81,9 @@ class ListenTogetherController extends ChangeNotifier
   StreamSubscription<List<Peer>>? _peersSub;
   StreamSubscription<TransportConnectionState>? _connSub;
   StreamSubscription<List<DiscoveredSession>>? _discoverySub;
+  StreamSubscription<ConnectionConfirmation>? _confirmationSub;
+  StreamSubscription<Object>? _transportErrorSub;
+  late final StreamSubscription<TransportAvailability> _availabilitySub;
   final List<StreamSubscription<dynamic>> _playerSubs = [];
   Timer? _heartbeat;
   Timer? _clockSyncTimer;
@@ -84,6 +106,47 @@ class ListenTogetherController extends ChangeNotifier
 
   List<DiscoveredSession> _discovered = const [];
   List<DiscoveredSession> get discoveredSessions => _discovered;
+  final List<ConnectionConfirmation> _pendingConfirmations = [];
+  ConnectionConfirmation? get pendingConfirmation =>
+      _pendingConfirmations.isEmpty ? null : _pendingConfirmations.first;
+  Object? _lastTransportError;
+  Object? get lastTransportError => _lastTransportError;
+  void clearTransportError() => _lastTransportError = null;
+
+  TransportKind _selectedTransport;
+  TransportKind get selectedTransport => _selectedTransport;
+  TransportAvailability? _availability;
+  TransportAvailability? get availability => _availability;
+  bool get selectedTransportReady =>
+      _availability?.supports(_selectedTransport) ?? false;
+
+  Future<void> setSelectedTransport(TransportKind value) async {
+    if (isActive || _selectedTransport == value) return;
+    _selectedTransport = value;
+    notifyListeners();
+    await _saveTransport?.call(value);
+  }
+
+  Future<void> refreshAvailability() async {
+    try {
+      _availability = await _availabilityService.read();
+    } catch (_) {
+      _availability = const TransportAvailability(
+        bluetoothEnabled: false,
+        wifiEnabled: false,
+        playServicesAvailable: false,
+      );
+    }
+    notifyListeners();
+  }
+
+  Future<void> requestBluetoothPermissions() async {
+    try {
+      await NearbyPermissions.ensureGranted();
+    } finally {
+      await refreshAvailability();
+    }
+  }
 
   // ---- Playback mode (sync vs party) ----------------------------------------
 
@@ -107,7 +170,10 @@ class ListenTogetherController extends ChangeNotifier
   String get selfName => _selfName;
   String get selfId => _selfId;
   set deviceName(String value) {
-    _selfName = value;
+    final normalized = value.trim().replaceAll('|', '');
+    if (normalized.isEmpty) return;
+    _selfName = normalized;
+    unawaited(_saveDeviceName?.call(normalized) ?? Future.value());
     notifyListeners();
   }
 
@@ -131,6 +197,8 @@ class ListenTogetherController extends ChangeNotifier
     TransportKind kind, {
     SessionPlaybackMode mode = SessionPlaybackMode.sync,
   }) async {
+    _selectedTransport = kind;
+    await _availabilityService.require(kind);
     await leave();
     final transport = _transportFactory(kind);
     _transport = transport;
@@ -161,25 +229,28 @@ class ListenTogetherController extends ChangeNotifier
   /// Begin browsing for host sessions of [kind]. Discovered sessions are
   /// surfaced via [discoveredSessions] (and change notifications).
   Future<void> startBrowsing(TransportKind kind) async {
+    _selectedTransport = kind;
+    await _availabilityService.require(kind);
     await leave();
     final transport = _transportFactory(kind);
     _transport = transport;
     _role = LTRole.none; // not connected yet, just browsing
     _wireTransport(transport, wireMessages: false);
     _discovered = const [];
-    _discoverySub = transport
-        .startDiscovery(_self)
-        .listen(
-          (sessions) {
-            _discovered = sessions;
-            notifyListeners();
-          },
-          onError: (Object e) {
-            printERROR('discovery error: $e', tag: LogTags.listenTogether);
-          },
-        );
-    _setConnectionState(TransportConnectionState.discovering);
-    notifyListeners();
+    _discoverySub = transport.discoveredSessions.listen((sessions) {
+      _discovered = sessions;
+      notifyListeners();
+    });
+    try {
+      await transport.startDiscovery(_self);
+      _setConnectionState(TransportConnectionState.discovering);
+      notifyListeners();
+    } catch (e) {
+      printERROR('discovery error: $e', tag: LogTags.listenTogether);
+      _lastTransportError = e;
+      await leave();
+      rethrow;
+    }
   }
 
   Future<void> joinSession(DiscoveredSession session) async {
@@ -236,6 +307,8 @@ class ListenTogetherController extends ChangeNotifier
     _guestMode = null;
     _pendingQueueSync = null;
     _pendingPlaybackSnapshot = null;
+    _pendingConfirmations.clear();
+    _lastTransportError = null;
     notifyListeners();
 
     try {
@@ -251,13 +324,20 @@ class ListenTogetherController extends ChangeNotifier
       _connSub = null;
       await _discoverySub?.cancel();
       _discoverySub = null;
+      await _confirmationSub?.cancel();
+      _confirmationSub = null;
+      await _transportErrorSub?.cancel();
+      _transportErrorSub = null;
       for (final sub in _playerSubs) {
         await sub.cancel();
       }
       _playerSubs.clear();
       if (transport != null) {
         try {
-          await transport.leave();
+          // A fresh transport is created for every Host/Browse attempt. Fully
+          // dispose the old one so its EventChannel and child subscriptions do
+          // not survive into the next session.
+          await transport.dispose();
         } catch (e) {
           printERROR(
             'leave transport cleanup failed: $e',
@@ -310,7 +390,44 @@ class ListenTogetherController extends ChangeNotifier
     });
     _connSub = transport.connectionState.listen((state) {
       _setConnectionState(state);
+      if (isGuest &&
+          state == TransportConnectionState.disconnected &&
+          !_leaving) {
+        unawaited(leave());
+      }
     });
+    if (transport is ConnectionAuthenticatingTransport) {
+      final authenticating = transport as ConnectionAuthenticatingTransport;
+      _confirmationSub = authenticating.confirmations.listen((confirmation) {
+        if (_pendingConfirmations.every(
+          (item) => item.endpointId != confirmation.endpointId,
+        )) {
+          _pendingConfirmations.add(confirmation);
+        }
+        notifyListeners();
+      });
+    }
+    if (transport is TransportErrorReporting) {
+      final reporting = transport as TransportErrorReporting;
+      _transportErrorSub = reporting.errors.listen((error) {
+        printERROR('transport error: $error', tag: LogTags.listenTogether);
+        _lastTransportError = error;
+        notifyListeners();
+      });
+    }
+  }
+
+  Future<void> confirmPendingConnection(bool accept) async {
+    final confirmation = pendingConfirmation;
+    final transport = _transport;
+    if (confirmation == null || transport is! ConnectionAuthenticatingTransport)
+      return;
+    final authenticating = transport as ConnectionAuthenticatingTransport;
+    _pendingConfirmations.removeWhere(
+      (item) => item.endpointId == confirmation.endpointId,
+    );
+    notifyListeners();
+    await authenticating.confirmConnection(confirmation.endpointId, accept);
   }
 
   void _setConnectionState(TransportConnectionState state) {
@@ -712,6 +829,7 @@ class ListenTogetherController extends ChangeNotifier
       _player.listenTogetherGate = null;
     }
     unawaited(leave());
+    unawaited(_availabilitySub.cancel());
     super.dispose();
   }
 }

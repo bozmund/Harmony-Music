@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../../services/listen_together/lan_transport.dart';
-import '../../services/listen_together/listen_together_controller.dart';
+import '../../services/listen_together/hybrid_transport.dart';
 import '../../services/listen_together/nearby_transport.dart';
+import '../../services/listen_together/listen_together_controller.dart';
 import '../../services/listen_together/sync_transport.dart';
 import '../../utils/system_tray.dart';
+import '../../utils/runtime_platform.dart';
+import '../../data/repositories/listen_together_preferences.dart';
 import '../../ui/player/player_controller.dart';
 import '../../ui/screens/Home/home_screen_controller.dart';
 import '../../ui/screens/Library/library_controller.dart';
@@ -44,15 +47,26 @@ final ChangeNotifierProvider<PlayerController> playerControllerProvider =
 final ChangeNotifierProvider<ListenTogetherController>
 listenTogetherControllerProvider =
     ChangeNotifierProvider<ListenTogetherController>((ref) {
+      final preferences = ListenTogetherPreferences();
       return ListenTogetherController(
         playerController: ref.read(playerControllerProvider),
         playbackCommands: ref.read(playbackCommandServiceProvider),
-        transportFactory: (kind) => switch (kind) {
-          TransportKind.lan => LanTransport(),
-          TransportKind.nearby => NearbyTransport(),
-        },
+        transportFactory: createListenTogetherTransport,
+        deviceName: preferences.deviceName,
+        saveDeviceName: preferences.setDeviceName,
+        initialTransport: RuntimePlatform.isAndroid
+            ? preferences.transport
+            : TransportKind.wifi,
+        saveTransport: preferences.setTransport,
       );
     });
+
+SyncTransport createListenTogetherTransport(TransportKind kind) =>
+    switch (kind) {
+      TransportKind.wifi => LanTransport(),
+      TransportKind.bluetooth => NearbyTransport(),
+      TransportKind.both => HybridTransport(),
+    };
 
 final ChangeNotifierProvider<HomeScreenController>
 homeScreenControllerProvider = ChangeNotifierProvider<HomeScreenController>((

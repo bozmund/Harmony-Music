@@ -38,7 +38,9 @@ class MiniPlayer extends ConsumerWidget {
       ]),
       builder: (context, _) {
         return Visibility(
-          visible: playerController.playerPanelTopVisible.value,
+          visible:
+              playerController.playerPanelTopVisible.value &&
+              playerController.currentSong.value != null,
           child: AnimatedOpacity(
             opacity: playerController.playerPaneOpacity.value,
             duration: Duration.zero,

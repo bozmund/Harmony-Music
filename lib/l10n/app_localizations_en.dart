@@ -986,6 +986,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bluetoothTransport => 'Bluetooth';
 
   @override
+  String get bothTransports => 'Bluetooth + Wi-Fi';
+
+  @override
+  String get bluetoothDisabled =>
+      'Turn on Bluetooth to use this connection mode.';
+
+  @override
+  String get wifiDisabled =>
+      'Turn on Wi-Fi to use this connection mode. You do not need to connect to the internet.';
+
+  @override
+  String get playServicesUnavailable =>
+      'Current Google Play services are required for Bluetooth discovery.';
+
+  @override
+  String get transportReady => 'Selected connection mode is ready.';
+
+  @override
+  String get transportStartupFailed =>
+      'The selected connection mode could not be started.';
+
+  @override
+  String get grantPermissions => 'Grant permissions';
+
+  @override
   String get hostingSession => 'Hosting — others can join';
 
   @override
@@ -1003,6 +1028,22 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get listenTogetherUnavailable =>
       'Listen together isn\'t available on this device';
+
+  @override
+  String get confirmConnection => 'Confirm connection';
+
+  @override
+  String get listenTogetherDeviceName => 'Device name';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get nearbyPermissionRequired =>
+      'Bluetooth and Nearby devices permissions are required. Open Android settings and allow them.';
+
+  @override
+  String get nearbyWithWifiFallback => 'Nearby + Wi-Fi fallback';
 
   @override
   String get partyMode => 'Party mode';

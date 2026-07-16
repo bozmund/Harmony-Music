@@ -715,6 +715,10 @@ public class AudioService extends MediaBrowserServiceCompat {
     private void exitPlayingState() {
         if (config.androidStopForegroundOnPause) {
             exitForegroundState();
+        } else {
+            // Staying in the foreground while paused must not keep holding the
+            // CPU wakelock; enterPlayingState() re-acquires it on resume.
+            releaseWakeLock();
         }
     }
 

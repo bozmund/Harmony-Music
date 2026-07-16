@@ -3,10 +3,57 @@ import 'session_message.dart';
 /// Which underlying medium a transport uses.
 enum TransportKind {
   /// Same Wi-Fi / LAN: mDNS discovery + WebSocket connections.
-  lan,
+  wifi,
 
-  /// Bluetooth / Wi-Fi-Direct P2P (Nearby Connections / Multipeer).
-  nearby,
+  /// Bluetooth Low Energy through Nearby Connections low-power mode.
+  bluetooth,
+
+  /// Bluetooth and Wi-Fi discovery run concurrently.
+  both,
+}
+
+enum TransportFailureCode {
+  bluetoothDisabled,
+  wifiDisabled,
+  permissionDenied,
+  playServicesUnavailable,
+  radioFailure,
+  startupFailure,
+}
+
+class TransportFailure implements Exception {
+  const TransportFailure(this.code, {this.platformCode});
+
+  final TransportFailureCode code;
+  final String? platformCode;
+
+  @override
+  String toString() => 'TransportFailure(${code.name}, $platformCode)';
+}
+
+class TransportAvailability {
+  const TransportAvailability({
+    required this.bluetoothEnabled,
+    required this.wifiEnabled,
+    required this.playServicesAvailable,
+    this.bluetoothPermissionGranted = true,
+  });
+
+  final bool bluetoothEnabled;
+  final bool wifiEnabled;
+  final bool playServicesAvailable;
+  final bool bluetoothPermissionGranted;
+
+  bool supports(TransportKind kind) => switch (kind) {
+    TransportKind.bluetooth =>
+      bluetoothEnabled && playServicesAvailable && bluetoothPermissionGranted,
+    TransportKind.wifi => wifiEnabled,
+    TransportKind.both =>
+      bluetoothEnabled &&
+          wifiEnabled &&
+          playServicesAvailable &&
+          bluetoothPermissionGranted,
+  };
 }
 
 /// Coarse lifecycle state shared by every transport, surfaced to the UI.
@@ -61,6 +108,7 @@ class DiscoveredSession {
     this.port,
     this.endpointId,
     this.raw,
+    this.routes = const [],
   });
 
   final String id;
@@ -76,6 +124,7 @@ class DiscoveredSession {
 
   /// Transport-specific raw handle (e.g. the underlying discovered service).
   final Object? raw;
+  final List<DiscoveredSession> routes;
 
   @override
   bool operator ==(Object other) =>
@@ -83,6 +132,27 @@ class DiscoveredSession {
 
   @override
   int get hashCode => Object.hash(id, kind);
+}
+
+class ConnectionConfirmation {
+  const ConnectionConfirmation({
+    required this.endpointId,
+    required this.name,
+    required this.code,
+  });
+  final String endpointId;
+  final String name;
+  final String code;
+}
+
+abstract interface class ConnectionAuthenticatingTransport {
+  Stream<ConnectionConfirmation> get confirmations;
+  Future<void> confirmConnection(String endpointId, bool accept);
+}
+
+/// Optional channel for recoverable transport failures.
+abstract interface class TransportErrorReporting {
+  Stream<Object> get errors;
 }
 
 /// Abstraction over "how phones find and talk to each other". A concrete
@@ -105,12 +175,16 @@ abstract class SyncTransport {
   /// Coarse connection lifecycle for the UI.
   Stream<TransportConnectionState> get connectionState;
 
+  /// Current discovery results. The stream remains valid across repeated
+  /// discovery sessions until [dispose].
+  Stream<List<DiscoveredSession>> get discoveredSessions;
+
   /// Become the host: publish a discoverable session and accept guests.
   Future<void> startAdvertising(SessionInfo info);
 
-  /// Become a guest browser: emits the current list of discovered host
-  /// sessions as they appear/disappear.
-  Stream<List<DiscoveredSession>> startDiscovery(SessionInfo self);
+  /// Become a guest browser. Completes only after discovery has started, so
+  /// startup failures can be presented before the UI enters searching state.
+  Future<void> startDiscovery(SessionInfo self);
 
   /// Connect to a discovered host session as a guest.
   Future<void> join(DiscoveredSession session, SessionInfo self);

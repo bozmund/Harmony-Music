@@ -43,6 +43,12 @@ import "package:media_kit/src/player/platform_player.dart" show MPVLogLevel;
 
 const _androidNotificationArtSize = 256;
 const _fallbackCompletionGrace = Duration(milliseconds: 1250);
+// How long playback may sit in ProcessingState.buffering without the position
+// moving before the stall watchdog regenerates the stream URL. Initial song
+// starts are covered by isSongLoading, so this only fires on post-start
+// stalls (e.g. a silently dropped or throttled CDN connection).
+const _bufferingStallThreshold = Duration(seconds: 12);
+const _bufferingStallPositionTolerance = Duration(milliseconds: 300);
 
 Future<AudioHandler> initAudioService({
   required SettingsRepository settingsRepository,
@@ -74,8 +80,13 @@ Future<AudioHandler> initAudioService({
       androidNotificationIcon: 'mipmap/ic_launcher_monochrome',
       androidNotificationChannelId: 'com.mycompany.myapp.audio',
       androidNotificationChannelName: 'Harmony Music Notification',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
+      // Keep the service in the foreground while paused: a call-induced pause
+      // must not demote it into an OOM-kill target mid-call, and just_audio's
+      // in-memory resume-after-interruption flag must survive the call.
+      // The AudioServiceConfig assert requires androidNotificationOngoing to
+      // be false when androidStopForegroundOnPause is false.
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: false,
       artDownscaleWidth: _androidNotificationArtSize,
       artDownscaleHeight: _androidNotificationArtSize,
     ),
@@ -116,8 +127,17 @@ class MyAudioHandler extends BaseAudioHandler {
   Timer? _completionWatchdogTimer;
   DateTime? _earlyCompletionDetectedAt;
   Duration? _earlyCompletionDelay;
+  Duration? _stallWatchPosition;
+  DateTime? _stallWatchSince;
+  bool _stallRecoveryInFlight = false;
   bool _sourceSwitchInProgress = false;
   bool _sourceSwitchWasPlaying = false;
+  Timer? _sessionSaveDebounce;
+  Timer? _periodicPositionSaveTimer;
+  // Suppresses the automatic session-save triggers while a saved session is
+  // being restored, so the persisted position isn't clobbered with 0.
+  bool _suppressSessionSave = false;
+  bool _wasPlayingForSessionSave = false;
   int _playbackGeneration = 0;
   bool _preEndWindowActive = false;
   Future<void>? _prepareNextSourceTask;
@@ -231,9 +251,77 @@ class MyAudioHandler extends BaseAudioHandler {
     await _player.setLoopMode(loopModeEnabled ? LoopMode.one : LoopMode.off);
 
     _listenForDurationChanges();
+    _listenForSessionPersistence();
 
     if (RuntimePlatform.isAndroid) {
       _listenSessionIdStream();
+    }
+  }
+
+  // Keeps the persisted session fresh outside of app-lifecycle events, so an
+  // ungraceful process kill (e.g. OOM during a phone call) still restores the
+  // actual current song and a recent position.
+  void _listenForSessionPersistence() {
+    // Track change (auto-advance, skip, shuffle, setSourceNPlay). A newly
+    // started song begins at zero and _player.position is unreliable mid
+    // source-switch, so persist position 0 explicitly.
+    mediaItem
+        .distinct((a, b) => a?.id == b?.id)
+        .listen((_) => _scheduleSessionSave(positionOverride: Duration.zero));
+
+    // Any playing -> not-playing transition. A phone-call pause comes from
+    // just_audio's internal interruption handler calling _player.pause()
+    // directly, bypassing this handler's pause() override, so hook the player
+    // stream rather than the override.
+    _player.playingStream.listen((playing) {
+      if (_wasPlayingForSessionSave && !playing) {
+        // _player.stop() during a source switch also emits playing=false, but
+        // the position would still belong to the previous song.
+        if (!_sourceSwitchInProgress && !isSongLoading) {
+          _scheduleSessionSave();
+        }
+      }
+      _wasPlayingForSessionSave = playing;
+      _syncPeriodicPositionSaves(playing);
+    });
+
+    // Queue mutations (reorder, play next, clear) — keeps the persisted queue
+    // consistent with the index/position-only saves below.
+    queue.listen((_) => _scheduleSessionSave());
+  }
+
+  void _scheduleSessionSave({Duration? positionOverride}) {
+    // Never fabricate index 0 before a song was actually selected.
+    if (_suppressSessionSave || currentIndex is! int) return;
+    _sessionSaveDebounce?.cancel();
+    _sessionSaveDebounce = Timer(const Duration(milliseconds: 800), () {
+      if (_suppressSessionSave || currentIndex is! int) return;
+      unawaited(saveSessionData(positionOverride: positionOverride));
+    });
+  }
+
+  void _syncPeriodicPositionSaves(bool playing) {
+    if (playing) {
+      _periodicPositionSaveTimer ??= Timer.periodic(
+        const Duration(seconds: 30),
+        (_) {
+          if (_suppressSessionSave ||
+              currentIndex is! int ||
+              !_player.playing) {
+            return;
+          }
+          if (!_settingsRepository.getRestorePlaybackSession()) return;
+          unawaited(
+            _playbackSessionRepository.savePosition(
+              index: currentIndex as int,
+              position: _player.position.inMilliseconds,
+            ),
+          );
+        },
+      );
+    } else {
+      _periodicPositionSaveTimer?.cancel();
+      _periodicPositionSaveTimer = null;
     }
   }
 
@@ -407,20 +495,7 @@ class MyAudioHandler extends BaseAudioHandler {
           }
 
           //Workaround when 403 error encountered
-          // customAction("playByIndex", {'index': currentIndex, 'newUrl': true})
-          //     .whenComplete(() async {
-          //   await _player.stop();
-          //   if (currentSongUrl == null) {
-          //     networkErrorPause = true;
-          //   } else {
-          //     _player.play();
-          //   }
-          // });
-          await customAction("playByIndex", {
-            'index': currentIndex,
-            'newUrl': true,
-          });
-          await _player.seek(curPos, index: 0);
+          await _recoverFromStalledSource(curPos);
         }
       },
     );
@@ -504,6 +579,9 @@ class MyAudioHandler extends BaseAudioHandler {
       'earlyCompletionDetectedAt': _earlyCompletionDetectedAt
           ?.toIso8601String(),
       'earlyCompletionDelayMs': _earlyCompletionDelay?.inMilliseconds,
+      'stallWatchPositionMs': _stallWatchPosition?.inMilliseconds,
+      'stallWatchSince': _stallWatchSince?.toIso8601String(),
+      'stallRecoveryInFlight': _stallRecoveryInFlight,
       'sourceSwitchInProgress': _sourceSwitchInProgress,
       'sourceSwitchWasPlaying': _sourceSwitchWasPlaying,
       'playbackGeneration': _playbackGeneration,
@@ -711,7 +789,10 @@ class MyAudioHandler extends BaseAudioHandler {
     if (_completionWatchdogTimer != null) return;
     _completionWatchdogTimer = Timer.periodic(
       const Duration(milliseconds: 250),
-      (_) => _checkCompletionWatchdog(),
+      (_) {
+        _checkCompletionWatchdog();
+        _checkBufferingStallWatchdog();
+      },
     );
   }
 
@@ -719,6 +800,7 @@ class MyAudioHandler extends BaseAudioHandler {
     _completionWatchdogTimer?.cancel();
     _completionWatchdogTimer = null;
     _resetEarlyCompletionDeferral();
+    _resetBufferingStallWatch();
   }
 
   void _checkCompletionWatchdog() {
@@ -755,6 +837,71 @@ class MyAudioHandler extends BaseAudioHandler {
   void _resetEarlyCompletionDeferral() {
     _earlyCompletionDetectedAt = null;
     _earlyCompletionDelay = null;
+  }
+
+  void _checkBufferingStallWatchdog() {
+    if (isSongLoading ||
+        _completionInProgress ||
+        _sourceSwitchInProgress ||
+        _stallRecoveryInFlight) {
+      _resetBufferingStallWatch();
+      return;
+    }
+    if (!_player.playing ||
+        _player.processingState != ProcessingState.buffering) {
+      _resetBufferingStallWatch();
+      return;
+    }
+
+    final position = _player.position;
+    final watchedPosition = _stallWatchPosition;
+    if (watchedPosition == null ||
+        (position - watchedPosition).abs() > _bufferingStallPositionTolerance) {
+      _stallWatchPosition = position;
+      _stallWatchSince = DateTime.now();
+      return;
+    }
+    if (DateTime.now().difference(_stallWatchSince!) <
+        _bufferingStallThreshold) {
+      return;
+    }
+
+    _resetBufferingStallWatch();
+    _stallRecoveryInFlight = true;
+    printERROR(
+      'Buffering stalled at ${position.inMilliseconds}ms for '
+      'song=${mediaItem.value?.id}; recovering with a fresh stream URL',
+      tag: LogTags.audioHandler,
+    );
+    CrashDiagnosticsService.instance.record(
+      'audio',
+      'buffering-stall-recovery song=${mediaItem.value?.id} '
+          'position=${position.inMilliseconds}ms',
+      includeMemory: true,
+      flush: true,
+    );
+    unawaited(() async {
+      try {
+        await _recoverFromStalledSource(position);
+      } catch (error, stackTrace) {
+        printERROR(
+          'Buffering stall recovery failed: $error\n$stackTrace',
+          tag: LogTags.audioHandler,
+        );
+      } finally {
+        _stallRecoveryInFlight = false;
+      }
+    }());
+  }
+
+  void _resetBufferingStallWatch() {
+    _stallWatchPosition = null;
+    _stallWatchSince = null;
+  }
+
+  Future<void> _recoverFromStalledSource(Duration resumePosition) async {
+    await customAction("playByIndex", {'index': currentIndex, 'newUrl': true});
+    await _player.seek(resumePosition, index: 0);
   }
 
   void _listenForEndPositionFallback() {
@@ -1309,6 +1456,9 @@ class MyAudioHandler extends BaseAudioHandler {
 
       case 'dispose':
         _stopCompletionWatchdog();
+        _sessionSaveDebounce?.cancel();
+        _periodicPositionSaveTimer?.cancel();
+        _periodicPositionSaveTimer = null;
         await _preloadService.clear();
         await _player.dispose();
         await super.stop();
@@ -1320,6 +1470,7 @@ class MyAudioHandler extends BaseAudioHandler {
         final isNewUrlReq = extras['newUrl'] ?? false;
         final currentSong = queue.value[currentIndex];
         final bool restoreSession = extras['restoreSession'] ?? false;
+        if (restoreSession) _suppressSessionSave = true;
         final hadExistingSource = _playList.children.isNotEmpty;
         final preparedStreamInfo = !isNewUrlReq
             ? _takePreparedStreamInfoFor(songIndex, currentSong.id)
@@ -1459,6 +1610,8 @@ class MyAudioHandler extends BaseAudioHandler {
             error: error,
             stackTrace: stackTrace,
           );
+        } finally {
+          if (restoreSession) _suppressSessionSave = false;
         }
         break;
 
@@ -1833,14 +1986,15 @@ class MyAudioHandler extends BaseAudioHandler {
     await _player.setVolume(volumeAdjustment.toDouble().clamp(0, 1.0));
   }
 
-  Future<void> saveSessionData() async {
+  Future<void> saveSessionData({Duration? positionOverride}) async {
     if (!_settingsRepository.getRestorePlaybackSession()) {
       return;
     }
     final currQueue = queue.value;
     if (currQueue.isNotEmpty) {
       final currIndex = currentIndex ?? 0;
-      final position = _player.position.inMilliseconds;
+      final position =
+          positionOverride?.inMilliseconds ?? _player.position.inMilliseconds;
       await _playbackSessionRepository.saveSession(
         queue: currQueue,
         index: currIndex,
