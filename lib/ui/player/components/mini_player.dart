@@ -570,7 +570,9 @@ class MiniPlayer extends ConsumerWidget {
                                                         SongInfoDialog(
                                                           song: currentSong,
                                                           includePlaybackDebug:
-                                                              true,
+                                                              settingsController
+                                                                  .developerSettingsEnabled
+                                                                  .value,
                                                         ),
                                                   );
                                                 }

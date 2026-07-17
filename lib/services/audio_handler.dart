@@ -1265,7 +1265,7 @@ class MyAudioHandler extends BaseAudioHandler {
       isPlayingUsingLockCachingSource = true;
       // ignore: experimental_member_use
       return LockCachingAudioSource(
-        Uri.parse(url),
+        _playableUri(url),
         cacheFile: File("$_cacheDir/cachedSongs/${mediaItem.id}.mp3"),
         tag: mediaItem,
       );
@@ -1273,7 +1273,20 @@ class MyAudioHandler extends BaseAudioHandler {
 
     printINFO("Playing Using AudioSource.uri", tag: LogTags.audioHandler);
     isPlayingUsingLockCachingSource = false;
-    return AudioSource.uri(Uri.tryParse(url)!, tag: mediaItem);
+    return AudioSource.uri(_playableUri(url), tag: mediaItem);
+  }
+
+  /// Local file paths can contain '#' or '?' from song titles; Uri.parse
+  /// treats those as fragment/query separators and truncates the path, so
+  /// build file URIs with Uri.file instead.
+  Uri _playableUri(String url) {
+    if (url.startsWith('file://')) {
+      return Uri.file(url.substring('file://'.length));
+    }
+    if (_isLocalSourceUrl(url) || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url)) {
+      return Uri.file(url);
+    }
+    return Uri.parse(url);
   }
 
   @override
@@ -1562,7 +1575,32 @@ class MyAudioHandler extends BaseAudioHandler {
           if (restoreSession) {
             if (!RuntimePlatform.isDesktop) {
               final position = extras['position'];
-              await _player.load();
+              try {
+                await _player.load();
+              } catch (error, stackTrace) {
+                if (isNewUrlReq) rethrow;
+                final retryStreamInfo =
+                    await _freshStreamInfoAfterSourceLoadFailure(
+                      actionName: 'playByIndex(restore)',
+                      song: currentSong,
+                      error: error,
+                      stackTrace: stackTrace,
+                    );
+                if (requestGeneration != _playbackGeneration ||
+                    songIndex != currentIndex) {
+                  _endSourceSwitch();
+                  return;
+                }
+                await _replaceCurrentSourceWithStreamInfo(
+                  actionName: 'playByIndex(restore)',
+                  song: currentSong,
+                  streamInfo: retryStreamInfo,
+                );
+                if (loudnessNormalizationEnabled && RuntimePlatform.isAndroid) {
+                  await _normalizeVolume(retryStreamInfo.audio!.loudnessDb);
+                }
+                await _player.load();
+              }
               await _player.seek(Duration(milliseconds: position));
               await _player.seek(Duration(milliseconds: position));
             }

@@ -13,10 +13,11 @@ class ResolverConfiguration {
 
   static const debugBuildDefault = String.fromEnvironment(
     'RESOLVER_DEBUG_BASE_URL',
-    defaultValue: 'http://192.168.8.22:8088',
+    defaultValue: 'https://harmony-resolver.duckdns.org',
   );
   static const productionBuildDefault = String.fromEnvironment(
     'RESOLVER_PRODUCTION_BASE_URL',
+    defaultValue: 'https://harmony-resolver.duckdns.org',
   );
 
   final ResolverEnvironment environment;
