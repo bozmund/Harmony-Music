@@ -23,7 +23,12 @@ void main() {
         .where((line) => line.contains('=') && !line.trimLeft().startsWith('#'))
         .map((line) => line.split('=').first.trim())
         .toSet();
-    expect(keys, {'AUTH0_DOMAIN', 'AUTH0_CLIENT_ID', 'AUTH0_REDIRECT_SCHEME'});
+    expect(keys, {
+      'AUTH0_DOMAIN',
+      'AUTH0_CLIENT_ID',
+      'AUTH0_REDIRECT_SCHEME',
+      'AUTH0_AUDIENCE',
+    });
     expect(
       keys.where((key) => RegExp(r'SECRET|PASSWORD|TOKEN').hasMatch(key)),
       isEmpty,
