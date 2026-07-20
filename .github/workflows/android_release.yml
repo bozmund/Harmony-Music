@@ -65,6 +65,14 @@ jobs:
         shell: bash
         run: |
           pubspec_version="$(grep '^version:' pubspec.yaml | awk '{print $2}')"
+          pubspec_build_number="${pubspec_version##*+}"
+          if [[ ! "${pubspec_build_number}" =~ ^[0-9]+$ ]]; then
+            echo "pubspec version must end in a numeric build number; got ${pubspec_version}" >&2
+            exit 1
+          fi
+          # Android only accepts in-place updates with a strictly higher
+          # version code. Reserve a CI range above legacy pubspec build codes.
+          android_build_number="$((1000000 + GITHUB_RUN_NUMBER))"
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             tag_version="${GITHUB_REF_NAME#v}"
             pubspec_semantic_version="${pubspec_version%%+*}"
@@ -84,6 +92,7 @@ jobs:
           fi
           echo "channel=${channel}" >> "${GITHUB_OUTPUT}"
           echo "version=${build_version}" >> "${GITHUB_OUTPUT}"
+          echo "android_build_number=${android_build_number}" >> "${GITHUB_OUTPUT}"
 
       - name: Validate release secrets
         shell: bash
@@ -112,6 +121,7 @@ jobs:
       - name: Build signed universal APK
         run: >
           flutter build apk --release
+          --build-number="${ANDROID_BUILD_NUMBER}"
           --dart-define=ISSUE_REPORT_ENDPOINT="${ISSUE_REPORT_ENDPOINT}"
           --dart-define=BUILD_CHANNEL="${BUILD_CHANNEL}"
           --dart-define=BUILD_VERSION="${BUILD_VERSION}"
@@ -125,6 +135,7 @@ jobs:
           ISSUE_REPORT_ENDPOINT: ${{ secrets.ISSUE_REPORT_ENDPOINT }}
           BUILD_CHANNEL: ${{ steps.build_meta.outputs.channel }}
           BUILD_VERSION: ${{ steps.build_meta.outputs.version }}
+          ANDROID_BUILD_NUMBER: ${{ steps.build_meta.outputs.android_build_number }}
           RESOLVER_PRODUCTION_BASE_URL: ${{ vars.RESOLVER_PRODUCTION_BASE_URL }}
 
       - name: Prepare APK asset
