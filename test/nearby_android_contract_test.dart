@@ -44,4 +44,21 @@ void main() {
 
     expect(source, contains('await transport.dispose();'));
   });
+
+  test('Nearby radio receiver is released with the Android activity', () {
+    final bridgeSource = File(
+      'android/app/src/main/kotlin/com/anandnet/harmonymusic/'
+      'NearbyConnectionsBridge.kt',
+    ).readAsStringSync();
+    final activitySource = File(
+      'android/app/src/main/kotlin/com/anandnet/harmonymusic/MainActivity.kt',
+    ).readAsStringSync();
+
+    expect(bridgeSource, contains('fun dispose()'));
+    expect(bridgeSource, contains('unregisterRadioReceiver()'));
+    expect(bridgeSource, contains('context.unregisterReceiver(radioReceiver)'));
+    expect(bridgeSource, contains('setStreamHandler(null)'));
+    expect(activitySource, contains('override fun onDestroy()'));
+    expect(activitySource, contains('nearbyConnections.dispose()'));
+  });
 }

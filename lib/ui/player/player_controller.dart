@@ -113,6 +113,18 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   final isLoopModeEnabled = ObservableValue(false);
   final isShuffleModeEnabled = ObservableValue(false);
   final currentSong = ObservableNullable<MediaItem>();
+
+  /// The audio-service bridge can briefly expose an empty media item while a
+  /// new installation starts its Android service. It is not a playable track
+  /// and must not reserve a blank mini-player panel.
+  static bool isDisplayableSong(MediaItem? song) =>
+      song != null &&
+      song.playable == true &&
+      song.id.trim().isNotEmpty &&
+      song.title.trim().isNotEmpty;
+
+  bool get hasDisplayableCurrentSong => isDisplayableSong(currentSong.value);
+
   final isCurrentSongFav = ObservableValue(false);
   final playingFrom = ObservableValue(
     PlayingFrom(type: PlayingFromType.SELECTION),
@@ -569,7 +581,8 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   void _listenForChangesInDuration() {
     _audioHandler.mediaItem.listen((mediaItem) async {
-      if (mediaItem == null) {
+      if (mediaItem == null || !isDisplayableSong(mediaItem)) {
+        currentSong.value = null;
         _clearPendingSourceStart();
         progressBarStatus.update((val) {
           val.total = Duration.zero;

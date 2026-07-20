@@ -25,6 +25,8 @@ class NearbyConnectionsBridge(private val context: Context) : MethodChannel.Meth
     private val client = Nearby.getConnectionsClient(context)
     private var sink: EventChannel.EventSink? = null
     private var radioReceiverRegistered = false
+    private var methodChannel: MethodChannel? = null
+    private var eventChannel: EventChannel? = null
     private val pending = mutableSetOf<String>()
     private val endpointNames = mutableMapOf<String, String>()
     private val discoveredSessions = mutableMapOf<String, String>()
@@ -68,8 +70,10 @@ class NearbyConnectionsBridge(private val context: Context) : MethodChannel.Meth
     }
 
     fun attach(messenger: io.flutter.plugin.common.BinaryMessenger) {
-        MethodChannel(messenger, "harmonymusic/nearby_connections").setMethodCallHandler(this)
-        EventChannel(messenger, "harmonymusic/nearby_connections/events").setStreamHandler(this)
+        methodChannel = MethodChannel(messenger, "harmonymusic/nearby_connections")
+        eventChannel = EventChannel(messenger, "harmonymusic/nearby_connections/events")
+        methodChannel?.setMethodCallHandler(this)
+        eventChannel?.setStreamHandler(this)
     }
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         sink = events
@@ -88,11 +92,30 @@ class NearbyConnectionsBridge(private val context: Context) : MethodChannel.Meth
         event("radioState", radioState())
     }
     override fun onCancel(arguments: Any?) {
-        if (radioReceiverRegistered) {
+        unregisterRadioReceiver()
+        sink = null
+    }
+
+    /** Releases the Activity-owned receiver and Flutter handlers. */
+    fun dispose() {
+        sink = null
+        unregisterRadioReceiver()
+        methodChannel?.setMethodCallHandler(null)
+        eventChannel?.setStreamHandler(null)
+        methodChannel = null
+        eventChannel = null
+    }
+
+    private fun unregisterRadioReceiver() {
+        if (!radioReceiverRegistered) return
+        try {
             context.unregisterReceiver(radioReceiver)
+        } catch (_: IllegalArgumentException) {
+            // Android may already have removed the receiver while the Flutter
+            // event stream is being torn down. Either way it is no longer live.
+        } finally {
             radioReceiverRegistered = false
         }
-        sink = null
     }
     private fun event(type: String, values: Map<String, Any?> = emptyMap()) { sink?.success(values + mapOf("type" to type)) }
     private val radioReceiver = object : BroadcastReceiver() {

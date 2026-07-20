@@ -449,9 +449,24 @@ class MyAudioHandler extends BaseAudioHandler {
         if (event.processingState == ProcessingState.ready) {
           _activePlaybackTrace?.playerReady();
         }
-        final playing = _sourceSwitchInProgress && _sourceSwitchWasPlaying
-            ? true
-            : _player.playing;
+        // `stop()` is necessary while replacing the one-song source, but it
+        // also emits an idle event. Android treats an idle audio_service state
+        // as an instruction to tear down the media session. Keep reporting a
+        // non-idle, playing state until the *new* source has actually started;
+        // a delayed idle event from the old source must never dismiss the
+        // lock-screen/notification controls between tracks.
+        final sourceSwitchHasStarted =
+            _sourceSwitchInProgress &&
+            _sourceSwitchWasPlaying &&
+            !isSongLoading &&
+            _player.playing &&
+            event.processingState == ProcessingState.ready;
+        if (sourceSwitchHasStarted) {
+          _endSourceSwitch();
+        }
+        final preservingMediaSession =
+            _sourceSwitchInProgress && _sourceSwitchWasPlaying;
+        final playing = preservingMediaSession ? true : _player.playing;
         final updatePosition = isSongLoading ? Duration.zero : _player.position;
         final bufferedPosition = isSongLoading
             ? Duration.zero
@@ -465,10 +480,10 @@ class MyAudioHandler extends BaseAudioHandler {
             ],
             systemActions: const {MediaAction.seek},
             androidCompactActionIndices: const [0, 1, 2],
-            processingState: isSongLoading
-                ? AudioProcessingState.loading
-                : _sourceSwitchInProgress && _sourceSwitchWasPlaying
+            processingState: preservingMediaSession
                 ? AudioProcessingState.ready
+                : isSongLoading
+                ? AudioProcessingState.loading
                 : const {
                     ProcessingState.idle: AudioProcessingState.idle,
                     ProcessingState.loading: AudioProcessingState.loading,
@@ -1007,13 +1022,19 @@ class MyAudioHandler extends BaseAudioHandler {
     }
   }
 
-  void _endSourceSwitch({bool defer = false}) {
-    if (defer) {
-      Timer(const Duration(milliseconds: 500), _endSourceSwitch);
-      return;
-    }
+  void _endSourceSwitch() {
     _sourceSwitchInProgress = false;
     _sourceSwitchWasPlaying = false;
+  }
+
+  void _finishSourceSwitchAfterPlaybackRequest() {
+    // A playing switch ends from the playback event listener only after the
+    // replacement source is non-idle. Until then Android sees ready + playing,
+    // keeping the lock-screen card stable while the internal player changes
+    // source. A switch that started paused has no playing session to preserve.
+    if (!_sourceSwitchWasPlaying) {
+      _endSourceSwitch();
+    }
   }
 
   void _resetPreparedNextSource() {
@@ -1756,7 +1777,7 @@ class MyAudioHandler extends BaseAudioHandler {
             }
             isSongLoading = false;
             _emitSourceStartedSnapshot();
-            _endSourceSwitch(defer: true);
+            _finishSourceSwitchAfterPlaybackRequest();
             _schedulePreloadWindow();
           }
         } catch (error, stackTrace) {
@@ -1900,7 +1921,7 @@ class MyAudioHandler extends BaseAudioHandler {
           }
           isSongLoading = false;
           _emitSourceStartedSnapshot();
-          _endSourceSwitch(defer: true);
+          _finishSourceSwitchAfterPlaybackRequest();
           _schedulePreloadWindow();
         } catch (error, stackTrace) {
           _endSourceSwitch();
