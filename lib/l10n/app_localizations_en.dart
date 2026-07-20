@@ -1227,4 +1227,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cloudBackupNow => 'Back up downloaded songs now';
+
+  @override
+  String get cloudBackupInProgress => 'Backing up downloaded songs…';
+
+  @override
+  String get cloudBackupComplete => 'Downloaded-song backup finished.';
+
+  @override
+  String get cloudBackupWifiRequired =>
+      'Connect to Wi-Fi to back up downloaded songs.';
+
+  @override
+  String get cloudBackupFailed => 'Cloud backup failed. Try again.';
+
+  @override
+  String get cloudBackupLowBatteryTitle => 'Battery is low';
+
+  @override
+  String get cloudBackupLowBatteryMessage =>
+      'Your battery is below 50%. Backing up downloaded songs may use significant power.';
+
+  @override
+  String get cloudBackupAnyway => 'Back up anyway';
+
+  @override
+  String get shareAndroidApp => 'Share Harmony Music';
+
+  @override
+  String get shareAndroidAppDescription =>
+      'Share a direct link to the latest Android APK.';
 }

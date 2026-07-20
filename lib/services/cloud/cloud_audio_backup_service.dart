@@ -7,6 +7,14 @@ import '../../domain/repositories/download_repository.dart';
 import '../../data/repositories/cloud_sync_repository.dart';
 import 'harmony_cloud_client.dart';
 
+enum CloudAudioBackupResult {
+  completed,
+  alreadyRunning,
+  disabled,
+  wifiRequired,
+  batteryTooLow,
+}
+
 class CloudAudioBackupService {
   CloudAudioBackupService(
     this._downloads,
@@ -24,10 +32,15 @@ class CloudAudioBackupService {
   final Battery _battery;
   bool _running = false;
 
-  Future<void> run() async {
-    if (_running || !_syncRepository.enabled || !await _policyAllowsUpload()) {
-      return;
-    }
+  Future<CloudAudioBackupResult> run({
+    bool overrideBatteryPolicy = false,
+  }) async {
+    if (_running) return CloudAudioBackupResult.alreadyRunning;
+    if (!_syncRepository.enabled) return CloudAudioBackupResult.disabled;
+    final initialBlock = await _policyBlock(
+      overrideBatteryPolicy: overrideBatteryPolicy,
+    );
+    if (initialBlock != null) return initialBlock;
     _running = true;
     try {
       final entries = await _downloads.getAllDownloadJsonEntries();
@@ -44,7 +57,9 @@ class CloudAudioBackupService {
         candidates[id] = path;
       }
 
-      while (candidates.isNotEmpty && await _policyAllowsUpload()) {
+      while (candidates.isNotEmpty &&
+          await _policyBlock(overrideBatteryPolicy: overrideBatteryPolicy) ==
+              null) {
         final plan = await _cloud.nextAudio(
           deviceId: _syncRepository.deviceId,
           videoIds: candidates.keys.take(500).toList(),
@@ -61,18 +76,30 @@ class CloudAudioBackupService {
           filePath: path,
         );
       }
+      return CloudAudioBackupResult.completed;
     } finally {
       _running = false;
     }
   }
 
-  Future<bool> _policyAllowsUpload() async {
+  Future<CloudAudioBackupResult?> _policyBlock({
+    required bool overrideBatteryPolicy,
+  }) async {
     try {
       final connections = await _connectivity.checkConnectivity();
-      if (!connections.contains(ConnectivityResult.wifi)) return false;
-      return await _battery.batteryLevel > 50;
+      if (!connections.contains(ConnectivityResult.wifi)) {
+        return CloudAudioBackupResult.wifiRequired;
+      }
+      if (overrideBatteryPolicy || await _battery.batteryLevel > 50) {
+        return null;
+      }
+      final state = await _battery.batteryState;
+      if (state == BatteryState.charging || state == BatteryState.full) {
+        return null;
+      }
+      return CloudAudioBackupResult.batteryTooLow;
     } catch (_) {
-      return false;
+      return CloudAudioBackupResult.wifiRequired;
     }
   }
 }

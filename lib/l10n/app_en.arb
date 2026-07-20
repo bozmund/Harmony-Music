@@ -388,5 +388,14 @@
   "cloudBackupPrompt": "Keep your Harmony data backed up and synchronized across devices?",
   "cloudBackupEnable": "Enable backup",
   "cloudBackupNotNow": "Not now",
-  "cloudBackupNow": "Back up downloaded songs now"
+  "cloudBackupNow": "Back up downloaded songs now",
+  "cloudBackupInProgress": "Backing up downloaded songs…",
+  "cloudBackupComplete": "Downloaded-song backup finished.",
+  "cloudBackupWifiRequired": "Connect to Wi-Fi to back up downloaded songs.",
+  "cloudBackupFailed": "Cloud backup failed. Try again.",
+  "cloudBackupLowBatteryTitle": "Battery is low",
+  "cloudBackupLowBatteryMessage": "Your battery is below 50%. Backing up downloaded songs may use significant power.",
+  "cloudBackupAnyway": "Back up anyway",
+  "shareAndroidApp": "Share Harmony Music",
+  "shareAndroidAppDescription": "Share a direct link to the latest Android APK."
 }

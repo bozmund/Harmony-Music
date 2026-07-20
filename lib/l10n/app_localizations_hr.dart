@@ -1232,4 +1232,37 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String get cloudBackupNow => 'Sada sigurnosno kopiraj preuzete pjesme';
+
+  @override
+  String get cloudBackupInProgress =>
+      'Izrađuje se sigurnosna kopija preuzetih pjesama…';
+
+  @override
+  String get cloudBackupComplete =>
+      'Sigurnosna kopija preuzetih pjesama je dovršena.';
+
+  @override
+  String get cloudBackupWifiRequired =>
+      'Povežite se na Wi-Fi za sigurnosnu kopiju preuzetih pjesama.';
+
+  @override
+  String get cloudBackupFailed =>
+      'Izrada sigurnosne kopije nije uspjela. Pokušajte ponovno.';
+
+  @override
+  String get cloudBackupLowBatteryTitle => 'Baterija je pri kraju';
+
+  @override
+  String get cloudBackupLowBatteryMessage =>
+      'Baterija je ispod 50 %. Izrada sigurnosne kopije preuzetih pjesama može potrošiti mnogo energije.';
+
+  @override
+  String get cloudBackupAnyway => 'Svejedno izradi kopiju';
+
+  @override
+  String get shareAndroidApp => 'Podijeli Harmony Music';
+
+  @override
+  String get shareAndroidAppDescription =>
+      'Podijelite izravnu poveznicu na najnoviji Android APK.';
 }
