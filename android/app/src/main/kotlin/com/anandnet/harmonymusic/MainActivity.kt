@@ -57,6 +57,13 @@ class MainActivity : AudioServiceActivity() {
         }
     }
 
+    override fun onDestroy() {
+        if (::nearbyConnections.isInitialized) {
+            nearbyConnections.dispose()
+        }
+        super.onDestroy()
+    }
+
     private fun appInfo(): Map<String, String> {
         val packageInfo = packageManager.getPackageInfo(packageName, 0)
         val appLabel = packageManager.getApplicationLabel(applicationInfo).toString()

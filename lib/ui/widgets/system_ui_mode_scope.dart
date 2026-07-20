@@ -57,6 +57,15 @@ class _SystemUiModeScopeState extends ConsumerState<SystemUiModeScope>
         oldWidget.active != widget.active ||
         oldWidget.priority != widget.priority) {
       _syncRequest();
+      if (oldWidget.active &&
+          !widget.active &&
+          oldWidget.mode == SystemUiMode.immersive) {
+        // Android can apply the last immersive window flags after the
+        // portrait rotation finishes. Queue a second edge-to-edge assertion
+        // after the transition settles; release builds reach this race more
+        // often because their frame timing is faster than debug builds.
+        unawaited(ref.read(systemUiModeServiceProvider).reapplyCurrentMode());
+      }
     }
   }
 

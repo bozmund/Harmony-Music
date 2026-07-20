@@ -375,6 +375,40 @@ void main() {
       expect(block, contains('_notifyPlayerChanged();'));
     });
 
+    test(
+      'fresh installs do not show a mini-player for an empty media item',
+      () {
+        final controllerSource = source;
+        final homeSource = File('lib/ui/home.dart').readAsStringSync();
+        final miniPlayerSource = File(
+          'lib/ui/player/components/mini_player.dart',
+        ).readAsStringSync();
+
+        expect(
+          controllerSource,
+          contains('bool get hasDisplayableCurrentSong'),
+        );
+        expect(controllerSource, contains('static bool isDisplayableSong'));
+        expect(controllerSource, contains('song.playable == true'));
+        expect(controllerSource, contains("song.id.trim().isNotEmpty"));
+        expect(controllerSource, contains("song.title.trim().isNotEmpty"));
+        final mediaItemBlock = _methodBlock(
+          controllerSource,
+          '_listenForChangesInDuration',
+        );
+        expect(mediaItemBlock, contains('!isDisplayableSong(mediaItem)'));
+        expect(mediaItemBlock, contains('currentSong.value = null;'));
+        expect(
+          homeSource,
+          contains('playerController.hasDisplayableCurrentSong'),
+        );
+        expect(
+          miniPlayerSource,
+          contains('playerController.hasDisplayableCurrentSong'),
+        );
+      },
+    );
+
     test('miniplayer height is set before auto-opening player panel', () {
       final block = _methodBlock(source, '_playerPanelCheck');
       final minHeightIndex = block.indexOf('playerPanelMinHeight.value =');

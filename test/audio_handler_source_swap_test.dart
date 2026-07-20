@@ -438,42 +438,77 @@ void main() {
       },
     );
 
-    test('source switching keeps controls playing while reporting loading', () {
-      final eventBlock = _methodBlock(
-        source,
-        '_notifyAudioHandlerAboutPlaybackEvents',
-      );
-      final playByIndex = _caseBlock(source, 'playByIndex');
-      final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
+    test(
+      'source switching keeps the Android media session alive until new audio starts',
+      () {
+        final eventBlock = _methodBlock(
+          source,
+          '_notifyAudioHandlerAboutPlaybackEvents',
+        );
+        final playByIndex = _caseBlock(source, 'playByIndex');
+        final setSourceNPlay = _caseBlock(source, 'setSourceNPlay');
 
-      expect(source, contains('bool _sourceSwitchInProgress = false;'));
-      expect(source, contains('bool _sourceSwitchWasPlaying = false;'));
-      expect(eventBlock, contains('_sourceSwitchInProgress'));
-      expect(eventBlock, contains('_sourceSwitchWasPlaying'));
-      expect(eventBlock, contains('isSongLoading'));
-      expect(eventBlock, contains('AudioProcessingState.loading'));
-      expect(eventBlock, contains('AudioProcessingState.ready'));
-      expect(eventBlock, contains('updatePosition = isSongLoading'));
-      expect(eventBlock, contains('bufferedPosition = isSongLoading'));
-      expect(
-        playByIndex,
-        contains('processingState: AudioProcessingState.loading'),
-      );
-      expect(playByIndex, contains('updatePosition: Duration.zero'));
-      expect(playByIndex, contains('bufferedPosition: Duration.zero'));
-      expect(
-        setSourceNPlay,
-        contains('processingState: AudioProcessingState.loading'),
-      );
-      expect(setSourceNPlay, contains('updatePosition: Duration.zero'));
-      expect(setSourceNPlay, contains('bufferedPosition: Duration.zero'));
-      expect(playByIndex, contains('_beginSourceSwitch();'));
-      expect(playByIndex, contains('_endSourceSwitch();'));
-      expect(playByIndex, contains('_endSourceSwitch(defer: true);'));
-      expect(setSourceNPlay, contains('_beginSourceSwitch();'));
-      expect(setSourceNPlay, contains('_endSourceSwitch(defer: true);'));
-      expect(source, contains('Timer(const Duration(milliseconds: 500)'));
-    });
+        expect(source, contains('bool _sourceSwitchInProgress = false;'));
+        expect(source, contains('bool _sourceSwitchWasPlaying = false;'));
+        expect(eventBlock, contains('_sourceSwitchInProgress'));
+        expect(eventBlock, contains('_sourceSwitchWasPlaying'));
+        expect(eventBlock, contains('isSongLoading'));
+        expect(eventBlock, contains('AudioProcessingState.loading'));
+        expect(eventBlock, contains('AudioProcessingState.ready'));
+        final processingStateIndex = eventBlock.indexOf(
+          'processingState: preservingMediaSession',
+        );
+        final loadingFallbackIndex = eventBlock.indexOf(
+          ': isSongLoading',
+          processingStateIndex,
+        );
+        expect(processingStateIndex, greaterThanOrEqualTo(0));
+        expect(
+          loadingFallbackIndex,
+          greaterThan(processingStateIndex),
+          reason:
+              'an existing Android session must remain playing, not connecting',
+        );
+        expect(eventBlock, contains('updatePosition = isSongLoading'));
+        expect(eventBlock, contains('bufferedPosition = isSongLoading'));
+        expect(
+          eventBlock,
+          contains('event.processingState == ProcessingState.ready'),
+        );
+        expect(eventBlock, contains('!isSongLoading'));
+        expect(eventBlock, contains('_player.playing'));
+        expect(
+          playByIndex,
+          contains('processingState: AudioProcessingState.loading'),
+        );
+        expect(playByIndex, contains('updatePosition: Duration.zero'));
+        expect(playByIndex, contains('bufferedPosition: Duration.zero'));
+        expect(
+          setSourceNPlay,
+          contains('processingState: AudioProcessingState.loading'),
+        );
+        expect(setSourceNPlay, contains('updatePosition: Duration.zero'));
+        expect(setSourceNPlay, contains('bufferedPosition: Duration.zero'));
+        expect(playByIndex, contains('_beginSourceSwitch();'));
+        expect(playByIndex, contains('_endSourceSwitch();'));
+        expect(
+          playByIndex,
+          contains('_finishSourceSwitchAfterPlaybackRequest();'),
+        );
+        expect(setSourceNPlay, contains('_beginSourceSwitch();'));
+        expect(
+          setSourceNPlay,
+          contains('_finishSourceSwitchAfterPlaybackRequest();'),
+        );
+        final finishBlock = _methodBlock(
+          source,
+          '_finishSourceSwitchAfterPlaybackRequest',
+        );
+        expect(finishBlock, contains('if (!_sourceSwitchWasPlaying)'));
+        expect(finishBlock, contains('_endSourceSwitch();'));
+        expect(source, isNot(contains('_endSourceSwitch(defer: true)')));
+      },
+    );
 
     test('playback checks offline sources before network resolution', () {
       final sourceInfoBlock = _methodBlock(source, '_sourceInfoForPlayback');

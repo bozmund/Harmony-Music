@@ -220,6 +220,20 @@ void main() {
       expect(delay, greaterThan(firstApply));
       expect(secondApply, greaterThan(delay));
     });
+
+    test(
+      'leaving the landscape player reasserts edge-to-edge after rotation',
+      () {
+        final source = File(
+          'lib/ui/widgets/system_ui_mode_scope.dart',
+        ).readAsStringSync();
+
+        expect(source, contains('oldWidget.active &&'));
+        expect(source, contains('!widget.active'));
+        expect(source, contains('oldWidget.mode == SystemUiMode.immersive'));
+        expect(source, contains('reapplyCurrentMode()'));
+      },
+    );
   });
 
   group('app text colors', () {

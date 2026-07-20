@@ -388,5 +388,14 @@
   "cloudBackupPrompt": "Želite li sigurnosno kopirati Harmony podatke i sinkronizirati ih između uređaja?",
   "cloudBackupEnable": "Uključi backup",
   "cloudBackupNotNow": "Ne sada",
-  "cloudBackupNow": "Sada sigurnosno kopiraj preuzete pjesme"
+  "cloudBackupNow": "Sada sigurnosno kopiraj preuzete pjesme",
+  "cloudBackupInProgress": "Izrađuje se sigurnosna kopija preuzetih pjesama…",
+  "cloudBackupComplete": "Sigurnosna kopija preuzetih pjesama je dovršena.",
+  "cloudBackupWifiRequired": "Povežite se na Wi-Fi za sigurnosnu kopiju preuzetih pjesama.",
+  "cloudBackupFailed": "Izrada sigurnosne kopije nije uspjela. Pokušajte ponovno.",
+  "cloudBackupLowBatteryTitle": "Baterija je pri kraju",
+  "cloudBackupLowBatteryMessage": "Baterija je ispod 50 %. Izrada sigurnosne kopije preuzetih pjesama može potrošiti mnogo energije.",
+  "cloudBackupAnyway": "Svejedno izradi kopiju",
+  "shareAndroidApp": "Podijeli Harmony Music",
+  "shareAndroidAppDescription": "Podijelite izravnu poveznicu na najnoviji Android APK."
 }

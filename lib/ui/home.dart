@@ -78,7 +78,7 @@ class _HomeState extends ConsumerState<Home> {
               settingsScreenController.isBottomNavBarEnabled.value &&
               homeScreenController.isHomeScreenOnTop &&
               !panelOpen;
-          final hasCurrentSong = playerController.currentSong.value != null;
+          final hasCurrentSong = playerController.hasDisplayableCurrentSong;
           final playerPanelMinHeight = hasCurrentSong
               ? collapsedMiniPlayerHeight(
                   context,

@@ -58,6 +58,7 @@ class AuthController extends ChangeNotifier {
   final CloudSyncCoordinator _cloud;
   UserProfile? userProfile;
   bool isBusy = false;
+  bool cloudBackupRunning = false;
   String? errorMessage;
 
   bool get isConfigured => _service.isConfigured;
@@ -88,7 +89,21 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> backupCloudAudioNow() => _cloud.backupAudioNow();
+  Future<CloudAudioBackupResult> backupCloudAudioNow({
+    bool overrideBatteryPolicy = false,
+  }) async {
+    if (cloudBackupRunning) return CloudAudioBackupResult.alreadyRunning;
+    cloudBackupRunning = true;
+    notifyListeners();
+    try {
+      return await _cloud.backupAudioNow(
+        overrideBatteryPolicy: overrideBatteryPolicy,
+      );
+    } finally {
+      cloudBackupRunning = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> _run(Future<void> Function() action) async {
     isBusy = true;

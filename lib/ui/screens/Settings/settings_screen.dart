@@ -11,6 +11,7 @@ import 'package:harmonymusic/utils/lang_mapping.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../app/providers/auth_providers.dart';
+import '../../../services/cloud/cloud_audio_backup_service.dart';
 import '../../../utils/runtime_platform.dart';
 import '../../widgets/awaitable_button.dart';
 import '../../widgets/common_dialog_widget.dart';
@@ -31,6 +32,8 @@ import 'components/custom_expansion_tile.dart';
 import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart';
 
 bool _cloudOptInDialogOpen = false;
+const _latestAndroidApkUrl =
+    'https://github.com/bozmund/Harmony-Music/releases/download/main-latest/harmonymusic-main-latest.apk';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key, this.isBottomNavActive = false});
@@ -167,7 +170,15 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                           leading: const Icon(Icons.cloud_upload_outlined),
                           title: Text(context.l10n.cloudBackupNow),
-                          onTap: authController.backupCloudAudioNow,
+                          subtitle: authController.cloudBackupRunning
+                              ? Text(context.l10n.cloudBackupInProgress)
+                              : null,
+                          onTap: authController.cloudBackupRunning
+                              ? null
+                              : () => _runCloudAudioBackup(
+                                  context,
+                                  authController,
+                                ),
                         ),
                     ],
                   ),
@@ -1263,6 +1274,22 @@ class SettingsScreen extends ConsumerWidget {
                           );
                         },
                       ),
+                      if (RuntimePlatform.isAndroid)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          leading: const Icon(Icons.share_outlined),
+                          title: Text(context.l10n.shareAndroidApp),
+                          subtitle: Text(
+                            context.l10n.shareAndroidAppDescription,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          onTap: () => unawaited(
+                            AppPlatformService.shareText(_latestAndroidApkUrl),
+                          ),
+                        ),
                       ListTile(
                         contentPadding: const EdgeInsets.only(
                           left: 5,
@@ -1431,6 +1458,72 @@ Future<void> _showCloudOptInDialog(
     if (enabled != null) await controller.setCloudSyncEnabled(enabled);
   } finally {
     _cloudOptInDialogOpen = false;
+  }
+}
+
+Future<void> _runCloudAudioBackup(
+  BuildContext context,
+  AuthController controller, {
+  bool overrideBatteryPolicy = false,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final result = await controller.backupCloudAudioNow(
+      overrideBatteryPolicy: overrideBatteryPolicy,
+    );
+    if (!context.mounted) return;
+    if (result == CloudAudioBackupResult.batteryTooLow) {
+      final continueBackup = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(dialogContext.l10n.cloudBackupLowBatteryTitle),
+          content: Text(dialogContext.l10n.cloudBackupLowBatteryMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(dialogContext.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(dialogContext.l10n.cloudBackupAnyway),
+            ),
+          ],
+        ),
+      );
+      if (continueBackup == true && context.mounted) {
+        await _runCloudAudioBackup(
+          context,
+          controller,
+          overrideBatteryPolicy: true,
+        );
+      }
+      return;
+    }
+    final message = switch (result) {
+      CloudAudioBackupResult.completed => context.l10n.cloudBackupComplete,
+      CloudAudioBackupResult.wifiRequired =>
+        context.l10n.cloudBackupWifiRequired,
+      CloudAudioBackupResult.alreadyRunning =>
+        context.l10n.cloudBackupInProgress,
+      CloudAudioBackupResult.disabled => context.l10n.cloudBackupFailed,
+      CloudAudioBackupResult.batteryTooLow => context.l10n.cloudBackupFailed,
+    };
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        snackbar(context, message, duration: const Duration(seconds: 3)),
+      );
+  } catch (_) {
+    if (!context.mounted) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        snackbar(
+          context,
+          context.l10n.cloudBackupFailed,
+          duration: const Duration(seconds: 3),
+        ),
+      );
   }
 }
 

@@ -2413,6 +2413,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back up downloaded songs now'**
   String get cloudBackupNow;
+
+  /// No description provided for @cloudBackupInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Backing up downloaded songs…'**
+  String get cloudBackupInProgress;
+
+  /// No description provided for @cloudBackupComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded-song backup finished.'**
+  String get cloudBackupComplete;
+
+  /// No description provided for @cloudBackupWifiRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to Wi-Fi to back up downloaded songs.'**
+  String get cloudBackupWifiRequired;
+
+  /// No description provided for @cloudBackupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud backup failed. Try again.'**
+  String get cloudBackupFailed;
+
+  /// No description provided for @cloudBackupLowBatteryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery is low'**
+  String get cloudBackupLowBatteryTitle;
+
+  /// No description provided for @cloudBackupLowBatteryMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your battery is below 50%. Backing up downloaded songs may use significant power.'**
+  String get cloudBackupLowBatteryMessage;
+
+  /// No description provided for @cloudBackupAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Back up anyway'**
+  String get cloudBackupAnyway;
+
+  /// No description provided for @shareAndroidApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Share Harmony Music'**
+  String get shareAndroidApp;
+
+  /// No description provided for @shareAndroidAppDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Share a direct link to the latest Android APK.'**
+  String get shareAndroidAppDescription;
 }
 
 class _AppLocalizationsDelegate
