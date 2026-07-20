@@ -4,6 +4,7 @@ import 'package:hive/hive.dart';
 
 import '../../domain/repositories/settings_repository.dart';
 import '../../services/constant.dart';
+import '../../services/resolver/resolver_source_mode.dart';
 import '../../utils/helper.dart';
 
 class HiveSettingsRepository implements SettingsRepository {
@@ -188,6 +189,41 @@ class HiveSettingsRepository implements SettingsRepository {
       _box.put(PrefKeys.developerSettingsEnabled, value);
 
   @override
+  bool getResolverEnabled() => _box.get(PrefKeys.resolverEnabled) ?? true;
+
+  @override
+  Future<void> setResolverEnabled(bool value) =>
+      _box.put(PrefKeys.resolverEnabled, value);
+
+  @override
+  ResolverSourceMode getResolverSourceMode() =>
+      ResolverSourceMode.fromStoredValue(
+        _box.get(PrefKeys.resolverDebugSourceMode),
+      );
+
+  @override
+  Future<void> setResolverSourceMode(ResolverSourceMode value) =>
+      _box.put(PrefKeys.resolverDebugSourceMode, value.name);
+
+  @override
+  String? getResolverDebugOverride() =>
+      _box.get(PrefKeys.resolverDebugOverride) as String?;
+
+  @override
+  Future<void> setResolverDebugOverride(String? value) => value == null
+      ? _box.delete(PrefKeys.resolverDebugOverride)
+      : _box.put(PrefKeys.resolverDebugOverride, value);
+
+  @override
+  String? getResolverProductionOverride() =>
+      _box.get(PrefKeys.resolverProductionOverride) as String?;
+
+  @override
+  Future<void> setResolverProductionOverride(String? value) => value == null
+      ? _box.delete(PrefKeys.resolverProductionOverride)
+      : _box.put(PrefKeys.resolverProductionOverride, value);
+
+  @override
   int getPlaybackModeIndex() => _box.get(PrefKeys.playbackMode) ?? 0;
 
   @override
@@ -206,12 +242,12 @@ class HiveSettingsRepository implements SettingsRepository {
   @override
   int getPlaybackPreloadRange() {
     final value = _box.get(PrefKeys.playbackPreloadRange) ?? 0;
-    return value is int ? value.clamp(0, 5).toInt() : 0;
+    return value is int ? value.clamp(0, 3).toInt() : 0;
   }
 
   @override
   Future<void> setPlaybackPreloadRange(int value) =>
-      _box.put(PrefKeys.playbackPreloadRange, value.clamp(0, 5).toInt());
+      _box.put(PrefKeys.playbackPreloadRange, value.clamp(0, 3).toInt());
 
   @override
   int getPlayerUi() => _box.get(PrefKeys.playerUi) ?? 0;

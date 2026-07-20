@@ -1,4 +1,5 @@
 import '../../services/constant.dart';
+import '../../services/resolver/resolver_source_mode.dart';
 import '../../utils/helper.dart';
 
 abstract class SettingsRepository {
@@ -49,6 +50,14 @@ abstract class SettingsRepository {
   Future<void> setCacheHomeScreenData(bool value);
   bool getDeveloperSettingsEnabled();
   Future<void> setDeveloperSettingsEnabled(bool value);
+  bool getResolverEnabled();
+  Future<void> setResolverEnabled(bool value);
+  ResolverSourceMode getResolverSourceMode();
+  Future<void> setResolverSourceMode(ResolverSourceMode value);
+  String? getResolverDebugOverride();
+  Future<void> setResolverDebugOverride(String? value);
+  String? getResolverProductionOverride();
+  Future<void> setResolverProductionOverride(String? value);
   int getPlaybackModeIndex();
   PlaybackMode getPlaybackMode();
   Future<void> setPlaybackMode(PlaybackMode mode);

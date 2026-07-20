@@ -10,6 +10,95 @@ import 'common_dialog_widget.dart';
 const _issueReportEndpoint = String.fromEnvironment('ISSUE_REPORT_ENDPOINT');
 const _manualIssueUrl = 'https://github.com/bozmund/Harmony-Music/issues/new';
 
+Future<Map<String, dynamic>> _buildIssueReportPayload({
+  required Locale locale,
+  required String title,
+  required String description,
+  String stepsToReproduce = '',
+  String expectedResult = '',
+  String actualResult = '',
+  String contact = '',
+  String debugDetails = '',
+  Future<Map<String, dynamic>?> Function()? extraDiagnosticsBuilder,
+}) async {
+  final info = await AppPlatformService.getAppInfo();
+  final diagnostics = <String, dynamic>{
+    'appName': info.appName,
+    'packageName': info.packageName,
+    'version': info.version,
+    'buildNumber': info.buildNumber,
+    'platform': Platform.operatingSystem,
+    'platformVersion': Platform.operatingSystemVersion,
+    'locale': locale.toString(),
+    'timestamp': DateTime.now().toUtc().toIso8601String(),
+  };
+  final extraDiagnostics = await extraDiagnosticsBuilder?.call();
+  if (extraDiagnostics != null && extraDiagnostics.isNotEmpty) {
+    diagnostics.addAll(extraDiagnostics);
+  }
+
+  return {
+    'title': title.trim(),
+    'description': description.trim(),
+    'stepsToReproduce': stepsToReproduce.trim(),
+    'expectedResult': expectedResult.trim(),
+    'actualResult': actualResult.trim(),
+    'contact': contact.trim(),
+    'debugDetails': debugDetails.trim(),
+    'diagnostics': diagnostics,
+  };
+}
+
+/// Validates, builds the diagnostics payload and POSTs it to
+/// [_issueReportEndpoint]. Returns an error message on failure, or `null`
+/// on success. Shared by the full [IssueReportDialogController] form and any
+/// quick-report flow that submits without showing editable fields.
+Future<String?> submitIssueReportPayload({
+  required Locale locale,
+  required String title,
+  required String description,
+  String stepsToReproduce = '',
+  String expectedResult = '',
+  String actualResult = '',
+  String contact = '',
+  String debugDetails = '',
+  Future<Map<String, dynamic>?> Function()? extraDiagnosticsBuilder,
+}) async {
+  if (title.trim().isEmpty || description.trim().isEmpty) {
+    return "Title and description are required.";
+  }
+
+  if (_issueReportEndpoint.isEmpty) {
+    return "Issue reporting endpoint is not configured.";
+  }
+
+  try {
+    final payload = await _buildIssueReportPayload(
+      locale: locale,
+      title: title,
+      description: description,
+      stepsToReproduce: stepsToReproduce,
+      expectedResult: expectedResult,
+      actualResult: actualResult,
+      contact: contact,
+      debugDetails: debugDetails,
+      extraDiagnosticsBuilder: extraDiagnosticsBuilder,
+    );
+    await Dio().post(
+      _issueReportEndpoint,
+      data: payload,
+      options: Options(
+        headers: {'content-type': 'application/json'},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    return null;
+  } catch (e) {
+    return "Could not submit issue. You can open GitHub manually.";
+  }
+}
+
 class IssueReportDialogController extends ChangeNotifier {
   IssueReportDialogController({this.extraDiagnosticsBuilder});
 
@@ -32,45 +121,39 @@ class IssueReportDialogController extends ChangeNotifier {
 
     error = null;
     submitted = false;
-    notifyListeners();
-
-    if (titleController.text.trim().isEmpty ||
-        descriptionController.text.trim().isEmpty) {
-      error = "Title and description are required.";
-      notifyListeners();
-      return;
-    }
-
-    if (_issueReportEndpoint.isEmpty) {
-      error = "Issue reporting endpoint is not configured.";
-      notifyListeners();
-      return;
-    }
-
     isSubmitting = true;
     notifyListeners();
-    try {
-      final payload = await _buildPayload(locale);
-      await Dio().post(
-        _issueReportEndpoint,
-        data: payload,
-        options: Options(
-          headers: {'content-type': 'application/json'},
-          validateStatus: (status) =>
-              status != null && status >= 200 && status < 300,
-        ),
-      );
-      submitted = true;
-    } catch (e) {
-      error = "Could not submit issue. You can open GitHub manually.";
-    } finally {
-      isSubmitting = false;
-      notifyListeners();
-    }
+
+    final result = await submitIssueReportPayload(
+      locale: locale,
+      title: titleController.text,
+      description: descriptionController.text,
+      stepsToReproduce: stepsController.text,
+      expectedResult: expectedController.text,
+      actualResult: actualController.text,
+      contact: contactController.text,
+      debugDetails: debugDetailsController.text,
+      extraDiagnosticsBuilder: extraDiagnosticsBuilder,
+    );
+
+    error = result;
+    submitted = result == null;
+    isSubmitting = false;
+    notifyListeners();
   }
 
   Future<void> openManualIssue(Locale locale) async {
-    final payload = await _buildPayload(locale);
+    final payload = await _buildIssueReportPayload(
+      locale: locale,
+      title: titleController.text,
+      description: descriptionController.text,
+      stepsToReproduce: stepsController.text,
+      expectedResult: expectedController.text,
+      actualResult: actualController.text,
+      contact: contactController.text,
+      debugDetails: debugDetailsController.text,
+      extraDiagnosticsBuilder: extraDiagnosticsBuilder,
+    );
     final uri = Uri.parse(_manualIssueUrl).replace(
       queryParameters: {
         'labels': 'bug',
@@ -79,35 +162,6 @@ class IssueReportDialogController extends ChangeNotifier {
       },
     );
     await AppPlatformService.openUrl(uri.toString());
-  }
-
-  Future<Map<String, dynamic>> _buildPayload(Locale locale) async {
-    final info = await AppPlatformService.getAppInfo();
-    final diagnostics = <String, dynamic>{
-      'appName': info.appName,
-      'packageName': info.packageName,
-      'version': info.version,
-      'buildNumber': info.buildNumber,
-      'platform': Platform.operatingSystem,
-      'platformVersion': Platform.operatingSystemVersion,
-      'locale': locale.toString(),
-      'timestamp': DateTime.now().toUtc().toIso8601String(),
-    };
-    final extraDiagnostics = await extraDiagnosticsBuilder?.call();
-    if (extraDiagnostics != null && extraDiagnostics.isNotEmpty) {
-      diagnostics.addAll(extraDiagnostics);
-    }
-
-    return {
-      'title': titleController.text.trim(),
-      'description': descriptionController.text.trim(),
-      'stepsToReproduce': stepsController.text.trim(),
-      'expectedResult': expectedController.text.trim(),
-      'actualResult': actualController.text.trim(),
-      'contact': contactController.text.trim(),
-      'debugDetails': debugDetailsController.text.trim(),
-      'diagnostics': diagnostics,
-    };
   }
 
   String _markdownBody(Map<String, dynamic> payload) {

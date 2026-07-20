@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:harmonymusic/l10n/l10n.dart';
 
+import '/models/playlist.dart';
 import '/services/constant.dart';
 import '../navigator.dart';
 import 'image_widget.dart';
@@ -19,6 +20,22 @@ class ContentListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAlbum = content.runtimeType.toString() == "Album";
+    final isBuiltInLibraryPlaylist =
+        !isAlbum &&
+        !(content.isCloudPlaylist as bool) &&
+        (content.playlistId == BoxNames.libRP ||
+            content.playlistId == BoxNames.libFav ||
+            content.playlistId == BoxNames.libFavNotDownloaded ||
+            content.playlistId == BoxNames.libImportDuplicates ||
+            content.playlistId == BoxNames.libImportReview ||
+            content.playlistId == BoxNames.songsCache ||
+            content.playlistId == BoxNames.songDownloads);
+    // A built-in playlist shows its first song's artwork once it has songs
+    // (thumbnailUrl derived in LibraryPlaylistsController); empty built-ins
+    // keep the original icon look.
+    final builtInHasArt =
+        isBuiltInLibraryPlaylist &&
+        content.thumbnailUrl != Playlist.thumbPlaceholderUrl;
     final title = isAlbum || !isLibraryItem
         ? content.title as String
         : switch (content.playlistId as String) {
@@ -58,14 +75,7 @@ class ContentListItem extends StatelessWidget {
           children: [
             isAlbum
                 ? ImageWidget(size: 120, album: content)
-                : content.isCloudPlaylist ||
-                      !(content.playlistId == 'LIBRP' ||
-                          content.playlistId == 'LIBFAV' ||
-                          content.playlistId == BoxNames.libFavNotDownloaded ||
-                          content.playlistId == BoxNames.libImportDuplicates ||
-                          content.playlistId == BoxNames.libImportReview ||
-                          content.playlistId == 'SongsCache' ||
-                          content.playlistId == 'SongDownloads')
+                : !isBuiltInLibraryPlaylist || builtInHasArt
                 ? SizedBox.square(
                     dimension: 120,
                     child: Stack(
@@ -135,9 +145,9 @@ class ContentListItem extends StatelessWidget {
                     ),
                     child: Center(
                       child: Icon(
-                        content.playlistId == 'LIBRP'
+                        content.playlistId == BoxNames.libRP
                             ? Icons.history
-                            : content.playlistId == 'LIBFAV'
+                            : content.playlistId == BoxNames.libFav
                             ? Icons.favorite
                             : content.playlistId == BoxNames.libFavNotDownloaded
                             ? Icons.favorite_border
@@ -145,7 +155,7 @@ class ContentListItem extends StatelessWidget {
                             ? Icons.playlist_remove
                             : content.playlistId == BoxNames.libImportReview
                             ? Icons.rule
-                            : content.playlistId == 'SongsCache'
+                            : content.playlistId == BoxNames.songsCache
                             ? Icons.flight
                             : Icons.download,
                         color: Colors.white,

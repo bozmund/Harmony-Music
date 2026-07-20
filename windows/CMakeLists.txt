@@ -1,5 +1,23 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+
+# === vcpkg integration =======================================================
+# The auth0_flutter Windows plugin depends on native C++ libraries
+# (cpprestsdk, OpenSSL, Boost) that are provided by vcpkg. The toolchain file
+# must be set BEFORE project() so that find_package() in the plugins resolves.
+# Prefer the VCPKG_ROOT environment variable; fall back to the known install
+# location so the build works even when VCPKG_ROOT is not exported.
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+  if(DEFINED ENV{VCPKG_ROOT} AND EXISTS "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        CACHE STRING "Vcpkg toolchain file")
+  elseif(EXISTS "C:/Users/eboac/vcpkg/scripts/buildsystems/vcpkg.cmake")
+    set(CMAKE_TOOLCHAIN_FILE "C:/Users/eboac/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        CACHE STRING "Vcpkg toolchain file")
+  endif()
+endif()
+# =============================================================================
+
 project(harmonymusic LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change

@@ -2,7 +2,9 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:harmonymusic/services/listen_together/listen_together_controller.dart';
 import 'package:harmonymusic/services/listen_together/session_message.dart';
+import 'package:harmonymusic/services/listen_together/session_payload.dart';
 import 'package:harmonymusic/services/listen_together/sync_clock.dart';
+import 'package:harmonymusic/models/media_Item_builder.dart';
 
 void main() {
   group('ListenTogetherController queue payloads', () {
@@ -27,6 +29,77 @@ void main() {
   });
 
   group('SessionMessage encoding', () {
+    test('enqueue command strips local URLs and reconstructs a song', () {
+      final original = _mediaItem(url: 'file:///private/song.opus');
+      final message = SessionMessage.command(
+        senderId: 'guest-1',
+        senderName: 'Guest',
+        command: SessionCommand.enqueue(sessionSafeSongJson(original)),
+      );
+
+      final decoded = SessionMessage.decode(message.encode()).command;
+      expect(decoded.action, SessionCommand.actionEnqueue);
+      expect(decoded.songJson, isNotNull);
+      expect(decoded.songJson, isNot(contains('url')));
+
+      final rebuilt = MediaItemBuilder.fromJson(decoded.songJson!);
+      expect(rebuilt.id, original.id);
+      expect(rebuilt.title, original.title);
+      expect(rebuilt.artUri, original.artUri);
+    });
+
+    test('enqueueList preserves song order', () {
+      final message = SessionMessage.command(
+        senderId: 'guest-1',
+        senderName: 'Guest',
+        command: SessionCommand.enqueueList([
+          {'videoId': 'first', 'title': 'First'},
+          {'videoId': 'second', 'title': 'Second'},
+          {'videoId': 'third', 'title': 'Third'},
+        ]),
+      );
+
+      final songs = SessionMessage.decode(message.encode()).command.songsJson;
+      expect(songs.map((song) => song['videoId']), [
+        'first',
+        'second',
+        'third',
+      ]);
+    });
+
+    test('helloAck mode is optional and defaults safely to sync', () {
+      final party = SessionMessage.helloAck(
+        senderId: 'host',
+        senderName: 'Host',
+        clientTimeMs: 1,
+        hostTimeMs: 2,
+        mode: SessionPlaybackMode.party.wireName,
+      );
+      final legacy = SessionMessage.helloAck(
+        senderId: 'host',
+        senderName: 'Host',
+        clientTimeMs: 1,
+        hostTimeMs: 2,
+      );
+
+      expect(
+        SessionPlaybackMode.fromWire(
+          SessionMessage.decode(party.encode()).sessionModeName,
+        ),
+        SessionPlaybackMode.party,
+      );
+      expect(
+        SessionPlaybackMode.fromWire(
+          SessionMessage.decode(legacy.encode()).sessionModeName,
+        ),
+        SessionPlaybackMode.sync,
+      );
+      expect(
+        SessionPlaybackMode.fromWire('future-mode'),
+        SessionPlaybackMode.sync,
+      );
+    });
+
     test('playbackSync round-trips through encode/decode', () {
       final original = SessionMessage.playbackSync(
         senderId: 'host-1',
@@ -91,6 +164,17 @@ void main() {
     test('unknown/garbage decodes without throwing (defaults to bye)', () {
       final decoded = SessionMessage.fromJson({'type': 'nonsense'});
       expect(decoded.type, SessionMessageType.bye);
+    });
+  });
+
+  group('session payload helpers', () {
+    test('chunkList preserves order and leaves an empty list empty', () {
+      expect(chunkList([1, 2, 3, 4, 5, 6, 7], 3), [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7],
+      ]);
+      expect(chunkList(<int>[], 3), isEmpty);
     });
   });
 

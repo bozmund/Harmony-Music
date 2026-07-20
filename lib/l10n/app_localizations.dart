@@ -1970,6 +1970,48 @@ abstract class AppLocalizations {
   /// **'Bluetooth'**
   String get bluetoothTransport;
 
+  /// No description provided for @bothTransports.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth + Wi-Fi'**
+  String get bothTransports;
+
+  /// No description provided for @bluetoothDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on Bluetooth to use this connection mode.'**
+  String get bluetoothDisabled;
+
+  /// No description provided for @wifiDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on Wi-Fi to use this connection mode. You do not need to connect to the internet.'**
+  String get wifiDisabled;
+
+  /// No description provided for @playServicesUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Google Play services are required for Bluetooth discovery.'**
+  String get playServicesUnavailable;
+
+  /// No description provided for @transportReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected connection mode is ready.'**
+  String get transportReady;
+
+  /// No description provided for @transportStartupFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected connection mode could not be started.'**
+  String get transportStartupFailed;
+
+  /// No description provided for @grantPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Grant permissions'**
+  String get grantPermissions;
+
   /// No description provided for @hostingSession.
   ///
   /// In en, this message translates to:
@@ -2005,6 +2047,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Listen together isn\'t available on this device'**
   String get listenTogetherUnavailable;
+
+  /// No description provided for @confirmConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm connection'**
+  String get confirmConnection;
+
+  /// No description provided for @listenTogetherDeviceName.
+  ///
+  /// In en, this message translates to:
+  /// **'Device name'**
+  String get listenTogetherDeviceName;
+
+  /// No description provided for @save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// No description provided for @nearbyPermissionRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth and Nearby devices permissions are required. Open Android settings and allow them.'**
+  String get nearbyPermissionRequired;
+
+  /// No description provided for @nearbyWithWifiFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Nearby + Wi-Fi fallback'**
+  String get nearbyWithWifiFallback;
+
+  /// No description provided for @partyMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Party mode'**
+  String get partyMode;
+
+  /// No description provided for @partyModeDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the host plays audio; guests control the shared queue.'**
+  String get partyModeDes;
+
+  /// No description provided for @partyModeGuestHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Party mode is active: this phone is a remote and will not play audio.'**
+  String get partyModeGuestHint;
+
+  /// No description provided for @addedToSharedQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Added to the shared queue'**
+  String get addedToSharedQueue;
+
+  /// No description provided for @notAvailableInSession.
+  ///
+  /// In en, this message translates to:
+  /// **'This action is not available in the current session'**
+  String get notAvailableInSession;
+
+  /// No description provided for @listenTogetherGuestAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'\"{name}\" added {title}'**
+  String listenTogetherGuestAdded(String name, String title);
+
+  /// No description provided for @songsAddedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} songs'**
+  String songsAddedCount(int count);
 
   /// No description provided for @back.
   ///
@@ -2161,6 +2275,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Import needs review'**
   String get importNeedsReview;
+
+  /// No description provided for @resolverBackend.
+  ///
+  /// In en, this message translates to:
+  /// **'Harmony Resolver'**
+  String get resolverBackend;
+
+  /// No description provided for @resolverBackendDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the configured Resolver server as an additional playback source.'**
+  String get resolverBackendDescription;
+
+  /// No description provided for @resolverPlaybackSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Online playback source'**
+  String get resolverPlaybackSource;
+
+  /// No description provided for @resolverPlaybackSourceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug only: choose which backend provides online audio.'**
+  String get resolverPlaybackSourceDescription;
+
+  /// No description provided for @resolverPlaybackSourceBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Both'**
+  String get resolverPlaybackSourceBoth;
+
+  /// No description provided for @resolverPlaybackSourceResolverOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver only'**
+  String get resolverPlaybackSourceResolverOnly;
+
+  /// No description provided for @resolverPlaybackSourceExistingOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing source only'**
+  String get resolverPlaybackSourceExistingOnly;
+
+  /// No description provided for @resolverTestConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get resolverTestConnection;
+
+  /// No description provided for @resolverDiscover.
+  ///
+  /// In en, this message translates to:
+  /// **'Discover on LAN'**
+  String get resolverDiscover;
+
+  /// No description provided for @resolverReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver is ready.'**
+  String get resolverReady;
+
+  /// No description provided for @resolverUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver could not be reached. Check the address, Wi-Fi, and firewall.'**
+  String get resolverUnavailable;
+
+  /// No description provided for @resolverNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver address is not configured.'**
+  String get resolverNotConfigured;
+
+  /// No description provided for @resolverAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver address'**
+  String get resolverAddress;
+
+  /// No description provided for @resolverSaveAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Save address'**
+  String get resolverSaveAddress;
+
+  /// No description provided for @resolverResetAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset address'**
+  String get resolverResetAddress;
+
+  /// No description provided for @resolverEnvironment.
+  ///
+  /// In en, this message translates to:
+  /// **'Environment'**
+  String get resolverEnvironment;
+
+  /// No description provided for @resolverPlaybackFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'This song could not be loaded from either playback source. Check your connection and try again.'**
+  String get resolverPlaybackFailed;
+
+  /// No description provided for @cloudBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Harmony Cloud backup'**
+  String get cloudBackup;
+
+  /// No description provided for @cloudBackupDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Securely sync your library, settings and downloaded-song inventory.'**
+  String get cloudBackupDescription;
+
+  /// No description provided for @cloudBackupPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your Harmony data backed up and synchronized across devices?'**
+  String get cloudBackupPrompt;
+
+  /// No description provided for @cloudBackupEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable backup'**
+  String get cloudBackupEnable;
+
+  /// No description provided for @cloudBackupNotNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get cloudBackupNotNow;
+
+  /// No description provided for @cloudBackupNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Back up downloaded songs now'**
+  String get cloudBackupNow;
 }
 
 class _AppLocalizationsDelegate

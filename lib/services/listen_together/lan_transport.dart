@@ -18,12 +18,14 @@ class LanTransport implements SyncTransport {
   static const String _txtIdKey = 'id';
 
   @override
-  TransportKind get kind => TransportKind.lan;
+  TransportKind get kind => TransportKind.wifi;
 
   final _messageController = StreamController<SessionMessage>.broadcast();
   final _peersController = StreamController<List<Peer>>.broadcast();
   final _connController =
       StreamController<TransportConnectionState>.broadcast();
+  final _sessionsController =
+      StreamController<List<DiscoveredSession>>.broadcast();
 
   @override
   Stream<SessionMessage> get onMessage => _messageController.stream;
@@ -32,6 +34,9 @@ class LanTransport implements SyncTransport {
   @override
   Stream<TransportConnectionState> get connectionState =>
       _connController.stream;
+  @override
+  Stream<List<DiscoveredSession>> get discoveredSessions =>
+      _sessionsController.stream;
 
   // Host side ----------------------------------------------------------------
   HttpServer? _server;
@@ -45,7 +50,6 @@ class LanTransport implements SyncTransport {
 
   // Discovery -----------------------------------------------------------------
   nsd.Discovery? _discovery;
-  StreamController<List<DiscoveredSession>>? _discoveryController;
   void Function()? _discoveryListener;
 
   bool get _isHost => _server != null;
@@ -56,28 +60,36 @@ class LanTransport implements SyncTransport {
 
   @override
   Future<void> startAdvertising(SessionInfo info) async {
-    final server = await HttpServer.bind(InternetAddress.anyIPv4, 0);
-    _server = server;
-    server.listen(
-      _handleHttpRequest,
-      onError:
-          (Object e) =>
-              printERROR('server error: $e', tag: LogTags.listenTogether),
-    );
+    try {
+      final server = await HttpServer.bind(InternetAddress.anyIPv4, 0);
+      _server = server;
+      server.listen(
+        _handleHttpRequest,
+        onError: (Object e) =>
+            printERROR('server error: $e', tag: LogTags.listenTogether),
+      );
 
-    _registration = await nsd.register(
-      nsd.Service(
-        name: info.name,
-        type: _serviceType,
-        port: server.port,
-        txt: {_txtIdKey: Uint8List.fromList(utf8.encode(info.id))},
-      ),
-    );
-    _emitConn(TransportConnectionState.advertising);
-    printINFO(
-      'LAN advertising on port ${server.port}',
-      tag: LogTags.listenTogether,
-    );
+      _registration = await nsd.register(
+        nsd.Service(
+          name: info.name,
+          type: _serviceType,
+          port: server.port,
+          txt: {_txtIdKey: Uint8List.fromList(utf8.encode(info.id))},
+        ),
+      );
+      _emitConn(TransportConnectionState.advertising);
+      printINFO(
+        'LAN advertising on port ${server.port}',
+        tag: LogTags.listenTogether,
+      );
+    } catch (error) {
+      printERROR(
+        'startAdvertising failed: $error',
+        tag: LogTags.listenTogether,
+      );
+      await leave();
+      throw _startupFailure(error);
+    }
   }
 
   Future<void> _handleHttpRequest(HttpRequest request) async {
@@ -120,11 +132,10 @@ class LanTransport implements SyncTransport {
 
   void _removeGuestSocket(WebSocket socket) {
     _guestSockets.remove(socket);
-    final peerId =
-        _socketByPeerId.entries
-            .cast<MapEntry<String, WebSocket>?>()
-            .firstWhere((e) => e!.value == socket, orElse: () => null)
-            ?.key;
+    final peerId = _socketByPeerId.entries
+        .cast<MapEntry<String, WebSocket>?>()
+        .firstWhere((e) => e!.value == socket, orElse: () => null)
+        ?.key;
     if (peerId != null) {
       _socketByPeerId.remove(peerId);
       _nameByPeerId.remove(peerId);
@@ -148,49 +159,43 @@ class LanTransport implements SyncTransport {
   // ---------------------------------------------------------------------------
 
   @override
-  Stream<List<DiscoveredSession>> startDiscovery(SessionInfo self) {
-    final controller = StreamController<List<DiscoveredSession>>.broadcast();
-    _discoveryController = controller;
-
-    unawaited(() async {
-      try {
-        final discovery = await nsd.startDiscovery(
-          _serviceType,
-          ipLookupType: nsd.IpLookupType.v4,
-        );
-        _discovery = discovery;
-        void listener() {
-          final sessions = <DiscoveredSession>[];
-          for (final service in discovery.services) {
-            final id = _serviceId(service);
-            if (id == null || id == self.id) continue; // skip self
-            final host = _hostFor(service);
-            if (host == null || service.port == null) continue;
-            sessions.add(
-              DiscoveredSession(
-                id: id,
-                name: service.name ?? 'Session',
-                kind: TransportKind.lan,
-                host: host,
-                port: service.port,
-                raw: service,
-              ),
-            );
-          }
-          controller.add(sessions);
+  Future<void> startDiscovery(SessionInfo self) async {
+    try {
+      final discovery = await nsd.startDiscovery(
+        _serviceType,
+        ipLookupType: nsd.IpLookupType.v4,
+      );
+      _discovery = discovery;
+      void listener() {
+        final sessions = <DiscoveredSession>[];
+        for (final service in discovery.services) {
+          final id = _serviceId(service);
+          if (id == null || id == self.id) continue; // skip self
+          final host = _hostFor(service);
+          if (host == null || service.port == null) continue;
+          sessions.add(
+            DiscoveredSession(
+              id: id,
+              name: service.name ?? 'Session',
+              kind: TransportKind.wifi,
+              host: host,
+              port: service.port,
+              raw: service,
+            ),
+          );
         }
-
-        _discoveryListener = listener;
-        discovery.addListener(listener);
-        listener();
-        _emitConn(TransportConnectionState.discovering);
-      } catch (e) {
-        printERROR('startDiscovery failed: $e', tag: LogTags.listenTogether);
-        controller.addError(e);
+        _sessionsController.add(sessions);
       }
-    }());
 
-    return controller.stream;
+      _discoveryListener = listener;
+      discovery.addListener(listener);
+      listener();
+      _emitConn(TransportConnectionState.discovering);
+    } catch (e) {
+      printERROR('startDiscovery failed: $e', tag: LogTags.listenTogether);
+      await leave();
+      throw _startupFailure(e);
+    }
   }
 
   String? _serviceId(nsd.Service service) {
@@ -303,8 +308,7 @@ class LanTransport implements SyncTransport {
     }
     _discovery = null;
     _discoveryListener = null;
-    await _bounded(_discoveryController?.close(), 'discovery close');
-    _discoveryController = null;
+    if (!_sessionsController.isClosed) _sessionsController.add(const []);
 
     // Guest socket
     await _bounded(_hostSocket?.close(), 'host socket close');
@@ -346,6 +350,7 @@ class LanTransport implements SyncTransport {
     await _messageController.close();
     await _peersController.close();
     await _connController.close();
+    await _sessionsController.close();
   }
 
   void _emitConn(TransportConnectionState state) {
@@ -354,4 +359,8 @@ class LanTransport implements SyncTransport {
   }
 
   static const Duration _leaveStepTimeout = Duration(milliseconds: 800);
+
+  TransportFailure _startupFailure(Object error) => error is TransportFailure
+      ? error
+      : const TransportFailure(TransportFailureCode.startupFailure);
 }

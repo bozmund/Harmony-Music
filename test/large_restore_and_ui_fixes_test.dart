@@ -158,15 +158,14 @@ void main() {
       expect(source, contains('SystemUiModeScope.edgeToEdge'));
     });
 
-    test('android startup enables immersive only for gesture navigation', () {
+    test('android startup allows immersive with every navigation mode', () {
       final source = File('lib/main.dart').readAsStringSync();
-      expect(source, contains('SystemUiModeService('));
-      expect(source, contains('immersiveAllowed: !RuntimePlatform.isAndroid'));
-      expect(source, contains('getSystemNavigationMode()'));
       expect(
         source,
-        contains('navigationMode == SystemNavigationMode.gesture'),
+        contains('final systemUiModeService = SystemUiModeService();'),
       );
+      expect(source, isNot(contains('getSystemNavigationMode()')));
+      expect(source, isNot(contains('immersiveAllowed:')));
       expect(source, contains('systemUiModeServiceProvider.overrideWithValue'));
     });
 
@@ -180,12 +179,13 @@ void main() {
       expect(source, contains('SystemUiMode.immersiveSticky'));
     });
 
-    test('sliding panel declares immersive mode for the main player', () {
+    test('sliding panel declares immersive mode for the landscape player', () {
       final source = File(
         'lib/ui/widgets/sliding_up_panel.dart',
       ).readAsStringSync();
       expect(source, contains('SystemUiModeScope.immersive'));
-      expect(source, contains('active: widget.setsScreenMode'));
+      expect(source, contains('MediaQuery.orientationOf(context)'));
+      expect(source, contains('Orientation.landscape'));
       expect(source, contains('SystemUiModePriority.player'));
     });
 

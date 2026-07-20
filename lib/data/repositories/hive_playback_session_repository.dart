@@ -37,6 +37,13 @@ class HivePlaybackSessionRepository implements PlaybackSessionRepository {
   }
 
   @override
+  Future<void> savePosition({required int index, required int position}) async {
+    final box = await _box;
+    await box.put('index', index);
+    await box.put('position', position);
+  }
+
+  @override
   Future<void> clearSession() async => (await _box).clear();
 
   @override

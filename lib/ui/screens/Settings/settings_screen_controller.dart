@@ -9,6 +9,7 @@ import '../../../domain/repositories/settings_repository.dart';
 import '../../../domain/repositories/storage_admin_repository.dart';
 import '/services/file_picker_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/services/app_platform_service.dart';
@@ -23,6 +24,10 @@ import '../../../utils/runtime_platform.dart';
 import '../../../utils/observable_state.dart';
 import '../../../utils/lang_mapping.dart';
 import '/services/piped_service.dart';
+import '../../../services/resolver/resolver_client.dart';
+import '../../../services/resolver/resolver_configuration.dart';
+import '../../../services/resolver/resolver_discovery_service.dart';
+import '../../../services/resolver/resolver_source_mode.dart';
 import '../Library/library_controller.dart';
 import '../../widgets/bottom_nav_bar_dimensions.dart';
 import '../../widgets/new_version_dialog.dart';
@@ -57,6 +62,8 @@ class SettingsScreenController extends ChangeNotifier
     required ThemeController Function() themeController,
     required PipedServices Function() pipedServices,
     required AppLocaleController appLocaleController,
+    required ResolverClient resolverClient,
+    required ResolverDiscoveryService resolverDiscovery,
   }) : _audioHandler = audioHandler,
        _playlistRepository = playlistRepository,
        _settingsRepository = settingsRepository,
@@ -66,7 +73,9 @@ class SettingsScreenController extends ChangeNotifier
        _playerController = playerController,
        _themeController = themeController,
        _pipedServices = pipedServices,
-       _appLocaleController = appLocaleController;
+       _appLocaleController = appLocaleController,
+       _resolverClient = resolverClient,
+       _resolverDiscovery = resolverDiscovery;
 
   final AudioHandler _audioHandler;
   final PlaylistRepository _playlistRepository;
@@ -78,6 +87,8 @@ class SettingsScreenController extends ChangeNotifier
   final ThemeController Function() _themeController;
   final PipedServices Function() _pipedServices;
   final AppLocaleController _appLocaleController;
+  final ResolverClient _resolverClient;
+  final ResolverDiscoveryService _resolverDiscovery;
   SettingsRepository get settingsRepository => _settingsRepository;
   StorageAdminRepository get storageAdminRepository => _storageAdminRepository;
   late String _supportDir;
@@ -115,12 +126,18 @@ class SettingsScreenController extends ChangeNotifier
   final cacheHomeScreenData = ObservableValue(true);
   final developerSettingsEnabled = ObservableValue(false);
   final developerSettingValues = ObservableList<DeveloperSettingValue>();
+  final resolverEnabled = ObservableValue(true);
+  final resolverSourceMode = ObservableValue(ResolverSourceMode.both);
+  final resolverEffectiveUrl = ObservableValue('');
+  final resolverStatus = ObservableValue('not_tested');
+  final resolverDiscoveredUrls = ObservableList<String>();
   final currentVersion =
       "V${(BuildInfo.version.isEmpty ? '5.9.2' : BuildInfo.version).split('+').first.split('-').first}";
 
   final libraryFirstTab = ObservableValue(0);
 
   var _initialized = false;
+  Uri? _discoveredResolver;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -328,6 +345,11 @@ class SettingsScreenController extends ChangeNotifier
     cacheHomeScreenData.value = _settingsRepository.getCacheHomeScreenData();
     developerSettingsEnabled.value = _settingsRepository
         .getDeveloperSettingsEnabled();
+    resolverEnabled.value = _settingsRepository.getResolverEnabled();
+    resolverSourceMode.value = kDebugMode
+        ? _settingsRepository.getResolverSourceMode()
+        : ResolverSourceMode.both;
+    _refreshResolverConfiguration();
     if (developerSettingsEnabled.value) {
       refreshDeveloperSettingValues();
     }
@@ -420,6 +442,108 @@ class SettingsScreenController extends ChangeNotifier
     notifyListeners();
   }
 
+  Future<void> setResolverEnabled(bool value) async {
+    resolverEnabled.value = value;
+    await _settingsRepository.setResolverEnabled(value);
+    notifyListeners();
+  }
+
+  Future<void> setResolverSourceMode(ResolverSourceMode? value) async {
+    if (!kDebugMode || value == null) return;
+    resolverSourceMode.value = value;
+    await _settingsRepository.setResolverSourceMode(value);
+    await _audioHandler.customAction("preloadConfigChanged");
+    refreshDeveloperSettingValues();
+  }
+
+  void _refreshResolverConfiguration({Uri? discovered}) {
+    if (discovered != null) _discoveredResolver = discovered;
+    try {
+      final configuration = ResolverConfiguration.load(
+        _settingsRepository,
+        discovered: _discoveredResolver,
+      );
+      resolverEffectiveUrl.value = configuration.baseUrl?.toString() ?? '';
+    } on FormatException {
+      resolverEffectiveUrl.value = '';
+      resolverStatus.value = 'invalid_url';
+    }
+  }
+
+  Future<bool> testResolverConnection() async {
+    _refreshResolverConfiguration();
+    final value = resolverEffectiveUrl.value;
+    if (value.isEmpty) {
+      resolverStatus.value = 'not_configured';
+      notifyListeners();
+      return false;
+    }
+    resolverStatus.value = 'testing';
+    notifyListeners();
+    try {
+      final health = await _resolverClient.check(Uri.parse(value));
+      resolverStatus.value = health.ready ? 'ready' : 'not_ready';
+      notifyListeners();
+      return health.ready;
+    } catch (_) {
+      if (!kReleaseMode) {
+        final discovered = await discoverResolvers();
+        if (discovered.isNotEmpty) {
+          try {
+            final health = await _resolverClient.check(
+              Uri.parse(resolverEffectiveUrl.value),
+            );
+            resolverStatus.value = health.ready ? 'ready' : 'not_ready';
+            notifyListeners();
+            return health.ready;
+          } catch (_) {}
+        }
+      }
+      resolverStatus.value = 'unreachable';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<List<String>> discoverResolvers() async {
+    resolverStatus.value = 'discovering';
+    notifyListeners();
+    try {
+      final urls = await _resolverDiscovery.discover();
+      resolverDiscoveredUrls
+        ..clear()
+        ..addAll(urls.map((url) => url.toString()));
+      if (urls.isNotEmpty)
+        _refreshResolverConfiguration(discovered: urls.first);
+      resolverStatus.value = urls.isEmpty ? 'none_discovered' : 'discovered';
+      notifyListeners();
+      return resolverDiscoveredUrls.toList();
+    } catch (_) {
+      resolverStatus.value = 'discovery_failed';
+      notifyListeners();
+      return const [];
+    }
+  }
+
+  Future<void> setResolverOverride(String? value) async {
+    final trimmed = value?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      ResolverConfiguration.normalize(trimmed, production: kReleaseMode);
+    }
+    if (kReleaseMode) {
+      await _settingsRepository.setResolverProductionOverride(
+        trimmed?.isEmpty == true ? null : trimmed,
+      );
+    } else {
+      await _settingsRepository.setResolverDebugOverride(
+        trimmed?.isEmpty == true ? null : trimmed,
+      );
+    }
+    resolverStatus.value = 'not_tested';
+    _refreshResolverConfiguration();
+    notifyListeners();
+  }
+
   void refreshDeveloperSettingValues() {
     final values = <DeveloperSettingValue>[
       DeveloperSettingValue("app.currentVersion", currentVersion),
@@ -443,6 +567,28 @@ class SettingsScreenController extends ChangeNotifier
         ),
       ),
       DeveloperSettingValue("update.channel", updateChannel.value.name),
+      DeveloperSettingValue(
+        "resolver.environment",
+        kReleaseMode ? "production" : "debug",
+      ),
+      DeveloperSettingValue(
+        "resolver.enabled",
+        resolverEnabled.value.toString(),
+      ),
+      if (kDebugMode)
+        DeveloperSettingValue(
+          "resolver.sourceMode",
+          resolverSourceMode.value.name,
+        ),
+      DeveloperSettingValue(
+        "resolver.effectiveUrl",
+        _formatDeveloperValue(resolverEffectiveUrl.value),
+      ),
+      DeveloperSettingValue("resolver.status", resolverStatus.value),
+      DeveloperSettingValue(
+        "resolver.discovered",
+        _formatDeveloperValue(resolverDiscoveredUrls.toList()),
+      ),
       DeveloperSettingValue(
         "update.isNewVersionAvailable",
         isNewVersionAvailable.value.toString(),

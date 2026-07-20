@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:harmonymusic/l10n/l10n.dart';
@@ -95,10 +95,7 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
   Widget build(BuildContext context) {
     final playerController = ref.read(playerControllerProvider);
     final settingsController = ref.read(settingsScreenControllerProvider);
-    final showDebugIssueReport =
-        calledFromPlayer &&
-        kDebugMode &&
-        settingsController.developerSettingsEnabled.value;
+    final showPlaybackBugReport = calledFromPlayer;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
@@ -127,7 +124,9 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
                                 context: context,
                                 builder: (context) => SongInfoDialog(
                                   song: song,
-                                  includePlaybackDebug: true,
+                                  includePlaybackDebug: settingsController
+                                      .developerSettingsEnabled
+                                      .value,
                                 ),
                               );
                             },
@@ -163,20 +162,52 @@ class _SongInfoBottomSheetState extends ConsumerState<SongInfoBottomSheet> {
               ),
             ),
             const Divider(),
-            if (showDebugIssueReport)
+            if (showPlaybackBugReport)
               ListTile(
                 visualDensity: const VisualDensity(vertical: -1),
                 leading: const Icon(Icons.bug_report_outlined),
                 title: const Text("Report playback bug"),
                 onTap: () async {
-                  Navigator.of(context).pop();
-                  await showDialog(
+                  final messenger = ScaffoldMessenger.of(context);
+                  final locale = Localizations.localeOf(context);
+                  final confirmed = await showDialog<bool>(
                     context: context,
-                    builder: (context) => IssueReportDialog(
-                      extraDiagnosticsBuilder: () async => {
-                        'playback': await playerController
-                            .detailedPlaybackDebugSnapshot(),
-                      },
+                    builder: (context) => AlertDialog(
+                      title: const Text("Report playback bug"),
+                      content: const Text(
+                        "Send diagnostic details about the current playback to help fix this issue?",
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text("Cancel"),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text("Send"),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  Navigator.of(context).pop();
+
+                  final debugState = await playerController
+                      .detailedPlaybackDebugSnapshot();
+                  final description = const JsonEncoder.withIndent(
+                    '  ',
+                  ).convert(debugState);
+                  final error = await submitIssueReportPayload(
+                    locale: locale,
+                    title: "${song.title} has issue playing",
+                    description: description,
+                  );
+                  if (!context.mounted) return;
+                  messenger.showSnackBar(
+                    snackbar(
+                      context,
+                      error ?? "Report sent",
+                      size: SanckBarSize.MEDIUM,
                     ),
                   );
                 },
@@ -604,6 +635,12 @@ class SongInfoController extends ChangeNotifier
     }
     isCurrentSongFav = !isCurrentSongFav;
     notifyListeners();
+    // Favorites/liked built-in tiles derive artwork from their first song.
+    unawaited(
+      LibraryPlaylistsControllerRegistry.current
+              ?.refreshInitialPlaylistThumbs() ??
+          Future.value(),
+    );
     if (_settingsScreenController.autoDownloadFavoriteSongEnabled.value &&
         isCurrentSongFav) {
       await _downloader.download(song);
@@ -657,6 +694,12 @@ mixin RemoveSongFromPlaylistMixin {
       } catch (e) {
         printERROR(e, tag: LogTags.library);
       }
+      // Built-in tiles derive artwork from their first song.
+      unawaited(
+        LibraryPlaylistsControllerRegistry.current
+                ?.refreshInitialPlaylistThumbs() ??
+            Future.value(),
+      );
       return;
     }
     if (playlist.playlistId == BoxNames.libImportDuplicates ||

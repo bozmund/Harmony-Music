@@ -19,6 +19,7 @@ import '../../widgets/quickpicks_widget.dart';
 import '../../widgets/shimmer_widgets/home_shimmer.dart';
 import 'home_screen_controller.dart';
 import '../Settings/settings_screen.dart';
+import '../listen_together/listen_together_sheet.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -144,29 +145,54 @@ class Body extends ConsumerWidget {
           alignment: Alignment.centerRight,
           child: Padding(
             padding: const EdgeInsets.only(right: 14),
-            child: Tooltip(
-              message: "Report an issue",
-              child: TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 4,
+              children: [
+                if (RuntimePlatform.isAndroid || RuntimePlatform.isDesktop)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.color,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                    ),
+                    icon: const Icon(Icons.groups_2_outlined, size: 20),
+                    label: Text(context.l10n.listenTogether),
+                    onPressed: () => showListenTogetherSheet(context),
+                  ),
+                Tooltip(
+                  message: "Report an issue",
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.color,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                    ),
+                    icon: const Icon(Icons.bug_report_outlined, size: 20),
+                    label: const Text("Report issue"),
+                    onPressed: () => _openIssueReportDialog(
+                      context,
+                      extraDiagnosticsBuilder:
+                          settingsScreenController
+                              .developerSettingsEnabled
+                              .value
+                          ? () async => {
+                              'playback': await playerController
+                                  .detailedPlaybackDebugSnapshot(),
+                            }
+                          : null,
+                    ),
                   ),
                 ),
-                icon: const Icon(Icons.bug_report_outlined, size: 20),
-                label: const Text("Report issue"),
-                onPressed: () => _openIssueReportDialog(
-                  context,
-                  extraDiagnosticsBuilder:
-                      settingsScreenController.developerSettingsEnabled.value
-                      ? () async => {
-                          'playback': await playerController
-                              .detailedPlaybackDebugSnapshot(),
-                        }
-                      : null,
-                ),
-              ),
+              ],
             ),
           ),
         );

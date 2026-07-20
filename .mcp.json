@@ -5,6 +5,14 @@
       "args": [
         "C:/MyRepositories/Harmony-Music/mcp/flutter_dart_server.js"
       ]
+    },
+    "harmony-resolver-diagnostics": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "C:/MyRepositories/Harmony-Resolver/src/Harmony.Resolver.McpBridge"
+      ]
     }
   }
 }

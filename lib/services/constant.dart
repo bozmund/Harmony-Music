@@ -33,6 +33,8 @@ class BoxNames {
   static const String blacklistedPlaylist = 'blacklistedPlaylist';
   static const String searchQuery = 'searchQuery';
   static const String lyrics = 'lyrics';
+  static const String cloudSyncOutbox = 'CloudSyncOutbox';
+  static const String cloudSyncState = 'CloudSyncState';
 }
 
 class PrefKeys {
@@ -79,6 +81,17 @@ class PrefKeys {
   static const String playbackMode = 'playbackMode';
   static const String playbackPreloadRange = 'playbackPreloadRange';
   static const String developerSettingsEnabled = 'developerSettingsEnabled';
+  static const String resolverEnabled = 'resolverEnabled';
+  static const String resolverDebugSourceMode = 'resolverDebugSourceMode';
+  static const String resolverDebugOverride = 'resolverDebugOverride';
+  static const String resolverProductionOverride = 'resolverProductionOverride';
+  static const String listenTogetherDeviceName = 'listenTogetherDeviceName';
+  static const String listenTogetherTransport = 'listenTogetherTransport';
+  static const String cloudSyncEnabled = 'cloudSyncEnabled';
+  static const String cloudOptInAnswered = 'cloudOptInAnswered';
+  static const String cloudDeviceId = 'cloudDeviceId';
+  static const String cloudCheckpoint = 'cloudCheckpoint';
+  static const String cloudDeviceSequence = 'cloudDeviceSequence';
 }
 
 enum PlaybackMode { classic, preloaded }

@@ -153,11 +153,10 @@ void main() {
     expect(controllerBlock, isNot(contains('extends GetxController')));
     expect(controllerBlock, isNot(contains('.obs')));
     expect(source, isNot(contains('Obx(')));
-    expect(source, contains('kDebugMode'));
     expect(source, contains('developerSettingsEnabled'));
-    expect(source, contains('IssueReportDialog'));
+    expect(source, contains('submitIssueReportPayload'));
     expect(source, contains('detailedPlaybackDebugSnapshot'));
-    expect(source, contains('includePlaybackDebug: true'));
+    expect(source, contains('includePlaybackDebug:'));
   });
 
   test('issue reports can include extra diagnostics at submit time', () {

@@ -30,6 +30,8 @@ import '/models/album.dart';
 import '/models/artist.dart';
 import '/models/media_Item_builder.dart';
 import '/models/playlist.dart';
+import '/models/thumbnail.dart';
+import '/utils/playlist_art.dart';
 import '../../../utils/observable_state.dart';
 
 class LibrarySongsController extends ChangeNotifier {
@@ -534,6 +536,7 @@ class LibraryPlaylistsController extends ChangeNotifier
   Future<void> refreshLib() async {
     final localPlaylists = (await _playlistRepository.getPlaylists()).reversed;
     libraryPlaylists.value = withInitialPlaylistsTail(localPlaylists);
+    await refreshInitialPlaylistThumbs();
 
     if (_settingsRepository.getPiped()?['isLoggedIn'] == true) {
       await syncPipedPlaylist();
@@ -541,6 +544,76 @@ class LibraryPlaylistsController extends ChangeNotifier
 
     isContentFetched.value = true;
     notifyListeners();
+  }
+
+  /// Derive each built-in playlist's tile artwork from its first song (in
+  /// display order). Empty built-ins fall back to the placeholder, which the
+  /// tile renders as the original icon look. The static [initialPlaylists]
+  /// instances are mutated in place — [withInitialPlaylistsTail] re-spreads
+  /// the same objects, so every screen sees the update; built-ins are never
+  /// persisted.
+  ///
+  /// Known limitation: download/cache completion doesn't call this; those
+  /// tiles refresh on the next [refreshLib] (library visit / app start).
+  Future<void> refreshInitialPlaylistThumbs() async {
+    var changed = false;
+    for (final playlist in initialPlaylists) {
+      final songs = await _songsForInitialPlaylist(playlist.playlistId);
+      // LIBRP is displayed newest-first (see fetchSongsFromDatabase).
+      final displayOrdered = playlist.playlistId == BoxNames.libRP
+          ? songs.reversed.toList()
+          : songs;
+      final newThumb = resolvePlaylistArt(
+        currentUrl: playlist.thumbnailUrl,
+        songs: displayOrdered,
+        emptyFallbackUrl: Playlist.thumbPlaceholderUrl,
+      );
+      if (playlist.thumbnailUrl != newThumb) {
+        playlist.thumbnailUrl = newThumb;
+        changed = true;
+      }
+    }
+    if (changed) notifyListeners();
+  }
+
+  Future<List<MediaItem>> _songsForInitialPlaylist(String id) async =>
+      switch (id) {
+        BoxNames.songDownloads => await _libraryRepository.getDownloadedSongs(),
+        BoxNames.songsCache => await _libraryRepository.getCachedSongs(),
+        BoxNames.libFav => await _libraryRepository.getFavoriteSongs(),
+        BoxNames.libRP => await _libraryRepository.getRecentlyPlayedSongs(),
+        BoxNames.libFavNotDownloaded =>
+          await _libraryRepository.getFavoriteNotDownloadedSongs(),
+        BoxNames.libImportDuplicates =>
+          await _libraryRepository.getImportDuplicateSongs(),
+        BoxNames.libImportReview =>
+          await _libraryRepository.getImportReviewSongs(),
+        _ => const <MediaItem>[],
+      };
+
+  /// Recompute a local playlist's stored artwork from its first song after
+  /// its songs changed outside the playlist screen (e.g. the "Add to
+  /// playlist" sheet). Built-in ids delegate to
+  /// [refreshInitialPlaylistThumbs]; cloud playlists keep their own covers;
+  /// an emptied user playlist keeps its last artwork.
+  Future<void> recomputeLocalPlaylistThumb(String playlistId) async {
+    if (isInitialPlaylistId(playlistId)) {
+      await refreshInitialPlaylistThumbs();
+      return;
+    }
+    final playlist = await _playlistRepository.getPlaylist(playlistId);
+    if (playlist == null || playlist.isCloudPlaylist) return;
+    final songs = await _playlistRepository.getPlaylistSongs(playlistId);
+    final newThumb = resolvePlaylistArt(
+      currentUrl: playlist.thumbnailUrl,
+      songs: songs,
+      emptyFallbackUrl: playlist.thumbnailUrl,
+    );
+    if (Thumbnail(playlist.thumbnailUrl).extraHigh ==
+        Thumbnail(newThumb).extraHigh) {
+      return;
+    }
+    await updatePlaylistIntoDb(playlist.copyWith(thumbnailUrl: newThumb));
   }
 
   Future<void> updatePlaylistIntoDb(Playlist playlist) async {

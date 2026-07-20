@@ -991,6 +991,31 @@ class AppLocalizationsHr extends AppLocalizations {
   String get bluetoothTransport => 'Bluetooth';
 
   @override
+  String get bothTransports => 'Bluetooth + Wi-Fi';
+
+  @override
+  String get bluetoothDisabled =>
+      'Uključite Bluetooth za ovaj način povezivanja.';
+
+  @override
+  String get wifiDisabled =>
+      'Uključite Wi-Fi za ovaj način povezivanja. Internetska veza nije potrebna.';
+
+  @override
+  String get playServicesUnavailable =>
+      'Za Bluetooth pretraživanje potrebne su ažurne Google Play usluge.';
+
+  @override
+  String get transportReady => 'Odabrani način povezivanja je spreman.';
+
+  @override
+  String get transportStartupFailed =>
+      'Odabrani način povezivanja nije se mogao pokrenuti.';
+
+  @override
+  String get grantPermissions => 'Dopusti dozvole';
+
+  @override
   String get hostingSession => 'Domaćin — drugi se mogu pridružiti';
 
   @override
@@ -1008,6 +1033,50 @@ class AppLocalizationsHr extends AppLocalizations {
   @override
   String get listenTogetherUnavailable =>
       'Zajedničko slušanje nije dostupno na ovom uređaju';
+
+  @override
+  String get confirmConnection => 'Potvrdi vezu';
+
+  @override
+  String get listenTogetherDeviceName => 'Naziv uređaja';
+
+  @override
+  String get save => 'Spremi';
+
+  @override
+  String get nearbyPermissionRequired =>
+      'Potrebne su dozvole za Bluetooth i obližnje uređaje. Otvorite Android postavke i dopustite ih.';
+
+  @override
+  String get nearbyWithWifiFallback => 'Nearby + Wi-Fi pričuva';
+
+  @override
+  String get partyMode => 'Party način rada';
+
+  @override
+  String get partyModeDes =>
+      'Samo domaćin reproducira zvuk; gosti upravljaju zajedničkim redom čekanja.';
+
+  @override
+  String get partyModeGuestHint =>
+      'Party način rada je aktivan: ovaj telefon je daljinski upravljač i neće reproducirati zvuk.';
+
+  @override
+  String get addedToSharedQueue => 'Dodano u zajednički red čekanja';
+
+  @override
+  String get notAvailableInSession =>
+      'Ova radnja nije dostupna u trenutačnoj sesiji';
+
+  @override
+  String listenTogetherGuestAdded(String name, String title) {
+    return '\"$name\" je dodao $title';
+  }
+
+  @override
+  String songsAddedCount(int count) {
+    return '$count pjesama';
+  }
 
   @override
   String get back => 'Natrag';
@@ -1088,4 +1157,79 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String get importNeedsReview => 'Uvoz zahtijeva pregled';
+
+  @override
+  String get resolverBackend => 'Harmony Resolver';
+
+  @override
+  String get resolverBackendDescription =>
+      'Koristi konfigurirani Resolver poslužitelj kao dodatni izvor reprodukcije.';
+
+  @override
+  String get resolverPlaybackSource => 'Izvor online reprodukcije';
+
+  @override
+  String get resolverPlaybackSourceDescription =>
+      'Samo u debug verziji: odaberi iz kojeg sustava dolazi online audio.';
+
+  @override
+  String get resolverPlaybackSourceBoth => 'Oba';
+
+  @override
+  String get resolverPlaybackSourceResolverOnly => 'Samo Resolver';
+
+  @override
+  String get resolverPlaybackSourceExistingOnly => 'Samo postojeći izvor';
+
+  @override
+  String get resolverTestConnection => 'Provjeri vezu';
+
+  @override
+  String get resolverDiscover => 'Pronađi na LAN-u';
+
+  @override
+  String get resolverReady => 'Resolver je spreman.';
+
+  @override
+  String get resolverUnavailable =>
+      'Resolver nije dostupan. Provjerite adresu, Wi-Fi i vatrozid.';
+
+  @override
+  String get resolverNotConfigured => 'Adresa Resolvera nije konfigurirana.';
+
+  @override
+  String get resolverAddress => 'Adresa Resolvera';
+
+  @override
+  String get resolverSaveAddress => 'Spremi adresu';
+
+  @override
+  String get resolverResetAddress => 'Vrati zadanu adresu';
+
+  @override
+  String get resolverEnvironment => 'Okruženje';
+
+  @override
+  String get resolverPlaybackFailed =>
+      'Pjesmu nije moguće učitati ni iz jednog izvora. Provjerite vezu i pokušajte ponovno.';
+
+  @override
+  String get cloudBackup => 'Harmony Cloud sigurnosna kopija';
+
+  @override
+  String get cloudBackupDescription =>
+      'Sigurno sinkronizira biblioteku, postavke i popis preuzetih pjesama.';
+
+  @override
+  String get cloudBackupPrompt =>
+      'Želite li sigurnosno kopirati Harmony podatke i sinkronizirati ih između uređaja?';
+
+  @override
+  String get cloudBackupEnable => 'Uključi backup';
+
+  @override
+  String get cloudBackupNotNow => 'Ne sada';
+
+  @override
+  String get cloudBackupNow => 'Sada sigurnosno kopiraj preuzete pjesme';
 }

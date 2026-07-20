@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:harmonymusic/l10n/l10n.dart';
 
 import '../app/providers/controller_providers.dart';
+import '../services/listen_together/listen_together_controller.dart';
 import '../utils/helper.dart';
 import '../utils/runtime_platform.dart';
 import '../ui/navigator.dart';
@@ -34,6 +35,8 @@ class _HomeState extends ConsumerState<Home> {
   /// [NavigatorPopHandler] does, so [PopScope.canPop] stays accurate and the
   /// Android predictive-back registration never desyncs.
   bool _nestedCanPop = false;
+  bool _listenTogetherConfirmationOpen = false;
+  String? _listenTogetherConfirmationEndpoint;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +45,10 @@ class _HomeState extends ConsumerState<Home> {
     );
     final settingsScreenController = ref.read(settingsScreenControllerProvider);
     final homeScreenController = ref.read(homeScreenControllerProvider);
+    final listenTogetherController = ref.watch(
+      listenTogetherControllerProvider,
+    );
+    _scheduleListenTogetherConfirmation(listenTogetherController);
     final mediaQuery = MediaQuery.of(context);
     final size = mediaQuery.size;
     final isWideScreen = size.width > 800;
@@ -57,6 +64,7 @@ class _HomeState extends ConsumerState<Home> {
         // drawer's song counter have their own scoped listeners.
         animation: Listenable.merge([
           playerController.playerPanelOpen,
+          playerController.currentSong,
           playerController.isQueueLoopModeEnabled,
           playerController.isShuffleModeEnabled,
           playerController.playerPanelMinHeight,
@@ -70,11 +78,14 @@ class _HomeState extends ConsumerState<Home> {
               settingsScreenController.isBottomNavBarEnabled.value &&
               homeScreenController.isHomeScreenOnTop &&
               !panelOpen;
-          final playerPanelMinHeight = collapsedMiniPlayerHeight(
-            context,
-            isWideScreen: isWideScreen,
-            bottomNavVisible: bottomNavVisible,
-          );
+          final hasCurrentSong = playerController.currentSong.value != null;
+          final playerPanelMinHeight = hasCurrentSong
+              ? collapsedMiniPlayerHeight(
+                  context,
+                  isWideScreen: isWideScreen,
+                  bottomNavVisible: bottomNavVisible,
+                )
+              : 0.0;
           _syncPlayerPanelMinHeight(playerController, playerPanelMinHeight);
           // canPop must accurately reflect whether the app handles back:
           // Android predictive back reads it at gesture start, and a stale
@@ -283,7 +294,7 @@ class _HomeState extends ConsumerState<Home> {
                   controller: playerController.playerPanelController,
                   minHeight: playerPanelMinHeight,
                   maxHeight: size.height,
-                  isDraggable: !isWideScreen,
+                  isDraggable: hasCurrentSong && !isWideScreen,
                   onSwipeUp: () async {
                     await playerController.queuePanelController.open();
                   },
@@ -312,6 +323,50 @@ class _HomeState extends ConsumerState<Home> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       playerController.playerPanelMinHeight.value = height;
+    });
+  }
+
+  void _scheduleListenTogetherConfirmation(
+    ListenTogetherController controller,
+  ) {
+    final confirmation = controller.pendingConfirmation;
+    if (confirmation == null ||
+        _listenTogetherConfirmationOpen ||
+        confirmation.endpointId == _listenTogetherConfirmationEndpoint) {
+      return;
+    }
+    _listenTogetherConfirmationOpen = true;
+    _listenTogetherConfirmationEndpoint = confirmation.endpointId;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final accepted = await showDialog<bool>(
+        context: context,
+        useRootNavigator: true,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(dialogContext.l10n.listenTogether),
+          content: Text('${confirmation.name}\n\n${confirmation.code}'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(dialogContext.l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(dialogContext.l10n.confirmConnection),
+            ),
+          ],
+        ),
+      );
+      if (mounted) {
+        await controller.confirmPendingConnection(accepted == true);
+        if (mounted) {
+          setState(() {
+            _listenTogetherConfirmationOpen = false;
+            _listenTogetherConfirmationEndpoint = null;
+          });
+        }
+      }
     });
   }
 }

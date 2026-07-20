@@ -15,9 +15,12 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
     private var playbackWakeLock: PowerManager.WakeLock? = null
+    private lateinit var nearbyConnections: NearbyConnectionsBridge
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        nearbyConnections = NearbyConnectionsBridge(this)
+        nearbyConnections.attach(flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,

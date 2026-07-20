@@ -271,7 +271,7 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
     final actualDownFormat = requiredAudioStream.audioCodec.name.contains("mp")
         ? "m4a"
         : "opus";
-    final RegExp invalidChar = RegExp(r'[/\\"<>*?:!\[\]¡|%]');
+    final RegExp invalidChar = RegExp(r'[/\\"<>*?:!\[\]¡|%#]');
     final songTitle = "${song.title.trim()} (${song.artist?.trim()})"
         .replaceAll(invalidChar, "");
     String filePath = "$dirPath/$songTitle.$actualDownFormat";

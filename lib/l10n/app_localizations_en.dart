@@ -986,6 +986,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bluetoothTransport => 'Bluetooth';
 
   @override
+  String get bothTransports => 'Bluetooth + Wi-Fi';
+
+  @override
+  String get bluetoothDisabled =>
+      'Turn on Bluetooth to use this connection mode.';
+
+  @override
+  String get wifiDisabled =>
+      'Turn on Wi-Fi to use this connection mode. You do not need to connect to the internet.';
+
+  @override
+  String get playServicesUnavailable =>
+      'Current Google Play services are required for Bluetooth discovery.';
+
+  @override
+  String get transportReady => 'Selected connection mode is ready.';
+
+  @override
+  String get transportStartupFailed =>
+      'The selected connection mode could not be started.';
+
+  @override
+  String get grantPermissions => 'Grant permissions';
+
+  @override
   String get hostingSession => 'Hosting — others can join';
 
   @override
@@ -1003,6 +1028,50 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get listenTogetherUnavailable =>
       'Listen together isn\'t available on this device';
+
+  @override
+  String get confirmConnection => 'Confirm connection';
+
+  @override
+  String get listenTogetherDeviceName => 'Device name';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get nearbyPermissionRequired =>
+      'Bluetooth and Nearby devices permissions are required. Open Android settings and allow them.';
+
+  @override
+  String get nearbyWithWifiFallback => 'Nearby + Wi-Fi fallback';
+
+  @override
+  String get partyMode => 'Party mode';
+
+  @override
+  String get partyModeDes =>
+      'Only the host plays audio; guests control the shared queue.';
+
+  @override
+  String get partyModeGuestHint =>
+      'Party mode is active: this phone is a remote and will not play audio.';
+
+  @override
+  String get addedToSharedQueue => 'Added to the shared queue';
+
+  @override
+  String get notAvailableInSession =>
+      'This action is not available in the current session';
+
+  @override
+  String listenTogetherGuestAdded(String name, String title) {
+    return '\"$name\" added $title';
+  }
+
+  @override
+  String songsAddedCount(int count) {
+    return '$count songs';
+  }
 
   @override
   String get back => 'Back';
@@ -1083,4 +1152,79 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get importNeedsReview => 'Import needs review';
+
+  @override
+  String get resolverBackend => 'Harmony Resolver';
+
+  @override
+  String get resolverBackendDescription =>
+      'Use the configured Resolver server as an additional playback source.';
+
+  @override
+  String get resolverPlaybackSource => 'Online playback source';
+
+  @override
+  String get resolverPlaybackSourceDescription =>
+      'Debug only: choose which backend provides online audio.';
+
+  @override
+  String get resolverPlaybackSourceBoth => 'Both';
+
+  @override
+  String get resolverPlaybackSourceResolverOnly => 'Resolver only';
+
+  @override
+  String get resolverPlaybackSourceExistingOnly => 'Existing source only';
+
+  @override
+  String get resolverTestConnection => 'Test connection';
+
+  @override
+  String get resolverDiscover => 'Discover on LAN';
+
+  @override
+  String get resolverReady => 'Resolver is ready.';
+
+  @override
+  String get resolverUnavailable =>
+      'Resolver could not be reached. Check the address, Wi-Fi, and firewall.';
+
+  @override
+  String get resolverNotConfigured => 'Resolver address is not configured.';
+
+  @override
+  String get resolverAddress => 'Resolver address';
+
+  @override
+  String get resolverSaveAddress => 'Save address';
+
+  @override
+  String get resolverResetAddress => 'Reset address';
+
+  @override
+  String get resolverEnvironment => 'Environment';
+
+  @override
+  String get resolverPlaybackFailed =>
+      'This song could not be loaded from either playback source. Check your connection and try again.';
+
+  @override
+  String get cloudBackup => 'Harmony Cloud backup';
+
+  @override
+  String get cloudBackupDescription =>
+      'Securely sync your library, settings and downloaded-song inventory.';
+
+  @override
+  String get cloudBackupPrompt =>
+      'Keep your Harmony data backed up and synchronized across devices?';
+
+  @override
+  String get cloudBackupEnable => 'Enable backup';
+
+  @override
+  String get cloudBackupNotNow => 'Not now';
+
+  @override
+  String get cloudBackupNow => 'Back up downloaded songs now';
 }

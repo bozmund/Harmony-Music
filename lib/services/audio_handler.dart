@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:harmonymusic/l10n/app_localizations.dart';
@@ -26,11 +27,15 @@ import '/services/constant.dart';
 import '/services/crash_diagnostics_service.dart';
 import '/services/playback_queue_order.dart';
 import '/services/playback_preload_service.dart';
+import '/services/playback_start_trace.dart';
 import '/services/equalizer.dart';
 import '/services/stream_service.dart';
 import '/models/hm_streaming_data.dart';
 import '/services/background_task.dart';
 import '/services/permission_service.dart';
+import 'resolver/resolver_audio_source.dart';
+import 'resolver/resolver_playback_client.dart';
+import 'resolver/resolver_source_mode.dart';
 import '../utils/helper.dart';
 import '/models/media_Item_builder.dart';
 import '/services/utils.dart';
@@ -41,6 +46,12 @@ import "package:media_kit/src/player/platform_player.dart" show MPVLogLevel;
 
 const _androidNotificationArtSize = 256;
 const _fallbackCompletionGrace = Duration(milliseconds: 1250);
+// How long playback may sit in ProcessingState.buffering without the position
+// moving before the stall watchdog regenerates the stream URL. Initial song
+// starts are covered by isSongLoading, so this only fires on post-start
+// stalls (e.g. a silently dropped or throttled CDN connection).
+const _bufferingStallThreshold = Duration(seconds: 12);
+const _bufferingStallPositionTolerance = Duration(milliseconds: 300);
 
 Future<AudioHandler> initAudioService({
   required SettingsRepository settingsRepository,
@@ -49,6 +60,7 @@ Future<AudioHandler> initAudioService({
   required SongCacheRepository songCacheRepository,
   required PlaylistRepository playlistRepository,
   required PlaybackSessionRepository playbackSessionRepository,
+  ResolverPlaybackClient? resolverPlaybackClient,
 }) async {
   final handler = await MyAudioHandler.create(
     settingsRepository: settingsRepository,
@@ -57,6 +69,13 @@ Future<AudioHandler> initAudioService({
     songCacheRepository: songCacheRepository,
     playlistRepository: playlistRepository,
     playbackSessionRepository: playbackSessionRepository,
+    resolverPlaybackClient:
+        resolverPlaybackClient ??
+        ResolverPlaybackClient(
+          settings: settingsRepository,
+          accessToken: () async => null,
+          enabled: false,
+        ),
   );
   return await AudioService.init(
     builder: () => handler,
@@ -64,8 +83,13 @@ Future<AudioHandler> initAudioService({
       androidNotificationIcon: 'mipmap/ic_launcher_monochrome',
       androidNotificationChannelId: 'com.mycompany.myapp.audio',
       androidNotificationChannelName: 'Harmony Music Notification',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
+      // Keep the service in the foreground while paused: a call-induced pause
+      // must not demote it into an OOM-kill target mid-call, and just_audio's
+      // in-memory resume-after-interruption flag must survive the call.
+      // The AudioServiceConfig assert requires androidNotificationOngoing to
+      // be false when androidStopForegroundOnPause is false.
+      androidNotificationOngoing: false,
+      androidStopForegroundOnPause: false,
       artDownscaleWidth: _androidNotificationArtSize,
       artDownscaleHeight: _androidNotificationArtSize,
     ),
@@ -84,6 +108,12 @@ class MyAudioHandler extends BaseAudioHandler {
   late final SongCacheRepository _songCacheRepository;
   late final PlaylistRepository _playlistRepository;
   late final PlaybackSessionRepository _playbackSessionRepository;
+  late final ResolverPlaybackClient _resolverPlaybackClient;
+  final Map<String, ResolverAudioSource> _resolverSources = {};
+  ResolverOpenCancellation? _activeResolverCancellation;
+  PlaybackStartTrace? _activePlaybackTrace;
+  PlaybackSourceCategory _currentPlaybackSource =
+      PlaybackSourceCategory.pending;
 
   // ignore: prefer_typing_uninitialized_variables
   dynamic currentIndex;
@@ -104,8 +134,17 @@ class MyAudioHandler extends BaseAudioHandler {
   Timer? _completionWatchdogTimer;
   DateTime? _earlyCompletionDetectedAt;
   Duration? _earlyCompletionDelay;
+  Duration? _stallWatchPosition;
+  DateTime? _stallWatchSince;
+  bool _stallRecoveryInFlight = false;
   bool _sourceSwitchInProgress = false;
   bool _sourceSwitchWasPlaying = false;
+  Timer? _sessionSaveDebounce;
+  Timer? _periodicPositionSaveTimer;
+  // Suppresses the automatic session-save triggers while a saved session is
+  // being restored, so the persisted position isn't clobbered with 0.
+  bool _suppressSessionSave = false;
+  bool _wasPlayingForSessionSave = false;
   int _playbackGeneration = 0;
   bool _preEndWindowActive = false;
   Future<void>? _prepareNextSourceTask;
@@ -128,6 +167,7 @@ class MyAudioHandler extends BaseAudioHandler {
     required SongCacheRepository songCacheRepository,
     required PlaylistRepository playlistRepository,
     required PlaybackSessionRepository playbackSessionRepository,
+    required ResolverPlaybackClient resolverPlaybackClient,
   }) {
     _settingsRepository = settingsRepository;
     _libraryRepository = libraryRepository;
@@ -135,6 +175,7 @@ class MyAudioHandler extends BaseAudioHandler {
     _songCacheRepository = songCacheRepository;
     _playlistRepository = playlistRepository;
     _playbackSessionRepository = playbackSessionRepository;
+    _resolverPlaybackClient = resolverPlaybackClient;
 
     if (RuntimePlatform.isWindows || RuntimePlatform.isLinux) {
       JustAudioMediaKit.title = 'Harmony music';
@@ -152,7 +193,7 @@ class MyAudioHandler extends BaseAudioHandler {
         androidLoadControl: AndroidLoadControl(
           minBufferDuration: Duration(seconds: 15),
           maxBufferDuration: Duration(seconds: 45),
-          bufferForPlaybackDuration: Duration(milliseconds: 500),
+          bufferForPlaybackDuration: Duration(milliseconds: 200),
           bufferForPlaybackAfterRebufferDuration: Duration(seconds: 2),
           targetBufferBytes: _androidTargetBufferBytes,
         ),
@@ -167,6 +208,7 @@ class MyAudioHandler extends BaseAudioHandler {
     required SongCacheRepository songCacheRepository,
     required PlaylistRepository playlistRepository,
     required PlaybackSessionRepository playbackSessionRepository,
+    required ResolverPlaybackClient resolverPlaybackClient,
   }) async {
     final handler = MyAudioHandler._(
       settingsRepository: settingsRepository,
@@ -175,16 +217,27 @@ class MyAudioHandler extends BaseAudioHandler {
       songCacheRepository: songCacheRepository,
       playlistRepository: playlistRepository,
       playbackSessionRepository: playbackSessionRepository,
+      resolverPlaybackClient: resolverPlaybackClient,
     );
     await handler._init();
     return handler;
   }
 
   Future<void> _init() async {
+    unawaited(_resolverPlaybackClient.warmUp());
     await _createCacheDir();
     _preloadService = PlaybackPreloadService(
       preloadDirectory: Directory("$_cacheDir/preloadedSongs"),
-      resolveStreamInfo: checkNGetUrl,
+      resolveStreamInfo:
+          (songId, {generateNewUrl = false, offlineReplacementUrl = false}) =>
+              checkNGetUrl(
+                songId,
+                generateNewUrl: generateNewUrl,
+                offlineReplacementUrl: offlineReplacementUrl,
+                allowResolver:
+                    _effectiveResolverSourceMode() ==
+                    ResolverSourceMode.resolverOnly,
+              ),
       settingsRepository: _settingsRepository,
       songCacheRepository: _songCacheRepository,
     );
@@ -208,9 +261,82 @@ class MyAudioHandler extends BaseAudioHandler {
     await _player.setLoopMode(loopModeEnabled ? LoopMode.one : LoopMode.off);
 
     _listenForDurationChanges();
+    _listenForSessionPersistence();
+    _player.positionStream.listen((position) {
+      if (position > Duration.zero) {
+        _activePlaybackTrace?.positivePlaybackPosition();
+      }
+    });
 
     if (RuntimePlatform.isAndroid) {
       _listenSessionIdStream();
+    }
+  }
+
+  // Keeps the persisted session fresh outside of app-lifecycle events, so an
+  // ungraceful process kill (e.g. OOM during a phone call) still restores the
+  // actual current song and a recent position.
+  void _listenForSessionPersistence() {
+    // Track change (auto-advance, skip, shuffle, setSourceNPlay). A newly
+    // started song begins at zero and _player.position is unreliable mid
+    // source-switch, so persist position 0 explicitly.
+    mediaItem
+        .distinct((a, b) => a?.id == b?.id)
+        .listen((_) => _scheduleSessionSave(positionOverride: Duration.zero));
+
+    // Any playing -> not-playing transition. A phone-call pause comes from
+    // just_audio's internal interruption handler calling _player.pause()
+    // directly, bypassing this handler's pause() override, so hook the player
+    // stream rather than the override.
+    _player.playingStream.listen((playing) {
+      if (_wasPlayingForSessionSave && !playing) {
+        // _player.stop() during a source switch also emits playing=false, but
+        // the position would still belong to the previous song.
+        if (!_sourceSwitchInProgress && !isSongLoading) {
+          _scheduleSessionSave();
+        }
+      }
+      _wasPlayingForSessionSave = playing;
+      _syncPeriodicPositionSaves(playing);
+    });
+
+    // Queue mutations (reorder, play next, clear) — keeps the persisted queue
+    // consistent with the index/position-only saves below.
+    queue.listen((_) => _scheduleSessionSave());
+  }
+
+  void _scheduleSessionSave({Duration? positionOverride}) {
+    // Never fabricate index 0 before a song was actually selected.
+    if (_suppressSessionSave || currentIndex is! int) return;
+    _sessionSaveDebounce?.cancel();
+    _sessionSaveDebounce = Timer(const Duration(milliseconds: 800), () {
+      if (_suppressSessionSave || currentIndex is! int) return;
+      unawaited(saveSessionData(positionOverride: positionOverride));
+    });
+  }
+
+  void _syncPeriodicPositionSaves(bool playing) {
+    if (playing) {
+      _periodicPositionSaveTimer ??= Timer.periodic(
+        const Duration(seconds: 30),
+        (_) {
+          if (_suppressSessionSave ||
+              currentIndex is! int ||
+              !_player.playing) {
+            return;
+          }
+          if (!_settingsRepository.getRestorePlaybackSession()) return;
+          unawaited(
+            _playbackSessionRepository.savePosition(
+              index: currentIndex as int,
+              position: _player.position.inMilliseconds,
+            ),
+          );
+        },
+      );
+    } else {
+      _periodicPositionSaveTimer?.cancel();
+      _periodicPositionSaveTimer = null;
     }
   }
 
@@ -232,6 +358,22 @@ class MyAudioHandler extends BaseAudioHandler {
   void _schedulePreloadWindow() {
     final queueSnapshot = queue.value.toList();
     final currentQueueIndex = currentIndex is int ? currentIndex as int : null;
+    if (_player.playing && currentQueueIndex != null) {
+      final nextIds = <String>[];
+      for (var offset = 1; offset <= 3; offset++) {
+        var index = currentQueueIndex + offset;
+        if (queueLoopModeEnabled && queueSnapshot.isNotEmpty) {
+          index %= queueSnapshot.length;
+        }
+        if (index < 0 || index >= queueSnapshot.length) break;
+        final id = queueSnapshot[index].id;
+        if (!nextIds.contains(id)) nextIds.add(id);
+      }
+      if (_effectiveResolverSourceMode().usesResolver) {
+        unawaited(_resolverPlaybackClient.warmUp());
+        unawaited(_resolverPlaybackClient.prefetch(nextIds));
+      }
+    }
     final candidateIndices = currentQueueIndex == null
         ? <int>[]
         : _preloadCandidateIndices(_preloadService.range);
@@ -304,6 +446,9 @@ class MyAudioHandler extends BaseAudioHandler {
   void _notifyAudioHandlerAboutPlaybackEvents() {
     _player.playbackEventStream.listen(
       (PlaybackEvent event) {
+        if (event.processingState == ProcessingState.ready) {
+          _activePlaybackTrace?.playerReady();
+        }
         final playing = _sourceSwitchInProgress && _sourceSwitchWasPlaying
             ? true
             : _player.playing;
@@ -331,11 +476,12 @@ class MyAudioHandler extends BaseAudioHandler {
                     ProcessingState.ready: AudioProcessingState.ready,
                     ProcessingState.completed: AudioProcessingState.completed,
                   }[_player.processingState]!,
-            repeatMode: const {
-              LoopMode.off: AudioServiceRepeatMode.none,
-              LoopMode.one: AudioServiceRepeatMode.one,
-              LoopMode.all: AudioServiceRepeatMode.all,
-            }[_player.loopMode]!,
+            // Single source of truth for repeat is the loopModeEnabled field
+            // (always written together with _player.setLoopMode) — keeps this
+            // event in agreement with _emitPlaybackSnapshot.
+            repeatMode: loopModeEnabled
+                ? AudioServiceRepeatMode.one
+                : AudioServiceRepeatMode.none,
             shuffleMode: shuffleModeEnabled
                 ? AudioServiceShuffleMode.all
                 : AudioServiceShuffleMode.none,
@@ -383,20 +529,7 @@ class MyAudioHandler extends BaseAudioHandler {
           }
 
           //Workaround when 403 error encountered
-          // customAction("playByIndex", {'index': currentIndex, 'newUrl': true})
-          //     .whenComplete(() async {
-          //   await _player.stop();
-          //   if (currentSongUrl == null) {
-          //     networkErrorPause = true;
-          //   } else {
-          //     _player.play();
-          //   }
-          // });
-          await customAction("playByIndex", {
-            'index': currentIndex,
-            'newUrl': true,
-          });
-          await _player.seek(curPos, index: 0);
+          await _recoverFromStalledSource(curPos);
         }
       },
     );
@@ -480,6 +613,9 @@ class MyAudioHandler extends BaseAudioHandler {
       'earlyCompletionDetectedAt': _earlyCompletionDetectedAt
           ?.toIso8601String(),
       'earlyCompletionDelayMs': _earlyCompletionDelay?.inMilliseconds,
+      'stallWatchPositionMs': _stallWatchPosition?.inMilliseconds,
+      'stallWatchSince': _stallWatchSince?.toIso8601String(),
+      'stallRecoveryInFlight': _stallRecoveryInFlight,
       'sourceSwitchInProgress': _sourceSwitchInProgress,
       'sourceSwitchWasPlaying': _sourceSwitchWasPlaying,
       'playbackGeneration': _playbackGeneration,
@@ -687,7 +823,10 @@ class MyAudioHandler extends BaseAudioHandler {
     if (_completionWatchdogTimer != null) return;
     _completionWatchdogTimer = Timer.periodic(
       const Duration(milliseconds: 250),
-      (_) => _checkCompletionWatchdog(),
+      (_) {
+        _checkCompletionWatchdog();
+        _checkBufferingStallWatchdog();
+      },
     );
   }
 
@@ -695,6 +834,7 @@ class MyAudioHandler extends BaseAudioHandler {
     _completionWatchdogTimer?.cancel();
     _completionWatchdogTimer = null;
     _resetEarlyCompletionDeferral();
+    _resetBufferingStallWatch();
   }
 
   void _checkCompletionWatchdog() {
@@ -731,6 +871,71 @@ class MyAudioHandler extends BaseAudioHandler {
   void _resetEarlyCompletionDeferral() {
     _earlyCompletionDetectedAt = null;
     _earlyCompletionDelay = null;
+  }
+
+  void _checkBufferingStallWatchdog() {
+    if (isSongLoading ||
+        _completionInProgress ||
+        _sourceSwitchInProgress ||
+        _stallRecoveryInFlight) {
+      _resetBufferingStallWatch();
+      return;
+    }
+    if (!_player.playing ||
+        _player.processingState != ProcessingState.buffering) {
+      _resetBufferingStallWatch();
+      return;
+    }
+
+    final position = _player.position;
+    final watchedPosition = _stallWatchPosition;
+    if (watchedPosition == null ||
+        (position - watchedPosition).abs() > _bufferingStallPositionTolerance) {
+      _stallWatchPosition = position;
+      _stallWatchSince = DateTime.now();
+      return;
+    }
+    if (DateTime.now().difference(_stallWatchSince!) <
+        _bufferingStallThreshold) {
+      return;
+    }
+
+    _resetBufferingStallWatch();
+    _stallRecoveryInFlight = true;
+    printERROR(
+      'Buffering stalled at ${position.inMilliseconds}ms for '
+      'song=${mediaItem.value?.id}; recovering with a fresh stream URL',
+      tag: LogTags.audioHandler,
+    );
+    CrashDiagnosticsService.instance.record(
+      'audio',
+      'buffering-stall-recovery song=${mediaItem.value?.id} '
+          'position=${position.inMilliseconds}ms',
+      includeMemory: true,
+      flush: true,
+    );
+    unawaited(() async {
+      try {
+        await _recoverFromStalledSource(position);
+      } catch (error, stackTrace) {
+        printERROR(
+          'Buffering stall recovery failed: $error\n$stackTrace',
+          tag: LogTags.audioHandler,
+        );
+      } finally {
+        _stallRecoveryInFlight = false;
+      }
+    }());
+  }
+
+  void _resetBufferingStallWatch() {
+    _stallWatchPosition = null;
+    _stallWatchSince = null;
+  }
+
+  Future<void> _recoverFromStalledSource(Duration resumePosition) async {
+    await customAction("playByIndex", {'index': currentIndex, 'newUrl': true});
+    await _player.seek(resumePosition, index: 0);
   }
 
   void _listenForEndPositionFallback() {
@@ -773,6 +978,33 @@ class MyAudioHandler extends BaseAudioHandler {
   void _beginSourceSwitch() {
     _sourceSwitchWasPlaying = playbackState.value.playing || _player.playing;
     _sourceSwitchInProgress = true;
+  }
+
+  void _beginPlaybackStartTrace(PlaybackTransitionCategory transition) {
+    _activeResolverCancellation?.cancel();
+    _activeResolverCancellation = null;
+    _activePlaybackTrace = PlaybackStartTrace(transition: transition);
+  }
+
+  PlaybackTransitionCategory _playbackTransition(
+    Object? value, {
+    PlaybackTransitionCategory fallback = PlaybackTransitionCategory.tap,
+  }) {
+    return switch (value) {
+      'skip' => PlaybackTransitionCategory.skip,
+      'queue_transition' => PlaybackTransitionCategory.queueTransition,
+      'resume' => PlaybackTransitionCategory.resume,
+      'tap' => PlaybackTransitionCategory.tap,
+      _ => fallback,
+    };
+  }
+
+  void _traceCurrentSource(PlaybackTransitionCategory transition) {
+    _beginPlaybackStartTrace(transition);
+    _activePlaybackTrace?.sourceSelected(_currentPlaybackSource);
+    if (_player.processingState == ProcessingState.ready) {
+      _activePlaybackTrace?.playerReady();
+    }
   }
 
   void _endSourceSwitch({bool defer = false}) {
@@ -1005,13 +1237,17 @@ class MyAudioHandler extends BaseAudioHandler {
   Future<void> _repeatCurrentSongFromStart() async {
     if (_playList.children.isEmpty || currentSongUrl == null) return;
 
+    _beginPlaybackStartTrace(PlaybackTransitionCategory.queueTransition);
+    _activePlaybackTrace?.sourceSelected(_currentPlaybackSource);
     await _player.seek(Duration.zero, index: 0);
+    _activePlaybackTrace?.playerReady();
     _startPlayerPlayback();
     _startCompletionWatchdog();
   }
 
   Future<void> _loadCurrentSourceFromStartAndPlay() async {
     await _player.load();
+    _activePlaybackTrace?.playerReady();
     await _player.seek(Duration.zero, index: 0);
     _startPlayerPlayback();
     _startCompletionWatchdog();
@@ -1078,19 +1314,42 @@ class MyAudioHandler extends BaseAudioHandler {
 
   AudioSource _createAudioSource(MediaItem mediaItem) {
     final url = mediaItem.extras!['url'] as String;
+    if (url.startsWith('resolver://')) {
+      final source = _resolverSources.remove(mediaItem.id);
+      if (source != null) {
+        isPlayingUsingLockCachingSource = false;
+        _currentPlaybackSource = PlaybackSourceCategory.resolver;
+        _activePlaybackTrace?.sourceSelected(_currentPlaybackSource);
+        _activePlaybackTrace?.responseHeaders(source: _currentPlaybackSource);
+        _activePlaybackTrace?.firstEncodedByte(source: _currentPlaybackSource);
+        return source.withTag(mediaItem);
+      }
+    }
     final cacheSongsEnabled = _settingsRepository.getCacheSongs();
+    final trace = _activePlaybackTrace;
     final preloadedSource = _preloadService.createAudioSource(
       mediaItem,
       cacheSongsEnabled: cacheSongsEnabled,
+      onResponseReady: () =>
+          trace?.responseHeaders(source: PlaybackSourceCategory.preloaded),
+      onFirstEncodedByte: () =>
+          trace?.firstEncodedByte(source: PlaybackSourceCategory.preloaded),
     );
-    if (preloadedSource != null) return preloadedSource;
+    if (preloadedSource != null) {
+      isPlayingUsingLockCachingSource = false;
+      _currentPlaybackSource = PlaybackSourceCategory.preloaded;
+      trace?.sourceSelected(_currentPlaybackSource);
+      return preloadedSource;
+    }
 
     if (url.contains('/cache') || (cacheSongsEnabled && url.contains("http"))) {
       printINFO("Playing Using LockCaching", tag: LogTags.audioHandler);
       isPlayingUsingLockCachingSource = true;
+      _currentPlaybackSource = PlaybackSourceCategory.lockCaching;
+      trace?.sourceSelected(_currentPlaybackSource);
       // ignore: experimental_member_use
       return LockCachingAudioSource(
-        Uri.parse(url),
+        _playableUri(url),
         cacheFile: File("$_cacheDir/cachedSongs/${mediaItem.id}.mp3"),
         tag: mediaItem,
       );
@@ -1098,7 +1357,25 @@ class MyAudioHandler extends BaseAudioHandler {
 
     printINFO("Playing Using AudioSource.uri", tag: LogTags.audioHandler);
     isPlayingUsingLockCachingSource = false;
-    return AudioSource.uri(Uri.tryParse(url)!, tag: mediaItem);
+    _currentPlaybackSource =
+        _isLocalSourceUrl(url) || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url)
+        ? PlaybackSourceCategory.local
+        : PlaybackSourceCategory.network;
+    trace?.sourceSelected(_currentPlaybackSource);
+    return AudioSource.uri(_playableUri(url), tag: mediaItem);
+  }
+
+  /// Local file paths can contain '#' or '?' from song titles; Uri.parse
+  /// treats those as fragment/query separators and truncates the path, so
+  /// build file URIs with Uri.file instead.
+  Uri _playableUri(String url) {
+    if (url.startsWith('file://')) {
+      return Uri.file(url.substring('file://'.length));
+    }
+    if (_isLocalSourceUrl(url) || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url)) {
+      return Uri.file(url);
+    }
+    return Uri.parse(url);
   }
 
   @override
@@ -1123,7 +1400,10 @@ class MyAudioHandler extends BaseAudioHandler {
         (RuntimePlatform.isDesktop &&
             (_player.duration == null ||
                 _player.duration?.inMilliseconds == 0))) {
-      await customAction("playByIndex", {'index': currentIndex});
+      await customAction("playByIndex", {
+        'index': currentIndex,
+        'transition': 'tap',
+      });
       return;
     }
     // Workaround for network error pause in case of PlayingUsingLockCachingSource
@@ -1137,6 +1417,7 @@ class MyAudioHandler extends BaseAudioHandler {
     //   await _player.play();
     //   return;
     // }
+    _traceCurrentSource(PlaybackTransitionCategory.resume);
     _startPlayerPlayback();
     _startCompletionWatchdog();
     _schedulePreloadWindow();
@@ -1172,7 +1453,7 @@ class MyAudioHandler extends BaseAudioHandler {
   @override
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= queue.value.length) return;
-    await customAction("playByIndex", {'index': index});
+    await customAction("playByIndex", {'index': index, 'transition': 'skip'});
   }
 
   int _getNextSongIndex() {
@@ -1203,13 +1484,23 @@ class MyAudioHandler extends BaseAudioHandler {
         "Completion advancing from $currentIndex to $index",
         tag: LogTags.audioHandler,
       );
-      await customAction("playByIndex", {'index': index});
+      await customAction("playByIndex", {
+        'index': index,
+        'transition': _completionInProgress ? 'queue_transition' : 'skip',
+      });
     } else if (queueLoopModeEnabled) {
       printINFO(
         "Completion restarting current queue item because queue loop is enabled",
         tag: LogTags.audioHandler,
       );
+      _beginPlaybackStartTrace(
+        _completionInProgress
+            ? PlaybackTransitionCategory.queueTransition
+            : PlaybackTransitionCategory.skip,
+      );
+      _activePlaybackTrace?.sourceSelected(_currentPlaybackSource);
       await _player.seek(Duration.zero);
+      _activePlaybackTrace?.playerReady();
       _startPlayerPlayback();
       _startCompletionWatchdog();
     } else {
@@ -1225,21 +1516,42 @@ class MyAudioHandler extends BaseAudioHandler {
   @override
   Future<void> skipToPrevious() async {
     if (_player.position.inMilliseconds > 5000) {
+      _beginPlaybackStartTrace(PlaybackTransitionCategory.skip);
+      _activePlaybackTrace?.sourceSelected(_currentPlaybackSource);
       await _player.seek(Duration.zero);
+      _activePlaybackTrace?.playerReady();
       return;
     }
     final index = _getPrevSongIndex();
     if (index != currentIndex) {
-      await customAction("playByIndex", {'index': index});
+      await customAction("playByIndex", {'index': index, 'transition': 'skip'});
       return;
     }
+    _beginPlaybackStartTrace(PlaybackTransitionCategory.skip);
+    _activePlaybackTrace?.sourceSelected(_currentPlaybackSource);
     await _player.seek(Duration.zero);
+    _activePlaybackTrace?.playerReady();
   }
 
   @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
-    loopModeEnabled = repeatMode != AudioServiceRepeatMode.none;
-    await _player.setLoopMode(loopModeEnabled ? LoopMode.one : LoopMode.off);
+    final enabled = repeatMode != AudioServiceRepeatMode.none;
+    if (enabled != loopModeEnabled) {
+      // A *change* arriving here first is typically an external controller —
+      // e.g. Ford SYNC replays its stored repeat state over AVRCP on connect.
+      printINFO(
+        'setRepeatMode -> $repeatMode (media session / external controller)',
+        tag: LogTags.audioHandler,
+      );
+    }
+    loopModeEnabled = enabled;
+    await _player.setLoopMode(enabled ? LoopMode.one : LoopMode.off);
+    // Intentionally no settings write: external repeat commands (car/BT AVRCP
+    // replays) must not overwrite the user's chosen default. In-app toggles
+    // persist separately via PlaybackCommandService.toggleLoop.
+    // Broadcast so UI observers (PlayerController) see the new repeatMode —
+    // _player.setLoopMode alone produces no playbackEventStream event.
+    _emitPlaybackSnapshot();
   }
 
   @override
@@ -1265,18 +1577,31 @@ class MyAudioHandler extends BaseAudioHandler {
         return _handlerDebugSnapshot();
 
       case 'dispose':
+        _activeResolverCancellation?.cancel();
+        _activeResolverCancellation = null;
         _stopCompletionWatchdog();
+        _sessionSaveDebounce?.cancel();
+        _periodicPositionSaveTimer?.cancel();
+        _periodicPositionSaveTimer = null;
         await _preloadService.clear();
         await _player.dispose();
+        await _resetResolverSources();
+        _resolverPlaybackClient.dispose();
         await super.stop();
+        break;
+
+      case 'warmResolverConnection':
+        unawaited(_resolverPlaybackClient.warmUp());
         break;
 
       case 'playByIndex':
         final songIndex = extras!['index'];
+        _beginPlaybackStartTrace(_playbackTransition(extras['transition']));
         currentIndex = songIndex;
         final isNewUrlReq = extras['newUrl'] ?? false;
         final currentSong = queue.value[currentIndex];
         final bool restoreSession = extras['restoreSession'] ?? false;
+        if (restoreSession) _suppressSessionSave = true;
         final hadExistingSource = _playList.children.isNotEmpty;
         final preparedStreamInfo = !isNewUrlReq
             ? _takePreparedStreamInfoFor(songIndex, currentSong.id)
@@ -1368,7 +1693,33 @@ class MyAudioHandler extends BaseAudioHandler {
           if (restoreSession) {
             if (!RuntimePlatform.isDesktop) {
               final position = extras['position'];
-              await _player.load();
+              try {
+                await _player.load();
+              } catch (error, stackTrace) {
+                if (isNewUrlReq) rethrow;
+                final retryStreamInfo =
+                    await _freshStreamInfoAfterSourceLoadFailure(
+                      actionName: 'playByIndex(restore)',
+                      song: currentSong,
+                      error: error,
+                      stackTrace: stackTrace,
+                    );
+                if (requestGeneration != _playbackGeneration ||
+                    songIndex != currentIndex) {
+                  _endSourceSwitch();
+                  return;
+                }
+                await _replaceCurrentSourceWithStreamInfo(
+                  actionName: 'playByIndex(restore)',
+                  song: currentSong,
+                  streamInfo: retryStreamInfo,
+                );
+                if (loudnessNormalizationEnabled && RuntimePlatform.isAndroid) {
+                  await _normalizeVolume(retryStreamInfo.audio!.loudnessDb);
+                }
+                await _player.load();
+              }
+              _activePlaybackTrace?.playerReady();
               await _player.seek(Duration(milliseconds: position));
               await _player.seek(Duration(milliseconds: position));
             }
@@ -1416,6 +1767,8 @@ class MyAudioHandler extends BaseAudioHandler {
             error: error,
             stackTrace: stackTrace,
           );
+        } finally {
+          if (restoreSession) _suppressSessionSave = false;
         }
         break;
 
@@ -1450,6 +1803,7 @@ class MyAudioHandler extends BaseAudioHandler {
 
       case 'setSourceNPlay':
         final currMed = extras!['mediaItem'] as MediaItem;
+        _beginPlaybackStartTrace(PlaybackTransitionCategory.tap);
         final requestGeneration = ++_playbackGeneration;
         _resetPreparedNextSource();
         try {
@@ -1790,14 +2144,15 @@ class MyAudioHandler extends BaseAudioHandler {
     await _player.setVolume(volumeAdjustment.toDouble().clamp(0, 1.0));
   }
 
-  Future<void> saveSessionData() async {
+  Future<void> saveSessionData({Duration? positionOverride}) async {
     if (!_settingsRepository.getRestorePlaybackSession()) {
       return;
     }
     final currQueue = queue.value;
     if (currQueue.isNotEmpty) {
       final currIndex = currentIndex ?? 0;
-      final position = _player.position.inMilliseconds;
+      final position =
+          positionOverride?.inMilliseconds ?? _player.position.inMilliseconds;
       await _playbackSessionRepository.saveSession(
         queue: currQueue,
         index: currIndex,
@@ -1871,6 +2226,7 @@ class MyAudioHandler extends BaseAudioHandler {
     String songId, {
     bool generateNewUrl = false,
     bool offlineReplacementUrl = false,
+    bool allowResolver = true,
   }) async {
     printINFO("Requested id : $songId", tag: LogTags.audioHandler);
     if (!offlineReplacementUrl &&
@@ -1911,7 +2267,12 @@ class MyAudioHandler extends BaseAudioHandler {
           "Download entry for $songId disappeared during stream lookup",
           tag: LogTags.audioHandler,
         );
-        return checkNGetUrl(songId, offlineReplacementUrl: true);
+        return checkNGetUrl(
+          songId,
+          generateNewUrl: generateNewUrl,
+          offlineReplacementUrl: true,
+          allowResolver: allowResolver,
+        );
       }
 
       final path = song['url'];
@@ -1920,7 +2281,12 @@ class MyAudioHandler extends BaseAudioHandler {
           "Download entry for $songId has invalid path: $path",
           tag: LogTags.audioHandler,
         );
-        return checkNGetUrl(songId, offlineReplacementUrl: true);
+        return checkNGetUrl(
+          songId,
+          generateNewUrl: generateNewUrl,
+          offlineReplacementUrl: true,
+          allowResolver: allowResolver,
+        );
       }
 
       final streamInfoJson = song["streamInfo"];
@@ -1965,14 +2331,22 @@ class MyAudioHandler extends BaseAudioHandler {
         return streamInfo;
       }
       //in case file doesnot found in storage, song will be played online
-      return checkNGetUrl(songId, offlineReplacementUrl: true);
+      return checkNGetUrl(
+        songId,
+        generateNewUrl: generateNewUrl,
+        offlineReplacementUrl: true,
+        allowResolver: allowResolver,
+      );
     } else {
       //check if song stream url is cached and allocate url accordingly
       final qualityIndex = _settingsRepository.getStreamingQualityIndex();
-      HMStreamingData? streamInfo;
-      final streamInfoJson = await _songCacheRepository.getStreamCacheEntry(
-        songId,
+      final sourceMode = _effectiveResolverSourceMode(
+        allowResolver: allowResolver,
       );
+      HMStreamingData? streamInfo;
+      final streamInfoJson = sourceMode == ResolverSourceMode.resolverOnly
+          ? null
+          : await _songCacheRepository.getStreamCacheEntry(songId);
       if (streamInfoJson != null && !generateNewUrl) {
         if (streamInfoJson.runtimeType.toString().contains("Map") &&
             !isExpired(url: streamInfoJson['lowQualityAudio']['url'])) {
@@ -1982,21 +2356,170 @@ class MyAudioHandler extends BaseAudioHandler {
       }
 
       if (streamInfo == null) {
-        final token = RootIsolateToken.instance;
-        final streamInfoJson = await Isolate.run(
-          () => getStreamInfo(songId, token),
-        );
-        streamInfo = HMStreamingData.fromJson(streamInfoJson);
-        if (streamInfo.playable)
+        streamInfo = switch (sourceMode) {
+          ResolverSourceMode.both => await _raceOnlineResolvers(songId),
+          ResolverSourceMode.resolverOnly => await _resolveWithResolver(songId),
+          ResolverSourceMode.existingOnly => await _resolveLocalOnline(songId),
+        };
+        if (streamInfo.playable &&
+            !streamInfo.audio!.url.startsWith('resolver://')) {
           await _songCacheRepository.saveStreamCacheEntry(
             songId,
-            streamInfoJson,
+            streamInfo.toJson(),
           );
+        }
       }
 
       streamInfo.setQualityIndex(qualityIndex);
       return streamInfo;
     }
+  }
+
+  ResolverSourceMode _effectiveResolverSourceMode({bool allowResolver = true}) {
+    if (!allowResolver) return ResolverSourceMode.existingOnly;
+    if (!kDebugMode) return ResolverSourceMode.both;
+    return _settingsRepository.getResolverSourceMode();
+  }
+
+  Future<void> _resetResolverSources() async {
+    for (final pending in _resolverSources.values.toList()) {
+      await pending.disposeInitial();
+    }
+    _resolverSources.clear();
+  }
+
+  Future<HMStreamingData> _resolveWithResolver(String songId) async {
+    await _resetResolverSources();
+    final cancellation = ResolverOpenCancellation();
+    _activeResolverCancellation?.cancel();
+    _activeResolverCancellation = cancellation;
+    try {
+      final source = await _openResolver(songId, cancellation);
+      if (source == null) {
+        return HMStreamingData(
+          playable: false,
+          statusMSG: 'resolverPlaybackFailed',
+        );
+      }
+      return _resolverStreamInfo(songId, source);
+    } catch (_) {
+      return HMStreamingData(
+        playable: false,
+        statusMSG: 'resolverPlaybackFailed',
+      );
+    } finally {
+      if (identical(_activeResolverCancellation, cancellation)) {
+        _activeResolverCancellation = null;
+      }
+    }
+  }
+
+  Future<ResolverAudioSource?> _openResolver(
+    String songId,
+    ResolverOpenCancellation cancellation,
+  ) {
+    final trace = _activePlaybackTrace;
+    return _resolverPlaybackClient.open(
+      songId,
+      cancellation: cancellation,
+      onResponseHeaders: () =>
+          trace?.responseHeaders(source: PlaybackSourceCategory.resolver),
+      onFirstEncodedByte: () =>
+          trace?.firstEncodedByte(source: PlaybackSourceCategory.resolver),
+    );
+  }
+
+  HMStreamingData _resolverStreamInfo(
+    String songId,
+    ResolverAudioSource source,
+  ) {
+    _resolverSources[songId] = source;
+    final audio = Audio(
+      itag: 0,
+      audioCodec: Codec.opus,
+      bitrate: 0,
+      duration: 0,
+      loudnessDb: 0,
+      url: 'resolver:///$songId',
+      size: 0,
+    );
+    return HMStreamingData(
+      playable: true,
+      statusMSG: 'OK',
+      lowQualityAudio: audio,
+      highQualityAudio: audio,
+    );
+  }
+
+  Future<HMStreamingData> _raceOnlineResolvers(String songId) async {
+    await _resetResolverSources();
+    final completer = Completer<HMStreamingData>();
+    final cancellation = ResolverOpenCancellation();
+    _activeResolverCancellation?.cancel();
+    _activeResolverCancellation = cancellation;
+    var failures = 0;
+
+    void failed() {
+      failures++;
+      if (failures == 2 && !completer.isCompleted) {
+        completer.complete(
+          HMStreamingData(playable: false, statusMSG: 'resolverPlaybackFailed'),
+        );
+      }
+    }
+
+    final local = _resolveLocalOnline(songId);
+    final resolver = _openResolver(songId, cancellation);
+
+    unawaited(() async {
+      try {
+        final result = await local;
+        if (result.playable && !completer.isCompleted) {
+          cancellation.cancel();
+          if (identical(_activeResolverCancellation, cancellation)) {
+            _activeResolverCancellation = null;
+          }
+          completer.complete(result);
+        } else if (!result.playable) {
+          failed();
+        }
+      } catch (_) {
+        failed();
+      }
+    }());
+    unawaited(() async {
+      try {
+        final source = await resolver;
+        if (source == null) {
+          if (identical(_activeResolverCancellation, cancellation)) {
+            _activeResolverCancellation = null;
+          }
+          failed();
+          return;
+        }
+        if (completer.isCompleted) {
+          await source.disposeInitial();
+          return;
+        }
+        if (identical(_activeResolverCancellation, cancellation)) {
+          _activeResolverCancellation = null;
+        }
+        completer.complete(_resolverStreamInfo(songId, source));
+      } catch (_) {
+        if (identical(_activeResolverCancellation, cancellation)) {
+          _activeResolverCancellation = null;
+        }
+        failed();
+      }
+    }());
+    final winner = await completer.future;
+    return winner;
+  }
+
+  Future<HMStreamingData> _resolveLocalOnline(String songId) async {
+    final token = RootIsolateToken.instance;
+    final json = await Isolate.run(() => getStreamInfo(songId, token));
+    return HMStreamingData.fromJson(json);
   }
 }
 
