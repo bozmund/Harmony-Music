@@ -13,11 +13,11 @@ class ResolverConfiguration {
 
   static const debugBuildDefault = String.fromEnvironment(
     'RESOLVER_DEBUG_BASE_URL',
-    defaultValue: 'https://harmony-resolver.duckdns.org',
+    defaultValue: 'https://harmony-resolver.duckdns.org/resolver',
   );
   static const productionBuildDefault = String.fromEnvironment(
     'RESOLVER_PRODUCTION_BASE_URL',
-    defaultValue: 'https://harmony-resolver.duckdns.org',
+    defaultValue: 'https://harmony-resolver.duckdns.org/resolver',
   );
 
   final ResolverEnvironment environment;
@@ -63,7 +63,9 @@ class ResolverConfiguration {
     if (parsed.userInfo.isNotEmpty ||
         parsed.hasQuery ||
         parsed.hasFragment ||
-        (parsed.path.isNotEmpty && parsed.path != '/')) {
+        (parsed.path.isNotEmpty &&
+            parsed.path != '/' &&
+            parsed.path != '/resolver')) {
       throw const FormatException(
         'Resolver URL cannot contain credentials, a path, query, or fragment.',
       );
@@ -74,6 +76,10 @@ class ResolverConfiguration {
     if (!production && parsed.scheme != 'http' && parsed.scheme != 'https') {
       throw const FormatException('Resolver URL must use HTTP or HTTPS.');
     }
-    return parsed.replace(path: '', query: null, fragment: null);
+    return parsed.replace(
+      path: parsed.path == '/resolver' ? '/resolver/' : '',
+      query: null,
+      fragment: null,
+    );
   }
 }

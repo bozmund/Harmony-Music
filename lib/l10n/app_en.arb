@@ -368,6 +368,11 @@
   "importNeedsReview": "Import needs review",
   "resolverBackend": "Harmony Resolver",
   "resolverBackendDescription": "Use the configured Resolver server as an additional playback source.",
+  "resolverPlaybackSource": "Online playback source",
+  "resolverPlaybackSourceDescription": "Debug only: choose which backend provides online audio.",
+  "resolverPlaybackSourceBoth": "Both",
+  "resolverPlaybackSourceResolverOnly": "Resolver only",
+  "resolverPlaybackSourceExistingOnly": "Existing source only",
   "resolverTestConnection": "Test connection",
   "resolverDiscover": "Discover on LAN",
   "resolverReady": "Resolver is ready.",
@@ -377,5 +382,11 @@
   "resolverSaveAddress": "Save address",
   "resolverResetAddress": "Reset address",
   "resolverEnvironment": "Environment",
-  "resolverPlaybackFailed": "This song could not be loaded from either playback source. Check your connection and try again."
+  "resolverPlaybackFailed": "This song could not be loaded from either playback source. Check your connection and try again.",
+  "cloudBackup": "Harmony Cloud backup",
+  "cloudBackupDescription": "Securely sync your library, settings and downloaded-song inventory.",
+  "cloudBackupPrompt": "Keep your Harmony data backed up and synchronized across devices?",
+  "cloudBackupEnable": "Enable backup",
+  "cloudBackupNotNow": "Not now",
+  "cloudBackupNow": "Back up downloaded songs now"
 }

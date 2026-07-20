@@ -268,7 +268,10 @@ class _SlidingUpPanelState extends State<SlidingUpPanel>
 
   Widget _withSystemUiModeScope(Widget child) {
     return SystemUiModeScope.immersive(
-      active: widget.setsScreenMode && _systemUiModePanelOpen,
+      active:
+          widget.setsScreenMode &&
+          _systemUiModePanelOpen &&
+          MediaQuery.orientationOf(context) == Orientation.landscape,
       priority: SystemUiModePriority.player,
       child: child,
     );

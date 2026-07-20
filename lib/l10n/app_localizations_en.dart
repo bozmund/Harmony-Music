@@ -1161,6 +1161,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use the configured Resolver server as an additional playback source.';
 
   @override
+  String get resolverPlaybackSource => 'Online playback source';
+
+  @override
+  String get resolverPlaybackSourceDescription =>
+      'Debug only: choose which backend provides online audio.';
+
+  @override
+  String get resolverPlaybackSourceBoth => 'Both';
+
+  @override
+  String get resolverPlaybackSourceResolverOnly => 'Resolver only';
+
+  @override
+  String get resolverPlaybackSourceExistingOnly => 'Existing source only';
+
+  @override
   String get resolverTestConnection => 'Test connection';
 
   @override
@@ -1191,4 +1207,24 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get resolverPlaybackFailed =>
       'This song could not be loaded from either playback source. Check your connection and try again.';
+
+  @override
+  String get cloudBackup => 'Harmony Cloud backup';
+
+  @override
+  String get cloudBackupDescription =>
+      'Securely sync your library, settings and downloaded-song inventory.';
+
+  @override
+  String get cloudBackupPrompt =>
+      'Keep your Harmony data backed up and synchronized across devices?';
+
+  @override
+  String get cloudBackupEnable => 'Enable backup';
+
+  @override
+  String get cloudBackupNotNow => 'Not now';
+
+  @override
+  String get cloudBackupNow => 'Back up downloaded songs now';
 }

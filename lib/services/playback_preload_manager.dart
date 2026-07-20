@@ -315,8 +315,8 @@ class PlaybackPreloadManager {
 
   int _targetPrefixBytes(int bitrate) {
     final effectiveBitrate = bitrate <= 0 ? 160000 : bitrate;
-    final threeSeconds = (effectiveBitrate / 8 * 3).round();
-    final target = threeSeconds + 64 * 1024;
+    final fiveSeconds = (effectiveBitrate / 8 * 5).round();
+    final target = fiveSeconds + 64 * 1024;
     return target.clamp(128 * 1024, 1024 * 1024).toInt();
   }
 

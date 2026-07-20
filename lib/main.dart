@@ -18,8 +18,6 @@ import 'app/navigation/router_provider.dart';
 import 'domain/repositories/settings_repository.dart';
 import 'l10n/app_localizations.dart';
 import '/services/constant.dart';
-import 'services/app_contracts.dart';
-import 'services/app_platform_service.dart';
 import 'services/auth0_service.dart';
 import 'services/resolver/resolver_playback_client.dart';
 import 'services/resolver/resolver_discovery_service.dart';
@@ -70,7 +68,7 @@ Future<void> main() async {
         ),
       );
       bootstrapContainer.dispose();
-      final systemUiModeService = await _createSystemUiModeService();
+      final systemUiModeService = SystemUiModeService();
       appProviderContainer = ProviderContainer(
         overrides: [
           audioHandlerProvider.overrideWithValue(audioHandler),
@@ -90,18 +88,6 @@ Future<void> main() async {
       CrashDiagnosticsService.instance.recordZoneError(error, stackTrace);
     },
   );
-}
-
-Future<SystemUiModeService> _createSystemUiModeService() async {
-  final service = SystemUiModeService(
-    immersiveAllowed: !RuntimePlatform.isAndroid,
-  );
-  if (!RuntimePlatform.isAndroid) return service;
-
-  final navigationMode = await const DefaultAppPlatformService()
-      .getSystemNavigationMode();
-  service.setImmersiveAllowed(navigationMode == SystemNavigationMode.gesture);
-  return service;
 }
 
 void _installCrashDiagnosticsHandlers() {
@@ -209,6 +195,8 @@ Future<void> initHive() async {
   await Hive.openBox(BoxNames.songDownloads);
   await Hive.openBox(BoxNames.songsUrlCache);
   await Hive.openBox(BoxNames.appPrefs);
+  await Hive.openBox(BoxNames.cloudSyncOutbox);
+  await Hive.openBox(BoxNames.cloudSyncState);
 }
 
 Future<void> setAppInitPrefs(SettingsRepository settingsRepository) async {
@@ -229,6 +217,7 @@ class LifecycleHandler extends WidgetsBindingObserver {
       flush: state != AppLifecycleState.resumed,
     );
     if (state == AppLifecycleState.resumed) {
+      unawaited(_audioHandler.customAction('warmResolverConnection'));
       // SystemUiModeScope owns edge-to-edge / immersive restoration for the
       // currently mounted app surfaces.
     } else if (state == AppLifecycleState.paused) {

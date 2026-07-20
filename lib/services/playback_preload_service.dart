@@ -74,6 +74,8 @@ class PlaybackPreloadService {
   AudioSource? createAudioSource(
     MediaItem mediaItem, {
     required bool cacheSongsEnabled,
+    void Function()? onResponseReady,
+    void Function()? onFirstEncodedByte,
   }) {
     if (!isEnabled || cacheSongsEnabled) return null;
 
@@ -93,6 +95,8 @@ class PlaybackPreloadService {
       sourceLength: preloadedPrefix.streamInfo.audio?.size == 0
           ? null
           : preloadedPrefix.streamInfo.audio?.size,
+      onResponseReady: onResponseReady,
+      onFirstEncodedByte: onFirstEncodedByte,
       tag: mediaItem,
     );
   }

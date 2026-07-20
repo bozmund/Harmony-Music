@@ -519,11 +519,37 @@ void main() {
     test('android playback buffering is bounded to avoid heap spikes', () {
       expect(source, contains('static const _androidTargetBufferBytes'));
       expect(source, contains('maxBufferDuration: Duration(seconds: 45)'));
+      expect(
+        source,
+        contains('bufferForPlaybackDuration: Duration(milliseconds: 200)'),
+      );
+      expect(
+        source,
+        contains(
+          'bufferForPlaybackAfterRebufferDuration: Duration(seconds: 2)',
+        ),
+      );
       expect(source, contains('targetBufferBytes: _androidTargetBufferBytes'));
       expect(
         source,
         isNot(contains('maxBufferDuration: Duration(seconds: 120)')),
       );
+      expect(
+        source,
+        isNot(
+          contains('bufferForPlaybackDuration: Duration(milliseconds: 500)'),
+        ),
+      );
+    });
+
+    test('Resolver pool is warmed and disposed with the audio service', () {
+      final initBlock = _methodBlock(source, '_init');
+      final scheduleBlock = _methodBlock(source, '_schedulePreloadWindow');
+      final disposeCase = _caseBlock(source, 'dispose');
+
+      expect(initBlock, contains('_resolverPlaybackClient.warmUp()'));
+      expect(scheduleBlock, contains('_resolverPlaybackClient.warmUp()'));
+      expect(disposeCase, contains('_resolverPlaybackClient.dispose()'));
     });
 
     test('android notification artwork is downscaled before decoding', () {

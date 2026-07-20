@@ -368,6 +368,11 @@
   "importNeedsReview": "Uvoz zahtijeva pregled",
   "resolverBackend": "Harmony Resolver",
   "resolverBackendDescription": "Koristi konfigurirani Resolver poslužitelj kao dodatni izvor reprodukcije.",
+  "resolverPlaybackSource": "Izvor online reprodukcije",
+  "resolverPlaybackSourceDescription": "Samo u debug verziji: odaberi iz kojeg sustava dolazi online audio.",
+  "resolverPlaybackSourceBoth": "Oba",
+  "resolverPlaybackSourceResolverOnly": "Samo Resolver",
+  "resolverPlaybackSourceExistingOnly": "Samo postojeći izvor",
   "resolverTestConnection": "Provjeri vezu",
   "resolverDiscover": "Pronađi na LAN-u",
   "resolverReady": "Resolver je spreman.",
@@ -377,5 +382,11 @@
   "resolverSaveAddress": "Spremi adresu",
   "resolverResetAddress": "Vrati zadanu adresu",
   "resolverEnvironment": "Okruženje",
-  "resolverPlaybackFailed": "Pjesmu nije moguće učitati ni iz jednog izvora. Provjerite vezu i pokušajte ponovno."
+  "resolverPlaybackFailed": "Pjesmu nije moguće učitati ni iz jednog izvora. Provjerite vezu i pokušajte ponovno.",
+  "cloudBackup": "Harmony Cloud sigurnosna kopija",
+  "cloudBackupDescription": "Sigurno sinkronizira biblioteku, postavke i popis preuzetih pjesama.",
+  "cloudBackupPrompt": "Želite li sigurnosno kopirati Harmony podatke i sinkronizirati ih između uređaja?",
+  "cloudBackupEnable": "Uključi backup",
+  "cloudBackupNotNow": "Ne sada",
+  "cloudBackupNow": "Sada sigurnosno kopiraj preuzete pjesme"
 }

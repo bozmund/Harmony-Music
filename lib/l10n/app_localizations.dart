@@ -2288,6 +2288,36 @@ abstract class AppLocalizations {
   /// **'Use the configured Resolver server as an additional playback source.'**
   String get resolverBackendDescription;
 
+  /// No description provided for @resolverPlaybackSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Online playback source'**
+  String get resolverPlaybackSource;
+
+  /// No description provided for @resolverPlaybackSourceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug only: choose which backend provides online audio.'**
+  String get resolverPlaybackSourceDescription;
+
+  /// No description provided for @resolverPlaybackSourceBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Both'**
+  String get resolverPlaybackSourceBoth;
+
+  /// No description provided for @resolverPlaybackSourceResolverOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolver only'**
+  String get resolverPlaybackSourceResolverOnly;
+
+  /// No description provided for @resolverPlaybackSourceExistingOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing source only'**
+  String get resolverPlaybackSourceExistingOnly;
+
   /// No description provided for @resolverTestConnection.
   ///
   /// In en, this message translates to:
@@ -2347,6 +2377,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This song could not be loaded from either playback source. Check your connection and try again.'**
   String get resolverPlaybackFailed;
+
+  /// No description provided for @cloudBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Harmony Cloud backup'**
+  String get cloudBackup;
+
+  /// No description provided for @cloudBackupDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Securely sync your library, settings and downloaded-song inventory.'**
+  String get cloudBackupDescription;
+
+  /// No description provided for @cloudBackupPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your Harmony data backed up and synchronized across devices?'**
+  String get cloudBackupPrompt;
+
+  /// No description provided for @cloudBackupEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable backup'**
+  String get cloudBackupEnable;
+
+  /// No description provided for @cloudBackupNotNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get cloudBackupNotNow;
+
+  /// No description provided for @cloudBackupNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Back up downloaded songs now'**
+  String get cloudBackupNow;
 }
 
 class _AppLocalizationsDelegate

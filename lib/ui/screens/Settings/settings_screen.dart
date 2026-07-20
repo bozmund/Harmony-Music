@@ -1,6 +1,7 @@
 import 'dart:async';
 // ignore_for_file: deprecated_member_use
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:harmonymusic/l10n/l10n.dart';
@@ -20,6 +21,7 @@ import '../../widgets/import_ytmusic_playlist_dialog.dart';
 import '../../widgets/backup_dialog.dart';
 import '../../widgets/restore_dialog.dart';
 import '/services/constant.dart';
+import '/services/resolver/resolver_source_mode.dart';
 import '../Library/library_controller.dart';
 import '../../widgets/snackbar.dart';
 import '/ui/widgets/link_piped.dart';
@@ -27,6 +29,8 @@ import '/services/music_service.dart';
 import '/ui/utils/theme_controller.dart';
 import 'components/custom_expansion_tile.dart';
 import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart';
+
+bool _cloudOptInDialogOpen = false;
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key, this.isBottomNavActive = false});
@@ -37,6 +41,13 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsController = ref.watch(settingsScreenControllerProvider);
     final authController = ref.watch(authControllerProvider);
+    if (authController.needsCloudOptIn && !_cloudOptInDialogOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          unawaited(_showCloudOptInDialog(context, authController));
+        }
+      });
+    }
     final playerController = ref.read(playerControllerProvider);
     // One-shot: set when something (the release channel prompt, or
     // disabling the update popup) sends the user here to see the update
@@ -133,6 +144,31 @@ class SettingsScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
+                      if (authController.isAuthenticated)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          leading: const Icon(Icons.cloud_sync_outlined),
+                          title: Text(context.l10n.cloudBackup),
+                          subtitle: Text(context.l10n.cloudBackupDescription),
+                          trailing: CustomSwitch(
+                            value: authController.cloudSyncEnabled,
+                            onChanged: authController.setCloudSyncEnabled,
+                          ),
+                        ),
+                      if (authController.isAuthenticated &&
+                          authController.cloudSyncEnabled)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          leading: const Icon(Icons.cloud_upload_outlined),
+                          title: Text(context.l10n.cloudBackupNow),
+                          onTap: authController.backupCloudAudioNow,
+                        ),
                     ],
                   ),
                   if (settingsController.developerSettingsEnabled.value)
@@ -154,6 +190,49 @@ class SettingsScreen extends ConsumerWidget {
                             onChanged: settingsController.setResolverEnabled,
                           ),
                         ),
+                        if (kDebugMode)
+                          ListTile(
+                            contentPadding: const EdgeInsets.only(
+                              left: 5,
+                              right: 10,
+                            ),
+                            title: Text(context.l10n.resolverPlaybackSource),
+                            subtitle: Text(
+                              context.l10n.resolverPlaybackSourceDescription,
+                            ),
+                            trailing: DropdownButton<ResolverSourceMode>(
+                              dropdownColor: Theme.of(context).cardColor,
+                              underline: const SizedBox.shrink(),
+                              value:
+                                  settingsController.resolverSourceMode.value,
+                              items: [
+                                DropdownMenuItem(
+                                  value: ResolverSourceMode.both,
+                                  child: Text(
+                                    context.l10n.resolverPlaybackSourceBoth,
+                                  ),
+                                ),
+                                DropdownMenuItem(
+                                  value: ResolverSourceMode.resolverOnly,
+                                  child: Text(
+                                    context
+                                        .l10n
+                                        .resolverPlaybackSourceResolverOnly,
+                                  ),
+                                ),
+                                DropdownMenuItem(
+                                  value: ResolverSourceMode.existingOnly,
+                                  child: Text(
+                                    context
+                                        .l10n
+                                        .resolverPlaybackSourceExistingOnly,
+                                  ),
+                                ),
+                              ],
+                              onChanged:
+                                  settingsController.setResolverSourceMode,
+                            ),
+                          ),
                         ListTile(
                           contentPadding: const EdgeInsets.only(
                             left: 5,
@@ -206,8 +285,10 @@ class SettingsScreen extends ConsumerWidget {
                           trailing: IconButton(
                             tooltip: context.l10n.resolverAddress,
                             icon: const Icon(Icons.edit),
-                            onPressed: () =>
-                                _editResolverAddress(context, settingsController),
+                            onPressed: () => _editResolverAddress(
+                              context,
+                              settingsController,
+                            ),
                           ),
                         ),
                         ListTile(
@@ -219,9 +300,8 @@ class SettingsScreen extends ConsumerWidget {
                           subtitle: Text(
                             settingsController.resolverDiscoveredUrls.isEmpty
                                 ? settingsController.resolverStatus.value
-                                : settingsController.resolverDiscoveredUrls.join(
-                                    '\n',
-                                  ),
+                                : settingsController.resolverDiscoveredUrls
+                                      .join('\n'),
                           ),
                           trailing: AwaitableIconButton(
                             icon: const Icon(Icons.radar),
@@ -1323,6 +1403,37 @@ class _DeveloperSettingsInspector extends ConsumerWidget {
   }
 }
 
+Future<void> _showCloudOptInDialog(
+  BuildContext context,
+  AuthController controller,
+) async {
+  if (_cloudOptInDialogOpen || !controller.needsCloudOptIn) return;
+  _cloudOptInDialogOpen = true;
+  try {
+    final enabled = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.l10n.cloudBackup),
+        content: Text(dialogContext.l10n.cloudBackupPrompt),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(dialogContext.l10n.cloudBackupNotNow),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(dialogContext.l10n.cloudBackupEnable),
+          ),
+        ],
+      ),
+    );
+    if (enabled != null) await controller.setCloudSyncEnabled(enabled);
+  } finally {
+    _cloudOptInDialogOpen = false;
+  }
+}
+
 Future<void> _editResolverAddress(
   BuildContext context,
   SettingsScreenController controller,
@@ -1338,9 +1449,7 @@ Future<void> _editResolverAddress(
         controller: textController,
         keyboardType: TextInputType.url,
         autocorrect: false,
-        decoration: const InputDecoration(
-          hintText: 'http://192.168.1.10:8088',
-        ),
+        decoration: const InputDecoration(hintText: 'http://192.168.1.10:8088'),
       ),
       actions: [
         TextButton(

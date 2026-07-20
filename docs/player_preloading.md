@@ -25,7 +25,7 @@ has already changed.
 On Android, the optional preload layer can prepare nearby songs while playback
 is active. The preload range setting is numeric:
 
-- `1..5`: prepare songs within that distance of the current song.
+- `1..3`: prepare songs within that distance of the current song.
 
 Classic mode is the default, so existing users do not spend extra network or
 battery unless they choose the preloaded mode.
@@ -42,10 +42,10 @@ shuffle order without mutating the current shuffle position. For each candidate,
 the preload manager resolves `HMStreamingData`, stores stream URL metadata in
 `SongsUrlCache`, and downloads a temporary prefix of the selected audio stream.
 
-The prefix target is based on roughly three seconds of audio:
+The prefix target is based on roughly five seconds of audio:
 
 ```text
-target bytes = bitrate / 8 * 3 seconds + safety margin
+target bytes = bitrate / 8 * 5 seconds + safety margin
 ```
 
 The target is clamped so unusually low or high bitrate data does not create tiny

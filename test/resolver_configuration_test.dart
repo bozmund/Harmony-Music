@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:harmonymusic/data/repositories/hive_settings_repository.dart';
 import 'package:harmonymusic/services/constant.dart';
 import 'package:harmonymusic/services/resolver/resolver_configuration.dart';
+import 'package:harmonymusic/services/resolver/resolver_source_mode.dart';
 import 'package:hive/hive.dart';
 
 void main() {
@@ -44,6 +45,13 @@ void main() {
       ),
       throwsFormatException,
     );
+    expect(
+      ResolverConfiguration.normalize(
+        'https://harmony-resolver.duckdns.org/resolver',
+        production: true,
+      ).toString(),
+      'https://harmony-resolver.duckdns.org/resolver/',
+    );
   });
 
   test('production requires HTTPS', () {
@@ -78,6 +86,27 @@ void main() {
     expect(settings.getResolverEnabled(), isTrue);
     await settings.setResolverEnabled(false);
     expect(settings.getResolverEnabled(), isFalse);
+  });
+
+  test(
+    'resolver source mode defaults to both and persists debug choice',
+    () async {
+      expect(settings.getResolverSourceMode(), ResolverSourceMode.both);
+
+      await settings.setResolverSourceMode(ResolverSourceMode.resolverOnly);
+      expect(settings.getResolverSourceMode(), ResolverSourceMode.resolverOnly);
+
+      await settings.setResolverSourceMode(ResolverSourceMode.existingOnly);
+      expect(settings.getResolverSourceMode(), ResolverSourceMode.existingOnly);
+    },
+  );
+
+  test('unknown resolver source mode falls back to both', () async {
+    await Hive.box(
+      BoxNames.appPrefs,
+    ).put(PrefKeys.resolverDebugSourceMode, 'removedMode');
+
+    expect(settings.getResolverSourceMode(), ResolverSourceMode.both);
   });
 
   test('discovered debug endpoint takes precedence over build fallback', () {

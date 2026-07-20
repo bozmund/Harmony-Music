@@ -45,6 +45,92 @@ void main() {
       expect(response.contentLength, audioBytes.length);
     });
 
+    test(
+      'blocked remote headers do not delay response or local prefix',
+      () async {
+        final stalledServer = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+        );
+        addTearDown(() => stalledServer.close(force: true));
+        final requestSeen = Completer<void>();
+        stalledServer.listen((request) {
+          if (!requestSeen.isCompleted) requestSeen.complete();
+          // Keep the tail headers blocked until the test cancels the stream.
+        });
+        final prefixFile = File('${tempDir.path}/blocked-tail.prefix');
+        await prefixFile.writeAsBytes(audioBytes.take(12).toList());
+        final source = PreloadedPrefixAudioSource(
+          Uri.parse(
+            'http://${stalledServer.address.host}:${stalledServer.port}/song.opus',
+          ),
+          prefixFile: prefixFile,
+          contentType: 'audio/opus',
+          sourceLength: audioBytes.length,
+        );
+
+        final response = await source.request().timeout(
+          const Duration(milliseconds: 500),
+        );
+        final iterator = StreamIterator<List<int>>(response.stream);
+        expect(
+          await iterator.moveNext().timeout(const Duration(milliseconds: 500)),
+          isTrue,
+        );
+        expect(iterator.current, audioBytes.take(12).toList());
+        await requestSeen.future.timeout(const Duration(milliseconds: 500));
+        await iterator.cancel();
+      },
+    );
+
+    test('range contained in prefix never opens the network', () async {
+      final countingServer = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(() => countingServer.close(force: true));
+      var requestCount = 0;
+      countingServer.listen((request) async {
+        requestCount++;
+        await request.response.close();
+      });
+      final prefixFile = File('${tempDir.path}/local-only.prefix');
+      await prefixFile.writeAsBytes(audioBytes.take(12).toList());
+      final source = PreloadedPrefixAudioSource(
+        Uri.parse(
+          'http://${countingServer.address.host}:${countingServer.port}/song.opus',
+        ),
+        prefixFile: prefixFile,
+        contentType: 'audio/opus',
+        sourceLength: audioBytes.length,
+      );
+
+      final response = await source.request(2, 10);
+      expect(await _readAll(response.stream), audioBytes.sublist(2, 10));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(requestCount, 0);
+    });
+
+    test(
+      'first encoded byte callback fires once across prefix and tail',
+      () async {
+        final prefixFile = File('${tempDir.path}/callback.prefix');
+        await prefixFile.writeAsBytes(audioBytes.take(12).toList());
+        var callbackCount = 0;
+        final source = PreloadedPrefixAudioSource(
+          uri,
+          prefixFile: prefixFile,
+          contentType: 'audio/opus',
+          sourceLength: audioBytes.length,
+          onFirstEncodedByte: () => callbackCount++,
+        );
+
+        final response = await source.request();
+        expect(await _readAll(response.stream), audioBytes);
+        expect(callbackCount, 1);
+      },
+    );
+
     test('range inside prefix returns prefix bytes with offset', () async {
       final source = await _source(
         uri: uri,

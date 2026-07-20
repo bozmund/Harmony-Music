@@ -27,6 +27,7 @@ import '/services/piped_service.dart';
 import '../../../services/resolver/resolver_client.dart';
 import '../../../services/resolver/resolver_configuration.dart';
 import '../../../services/resolver/resolver_discovery_service.dart';
+import '../../../services/resolver/resolver_source_mode.dart';
 import '../Library/library_controller.dart';
 import '../../widgets/bottom_nav_bar_dimensions.dart';
 import '../../widgets/new_version_dialog.dart';
@@ -126,6 +127,7 @@ class SettingsScreenController extends ChangeNotifier
   final developerSettingsEnabled = ObservableValue(false);
   final developerSettingValues = ObservableList<DeveloperSettingValue>();
   final resolverEnabled = ObservableValue(true);
+  final resolverSourceMode = ObservableValue(ResolverSourceMode.both);
   final resolverEffectiveUrl = ObservableValue('');
   final resolverStatus = ObservableValue('not_tested');
   final resolverDiscoveredUrls = ObservableList<String>();
@@ -344,6 +346,9 @@ class SettingsScreenController extends ChangeNotifier
     developerSettingsEnabled.value = _settingsRepository
         .getDeveloperSettingsEnabled();
     resolverEnabled.value = _settingsRepository.getResolverEnabled();
+    resolverSourceMode.value = kDebugMode
+        ? _settingsRepository.getResolverSourceMode()
+        : ResolverSourceMode.both;
     _refreshResolverConfiguration();
     if (developerSettingsEnabled.value) {
       refreshDeveloperSettingValues();
@@ -441,6 +446,14 @@ class SettingsScreenController extends ChangeNotifier
     resolverEnabled.value = value;
     await _settingsRepository.setResolverEnabled(value);
     notifyListeners();
+  }
+
+  Future<void> setResolverSourceMode(ResolverSourceMode? value) async {
+    if (!kDebugMode || value == null) return;
+    resolverSourceMode.value = value;
+    await _settingsRepository.setResolverSourceMode(value);
+    await _audioHandler.customAction("preloadConfigChanged");
+    refreshDeveloperSettingValues();
   }
 
   void _refreshResolverConfiguration({Uri? discovered}) {
@@ -562,6 +575,11 @@ class SettingsScreenController extends ChangeNotifier
         "resolver.enabled",
         resolverEnabled.value.toString(),
       ),
+      if (kDebugMode)
+        DeveloperSettingValue(
+          "resolver.sourceMode",
+          resolverSourceMode.value.name,
+        ),
       DeveloperSettingValue(
         "resolver.effectiveUrl",
         _formatDeveloperValue(resolverEffectiveUrl.value),

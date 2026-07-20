@@ -1166,6 +1166,22 @@ class AppLocalizationsHr extends AppLocalizations {
       'Koristi konfigurirani Resolver poslužitelj kao dodatni izvor reprodukcije.';
 
   @override
+  String get resolverPlaybackSource => 'Izvor online reprodukcije';
+
+  @override
+  String get resolverPlaybackSourceDescription =>
+      'Samo u debug verziji: odaberi iz kojeg sustava dolazi online audio.';
+
+  @override
+  String get resolverPlaybackSourceBoth => 'Oba';
+
+  @override
+  String get resolverPlaybackSourceResolverOnly => 'Samo Resolver';
+
+  @override
+  String get resolverPlaybackSourceExistingOnly => 'Samo postojeći izvor';
+
+  @override
   String get resolverTestConnection => 'Provjeri vezu';
 
   @override
@@ -1196,4 +1212,24 @@ class AppLocalizationsHr extends AppLocalizations {
   @override
   String get resolverPlaybackFailed =>
       'Pjesmu nije moguće učitati ni iz jednog izvora. Provjerite vezu i pokušajte ponovno.';
+
+  @override
+  String get cloudBackup => 'Harmony Cloud sigurnosna kopija';
+
+  @override
+  String get cloudBackupDescription =>
+      'Sigurno sinkronizira biblioteku, postavke i popis preuzetih pjesama.';
+
+  @override
+  String get cloudBackupPrompt =>
+      'Želite li sigurnosno kopirati Harmony podatke i sinkronizirati ih između uređaja?';
+
+  @override
+  String get cloudBackupEnable => 'Uključi backup';
+
+  @override
+  String get cloudBackupNotNow => 'Ne sada';
+
+  @override
+  String get cloudBackupNow => 'Sada sigurnosno kopiraj preuzete pjesme';
 }
