@@ -1507,6 +1507,14 @@ Future<void> _runCloudAudioBackup(
         context.l10n.cloudBackupInProgress,
       CloudAudioBackupResult.disabled => context.l10n.cloudBackupFailed,
       CloudAudioBackupResult.batteryTooLow => context.l10n.cloudBackupFailed,
+      CloudAudioBackupResult.authenticationRequired =>
+        context.l10n.cloudBackupAuthenticationRequired,
+      CloudAudioBackupResult.permissionDenied =>
+        context.l10n.cloudBackupPermissionDenied,
+      CloudAudioBackupResult.serviceUnavailable =>
+        context.l10n.cloudBackupServiceUnavailable,
+      CloudAudioBackupResult.networkFailure =>
+        context.l10n.cloudBackupNetworkFailure,
     };
     messenger
       ..hideCurrentSnackBar()

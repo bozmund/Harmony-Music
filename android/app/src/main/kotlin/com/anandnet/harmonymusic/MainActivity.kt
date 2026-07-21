@@ -2,11 +2,14 @@ package com.anandnet.harmonymusic
 
 import android.os.Build
 import android.os.PowerManager
+import android.content.res.Configuration
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import java.io.File
 import kotlin.system.exitProcess
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -62,6 +65,30 @@ class MainActivity : AudioServiceActivity() {
             nearbyConnections.dispose()
         }
         super.onDestroy()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        restorePortraitSystemBars()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            // Flutter can reapply the previous landscape immersive flags after
+            // the rotation callback in optimized release builds. Re-show the
+            // bars once this portrait window actually owns focus.
+            restorePortraitSystemBars()
+        }
+    }
+
+    private fun restorePortraitSystemBars() {
+        if (resources.configuration.orientation != Configuration.ORIENTATION_PORTRAIT) {
+            return
+        }
+        WindowCompat.getInsetsController(window, window.decorView).show(
+            WindowInsetsCompat.Type.systemBars()
+        )
     }
 
     private fun appInfo(): Map<String, String> {

@@ -3,6 +3,29 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('cloud audio backup failures', () {
+    test('maps safe server categories instead of hiding every failure', () {
+      final source = File(
+        'lib/services/cloud/cloud_audio_backup_service.dart',
+      ).readAsStringSync();
+      expect(source, contains('on DioException catch (error)'));
+      expect(source, contains('401 => CloudAudioBackupResult.authenticationRequired'));
+      expect(source, contains('403 => CloudAudioBackupResult.permissionDenied'));
+      expect(source, contains('CloudAudioBackupResult.serviceUnavailable'));
+      expect(source, contains('CloudAudioBackupResult.networkFailure'));
+    });
+
+    test('settings shows a safe actionable backup failure message', () {
+      final source = File(
+        'lib/ui/screens/Settings/settings_screen.dart',
+      ).readAsStringSync();
+      expect(source, contains('cloudBackupAuthenticationRequired'));
+      expect(source, contains('cloudBackupPermissionDenied'));
+      expect(source, contains('cloudBackupServiceUnavailable'));
+      expect(source, contains('cloudBackupNetworkFailure'));
+    });
+  });
+
   group('large backup restore', () {
     late String source;
 
@@ -234,6 +257,22 @@ void main() {
         expect(source, contains('reapplyCurrentMode()'));
       },
     );
+
+    test('portrait rotation re-shows native system bars after window focus', () {
+      final activitySource = File(
+        'android/app/src/main/kotlin/com/anandnet/harmonymusic/MainActivity.kt',
+      ).readAsStringSync();
+      final scopeSource = File(
+        'lib/ui/widgets/system_ui_mode_scope.dart',
+      ).readAsStringSync();
+
+      expect(activitySource, contains('onConfigurationChanged'));
+      expect(activitySource, contains('onWindowFocusChanged'));
+      expect(activitySource, contains('Configuration.ORIENTATION_PORTRAIT'));
+      expect(activitySource, contains('WindowInsetsCompat.Type.systemBars()'));
+      expect(scopeSource, contains('void didChangeMetrics()'));
+      expect(scopeSource, contains('_reapplyAfterMetrics()'));
+    });
   });
 
   group('app text colors', () {
