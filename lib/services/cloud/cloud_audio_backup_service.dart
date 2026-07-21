@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:battery_plus/battery_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 
 import '../../domain/repositories/download_repository.dart';
 import '../../data/repositories/cloud_sync_repository.dart';
@@ -13,6 +14,10 @@ enum CloudAudioBackupResult {
   disabled,
   wifiRequired,
   batteryTooLow,
+  authenticationRequired,
+  permissionDenied,
+  serviceUnavailable,
+  networkFailure,
 }
 
 class CloudAudioBackupService {
@@ -57,30 +62,48 @@ class CloudAudioBackupService {
         candidates[id] = path;
       }
 
-      while (candidates.isNotEmpty &&
-          await _policyBlock(overrideBatteryPolicy: overrideBatteryPolicy) ==
-              null) {
-        final plan = await _cloud.nextAudio(
-          deviceId: _syncRepository.deviceId,
-          videoIds: candidates.keys.take(500).toList(),
-        );
-        if (plan['status'] != 'upload') break;
-        final videoId = plan['videoId']?.toString();
-        final uploadUrl = plan['uploadUrl']?.toString();
-        final uploadToken = plan['uploadToken']?.toString();
-        final path = videoId == null ? null : candidates.remove(videoId);
-        if (path == null || uploadUrl == null || uploadToken == null) break;
-        await _cloud.uploadAudio(
-          uploadUrl: uploadUrl,
-          uploadToken: uploadToken,
-          filePath: path,
-        );
+      try {
+        while (candidates.isNotEmpty &&
+            await _policyBlock(overrideBatteryPolicy: overrideBatteryPolicy) ==
+                null) {
+          final plan = await _cloud.nextAudio(
+            deviceId: _syncRepository.deviceId,
+            videoIds: candidates.keys.take(500).toList(),
+          );
+          if (plan['status'] != 'upload') break;
+          final videoId = plan['videoId']?.toString();
+          final uploadUrl = plan['uploadUrl']?.toString();
+          final uploadToken = plan['uploadToken']?.toString();
+          final path = videoId == null ? null : candidates.remove(videoId);
+          if (path == null || uploadUrl == null || uploadToken == null) break;
+          await _cloud.uploadAudio(
+            uploadUrl: uploadUrl,
+            uploadToken: uploadToken,
+            filePath: path,
+          );
+        }
+      } on DioException catch (error) {
+        return _resultFor(error);
       }
       return CloudAudioBackupResult.completed;
     } finally {
       _running = false;
     }
   }
+
+  static CloudAudioBackupResult _resultFor(DioException error) =>
+      switch (error.response?.statusCode) {
+        401 => CloudAudioBackupResult.authenticationRequired,
+        403 => CloudAudioBackupResult.permissionDenied,
+        500 || 502 || 503 || 504 => CloudAudioBackupResult.serviceUnavailable,
+        _
+            when error.type == DioExceptionType.connectionError ||
+                error.type == DioExceptionType.connectionTimeout ||
+                error.type == DioExceptionType.receiveTimeout ||
+                error.type == DioExceptionType.sendTimeout =>
+          CloudAudioBackupResult.networkFailure,
+        _ => CloudAudioBackupResult.serviceUnavailable,
+      };
 
   Future<CloudAudioBackupResult?> _policyBlock({
     required bool overrideBatteryPolicy,

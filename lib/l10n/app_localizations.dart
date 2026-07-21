@@ -2438,6 +2438,30 @@ abstract class AppLocalizations {
   /// **'Cloud backup failed. Try again.'**
   String get cloudBackupFailed;
 
+  /// No description provided for @cloudBackupAuthenticationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again before backing up downloaded songs.'**
+  String get cloudBackupAuthenticationRequired;
+
+  /// No description provided for @cloudBackupPermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud backup is not authorized for this account yet.'**
+  String get cloudBackupPermissionDenied;
+
+  /// No description provided for @cloudBackupServiceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud backup service is unavailable. Try again later.'**
+  String get cloudBackupServiceUnavailable;
+
+  /// No description provided for @cloudBackupNetworkFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud backup could not reach the service. Check your connection.'**
+  String get cloudBackupNetworkFailure;
+
   /// No description provided for @cloudBackupLowBatteryTitle.
   ///
   /// In en, this message translates to:

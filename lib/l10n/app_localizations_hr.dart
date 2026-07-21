@@ -1250,6 +1250,22 @@ class AppLocalizationsHr extends AppLocalizations {
       'Izrada sigurnosne kopije nije uspjela. Pokušajte ponovno.';
 
   @override
+  String get cloudBackupAuthenticationRequired =>
+      'Ponovno se prijavite prije sigurnosnog kopiranja preuzetih pjesama.';
+
+  @override
+  String get cloudBackupPermissionDenied =>
+      'Sigurnosno kopiranje u oblak još nije odobreno za ovaj račun.';
+
+  @override
+  String get cloudBackupServiceUnavailable =>
+      'Usluga sigurnosnog kopiranja u oblak trenutačno nije dostupna. Pokušajte kasnije.';
+
+  @override
+  String get cloudBackupNetworkFailure =>
+      'Sigurnosno kopiranje u oblak ne može dosegnuti uslugu. Provjerite vezu.';
+
+  @override
   String get cloudBackupLowBatteryTitle => 'Baterija je pri kraju';
 
   @override

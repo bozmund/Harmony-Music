@@ -1242,6 +1242,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cloudBackupFailed => 'Cloud backup failed. Try again.';
 
   @override
+  String get cloudBackupAuthenticationRequired =>
+      'Sign in again before backing up downloaded songs.';
+
+  @override
+  String get cloudBackupPermissionDenied =>
+      'Cloud backup is not authorized for this account yet.';
+
+  @override
+  String get cloudBackupServiceUnavailable =>
+      'Cloud backup service is unavailable. Try again later.';
+
+  @override
+  String get cloudBackupNetworkFailure =>
+      'Cloud backup could not reach the service. Check your connection.';
+
+  @override
   String get cloudBackupLowBatteryTitle => 'Battery is low';
 
   @override

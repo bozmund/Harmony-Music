@@ -77,6 +77,21 @@ class _SystemUiModeScopeState extends ConsumerState<SystemUiModeScope>
   }
 
   @override
+  void didChangeMetrics() {
+    if (!widget.active) return;
+    // Android finishes applying rotation window flags after Flutter receives
+    // its first metrics update. Reapply after that handoff so a portrait
+    // window cannot remain in the landscape player's immersive state.
+    unawaited(_reapplyAfterMetrics());
+  }
+
+  Future<void> _reapplyAfterMetrics() async {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    if (!mounted || !widget.active) return;
+    await ref.read(systemUiModeServiceProvider).reapplyCurrentMode();
+  }
+
+  @override
   void dispose() {
     ref.read(systemUiModeServiceProvider).unregisterRequest(_owner);
     WidgetsBinding.instance.removeObserver(this);
