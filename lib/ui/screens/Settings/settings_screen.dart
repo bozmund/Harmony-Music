@@ -11,6 +11,7 @@ import 'package:harmonymusic/utils/lang_mapping.dart';
 
 import '../../../app/providers/controller_providers.dart';
 import '../../../app/providers/auth_providers.dart';
+import '../../../app/providers/service_providers.dart';
 import '../../../services/cloud/cloud_audio_backup_service.dart';
 import '../../../utils/runtime_platform.dart';
 import '../../widgets/awaitable_button.dart';
@@ -44,6 +45,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsController = ref.watch(settingsScreenControllerProvider);
     final authController = ref.watch(authControllerProvider);
+    final downloader = ref.watch(downloaderProvider);
     if (authController.needsCloudOptIn && !_cloudOptInDialogOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
@@ -65,6 +67,7 @@ class SettingsScreen extends ConsumerWidget {
       animation: Listenable.merge([
         settingsController,
         playerController.playerPanelMinHeight,
+        downloader,
       ]),
       builder: (context, _) => Padding(
         padding: isBottomNavActive
@@ -171,7 +174,23 @@ class SettingsScreen extends ConsumerWidget {
                           leading: const Icon(Icons.cloud_upload_outlined),
                           title: Text(context.l10n.cloudBackupNow),
                           subtitle: authController.cloudBackupRunning
-                              ? Text(context.l10n.cloudBackupInProgress)
+                              ? Text(
+                                  (authController.cloudBackupProgress?.total ??
+                                              0) >
+                                          0
+                                      ? context.l10n.cloudBackupProgress(
+                                          authController
+                                              .cloudBackupProgress!
+                                              .completed,
+                                          authController
+                                              .cloudBackupProgress!
+                                              .total,
+                                          authController
+                                              .cloudBackupProgress!
+                                              .percentage,
+                                        )
+                                      : context.l10n.cloudBackupInProgress,
+                                )
                               : null,
                           onTap: authController.cloudBackupRunning
                               ? null
@@ -1010,6 +1029,28 @@ class SettingsScreen extends ConsumerWidget {
                               .value,
                           onChanged:
                               settingsController.toggleAutoDownloadFavoriteSong,
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: const EdgeInsets.only(
+                          left: 5,
+                          right: 10,
+                        ),
+                        leading: const Icon(Icons.refresh_outlined),
+                        title: Text(context.l10n.retryFailedDownloads),
+                        subtitle: Text(
+                          context.l10n.retryFailedDownloadsDescription(
+                            downloader.failedDownloadCount.value,
+                          ),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        trailing: AwaitableButton.text(
+                          label: Text(context.l10n.retry),
+                          onPressed:
+                              downloader.failedDownloadCount.value == 0 ||
+                                  downloader.isJobRunning.value
+                              ? null
+                              : downloader.retryFailedDownloads,
                         ),
                       ),
                       ListTile(

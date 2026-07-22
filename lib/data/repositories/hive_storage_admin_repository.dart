@@ -11,6 +11,7 @@ class HiveStorageAdminRepository implements StorageAdminRepository {
   List<String> get backupBoxNames => const [
     BoxNames.songsCache,
     BoxNames.songDownloads,
+    BoxNames.downloadFailures,
     BoxNames.songsUrlCache,
     BoxNames.appPrefs,
     BoxNames.homeScreenData,
@@ -66,6 +67,7 @@ class HiveStorageAdminRepository implements StorageAdminRepository {
   Future<void> reopenCoreBoxes() async {
     await Hive.openBox(BoxNames.songsCache);
     await Hive.openBox(BoxNames.songDownloads);
+    await Hive.openBox(BoxNames.downloadFailures);
     await Hive.openBox(BoxNames.songsUrlCache);
     await Hive.openBox(BoxNames.appPrefs);
   }

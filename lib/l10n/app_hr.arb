@@ -390,6 +390,14 @@
   "cloudBackupNotNow": "Ne sada",
   "cloudBackupNow": "Sada sigurnosno kopiraj preuzete pjesme",
   "cloudBackupInProgress": "Izrađuje se sigurnosna kopija preuzetih pjesama…",
+  "cloudBackupProgress": "Izrađuje se sigurnosna kopija: {completed} od {total} ({percentage} %)",
+  "@cloudBackupProgress": {
+    "placeholders": {
+      "completed": { "type": "int" },
+      "total": { "type": "int" },
+      "percentage": { "type": "int" }
+    }
+  },
   "cloudBackupComplete": "Sigurnosna kopija preuzetih pjesama je dovršena.",
   "cloudBackupWifiRequired": "Povežite se na Wi-Fi za sigurnosnu kopiju preuzetih pjesama.",
   "cloudBackupFailed": "Izrada sigurnosne kopije nije uspjela. Pokušajte ponovno.",
@@ -402,4 +410,7 @@
   "cloudBackupAnyway": "Svejedno izradi kopiju",
   "shareAndroidApp": "Podijeli Harmony Music",
   "shareAndroidAppDescription": "Podijelite izravnu poveznicu na najnoviji Android APK."
+  ,"retryFailedDownloads": "Ponovi neuspjela preuzimanja"
+  ,"retryFailedDownloadsDescription": "{count} neuspjelih preuzimanja pjesama spremno je za ponovni pokušaj."
+  ,"@retryFailedDownloadsDescription": {"placeholders": {"count": {"type": "int"}}}
 }

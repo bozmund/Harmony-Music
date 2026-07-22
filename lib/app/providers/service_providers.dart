@@ -11,6 +11,7 @@ import '../../services/playback_command_service.dart';
 import '../../services/system_ui_mode_service.dart';
 import '../../utils/helper.dart';
 import 'repository_providers.dart';
+import 'auth_providers.dart';
 
 final audioHandlerProvider = Provider<AudioHandler>(
   (ref) => throw StateError(
@@ -52,6 +53,8 @@ final downloaderProvider = Provider<Downloader>(
   (ref) => Downloader(
     ref.watch(downloadRepositoryProvider),
     ref.watch(settingsRepositoryProvider),
+    ref.watch(resolverClientProvider),
+    ref.watch(downloadRetryRepositoryProvider),
   ),
 );
 

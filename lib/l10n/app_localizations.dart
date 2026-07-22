@@ -2420,6 +2420,12 @@ abstract class AppLocalizations {
   /// **'Backing up downloaded songs…'**
   String get cloudBackupInProgress;
 
+  /// No description provided for @cloudBackupProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Backing up downloaded songs: {completed} of {total} ({percentage}%)'**
+  String cloudBackupProgress(int completed, int total, int percentage);
+
   /// No description provided for @cloudBackupComplete.
   ///
   /// In en, this message translates to:
@@ -2491,6 +2497,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Share a direct link to the latest Android APK.'**
   String get shareAndroidAppDescription;
+
+  /// No description provided for @retryFailedDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry failed downloads'**
+  String get retryFailedDownloads;
+
+  /// No description provided for @retryFailedDownloadsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} failed song downloads are ready to retry.'**
+  String retryFailedDownloadsDescription(int count);
 }
 
 class _AppLocalizationsDelegate

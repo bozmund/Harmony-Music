@@ -1232,6 +1232,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cloudBackupInProgress => 'Backing up downloaded songs…';
 
   @override
+  String cloudBackupProgress(int completed, int total, int percentage) {
+    return 'Backing up downloaded songs: $completed of $total ($percentage%)';
+  }
+
+  @override
   String get cloudBackupComplete => 'Downloaded-song backup finished.';
 
   @override
@@ -1273,4 +1278,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get shareAndroidAppDescription =>
       'Share a direct link to the latest Android APK.';
+
+  @override
+  String get retryFailedDownloads => 'Retry failed downloads';
+
+  @override
+  String retryFailedDownloadsDescription(int count) {
+    return '$count failed song downloads are ready to retry.';
+  }
 }

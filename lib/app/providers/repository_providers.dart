@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/hive_download_repository.dart';
+import '../../data/repositories/hive_download_retry_repository.dart';
 import '../../data/repositories/hive_home_repository.dart';
 import '../../data/repositories/hive_library_repository.dart';
 import '../../data/repositories/hive_lyrics_repository.dart';
@@ -11,6 +12,7 @@ import '../../data/repositories/hive_settings_repository.dart';
 import '../../data/repositories/hive_song_cache_repository.dart';
 import '../../data/repositories/hive_storage_admin_repository.dart';
 import '../../domain/repositories/download_repository.dart';
+import '../../domain/repositories/download_retry_repository.dart';
 import '../../domain/repositories/home_repository.dart';
 import '../../domain/repositories/library_repository.dart';
 import '../../domain/repositories/lyrics_repository.dart';
@@ -35,6 +37,10 @@ final libraryRepositoryProvider = Provider<LibraryRepository>(
 
 final downloadRepositoryProvider = Provider<DownloadRepository>(
   (ref) => HiveDownloadRepository(),
+);
+
+final downloadRetryRepositoryProvider = Provider<DownloadRetryRepository>(
+  (ref) => HiveDownloadRetryRepository(),
 );
 
 final songCacheRepositoryProvider = Provider<SongCacheRepository>(

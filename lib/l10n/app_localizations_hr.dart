@@ -1238,6 +1238,11 @@ class AppLocalizationsHr extends AppLocalizations {
       'Izrađuje se sigurnosna kopija preuzetih pjesama…';
 
   @override
+  String cloudBackupProgress(int completed, int total, int percentage) {
+    return 'Izrađuje se sigurnosna kopija: $completed od $total ($percentage %)';
+  }
+
+  @override
   String get cloudBackupComplete =>
       'Sigurnosna kopija preuzetih pjesama je dovršena.';
 
@@ -1281,4 +1286,12 @@ class AppLocalizationsHr extends AppLocalizations {
   @override
   String get shareAndroidAppDescription =>
       'Podijelite izravnu poveznicu na najnoviji Android APK.';
+
+  @override
+  String get retryFailedDownloads => 'Ponovi neuspjela preuzimanja';
+
+  @override
+  String retryFailedDownloadsDescription(int count) {
+    return '$count neuspjelih preuzimanja pjesama spremno je za ponovni pokušaj.';
+  }
 }

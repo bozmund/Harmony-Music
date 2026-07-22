@@ -38,6 +38,23 @@ void main() {
       expect(validationIndex, lessThan(saveIndex));
       expect(block, contains('Map<String, dynamic>.from('));
     });
+
+    test('requests Resolver before the established local downloader', () {
+      final block = _methodBlock(source, 'writeFileStream');
+
+      final resolverRequest = block.indexOf(
+        'await _requestResolverPrefetch(song, traceId);',
+      );
+      final localStreamRequest = block.indexOf('StreamProvider.fetch(');
+      expect(resolverRequest, isNonNegative);
+      expect(localStreamRequest, greaterThan(resolverRequest));
+    });
+
+    test('retains failed songs for a later retry', () {
+      expect(source, contains('Future<void> retryFailedDownloads()'));
+      expect(source, contains('await _rememberFailedDownload(song);'));
+      expect(source, contains('await _removeFailedDownload(song.id);'));
+    });
   });
 }
 
