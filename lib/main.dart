@@ -193,6 +193,7 @@ Future<void> initHive() async {
   await Hive.initFlutter(applicationDataDirectoryPath);
   await Hive.openBox(BoxNames.songsCache);
   await Hive.openBox(BoxNames.songDownloads);
+  await Hive.openBox(BoxNames.downloadFailures);
   await Hive.openBox(BoxNames.songsUrlCache);
   await Hive.openBox(BoxNames.appPrefs);
   await Hive.openBox(BoxNames.cloudSyncOutbox);

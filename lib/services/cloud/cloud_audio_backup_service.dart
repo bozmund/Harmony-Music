@@ -20,6 +20,18 @@ enum CloudAudioBackupResult {
   networkFailure,
 }
 
+class CloudAudioBackupProgress {
+  const CloudAudioBackupProgress({
+    required this.completed,
+    required this.total,
+  });
+
+  final int completed;
+  final int total;
+
+  int get percentage => total == 0 ? 0 : (completed * 100 ~/ total);
+}
+
 class CloudAudioBackupService {
   CloudAudioBackupService(
     this._downloads,
@@ -39,6 +51,7 @@ class CloudAudioBackupService {
 
   Future<CloudAudioBackupResult> run({
     bool overrideBatteryPolicy = false,
+    void Function(CloudAudioBackupProgress progress)? onProgress,
   }) async {
     if (_running) return CloudAudioBackupResult.alreadyRunning;
     if (!_syncRepository.enabled) return CloudAudioBackupResult.disabled;
@@ -61,6 +74,11 @@ class CloudAudioBackupService {
           continue;
         candidates[id] = path;
       }
+      final total = candidates.length;
+      var completed = 0;
+      onProgress?.call(
+        CloudAudioBackupProgress(completed: completed, total: total),
+      );
 
       try {
         while (candidates.isNotEmpty &&
@@ -70,7 +88,14 @@ class CloudAudioBackupService {
             deviceId: _syncRepository.deviceId,
             videoIds: candidates.keys.take(500).toList(),
           );
-          if (plan['status'] != 'upload') break;
+          if (plan['status'] != 'upload') {
+            if (plan['status'] == 'none') {
+              onProgress?.call(
+                CloudAudioBackupProgress(completed: total, total: total),
+              );
+            }
+            break;
+          }
           final videoId = plan['videoId']?.toString();
           final uploadUrl = plan['uploadUrl']?.toString();
           final uploadToken = plan['uploadToken']?.toString();
@@ -80,6 +105,10 @@ class CloudAudioBackupService {
             uploadUrl: uploadUrl,
             uploadToken: uploadToken,
             filePath: path,
+          );
+          completed++;
+          onProgress?.call(
+            CloudAudioBackupProgress(completed: completed, total: total),
           );
         }
       } on DioException catch (error) {

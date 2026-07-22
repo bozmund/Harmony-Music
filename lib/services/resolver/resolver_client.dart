@@ -49,4 +49,19 @@ class ResolverClient {
       },
     );
   }
+
+  /// Asks Resolver to make the track available for future playback without
+  /// delaying the app's existing local downloader when the service is busy.
+  Future<void> prefetch(Uri baseUrl, List<String> videoIds) async {
+    if (videoIds.isEmpty) return;
+    final options = await authorizedOptions(
+      baseUrl,
+      headers: const {'Content-Type': 'application/json'},
+    );
+    await _dio.postUri<void>(
+      baseUrl.resolve('v1/prefetch'),
+      data: {'videoIds': videoIds.take(3).toList(growable: false)},
+      options: options,
+    );
+  }
 }

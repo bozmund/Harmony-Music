@@ -47,7 +47,11 @@ class CloudSyncCoordinator {
 
   Future<CloudAudioBackupResult> backupAudioNow({
     bool overrideBatteryPolicy = false,
-  }) => _audioBackup.run(overrideBatteryPolicy: overrideBatteryPolicy);
+    void Function(CloudAudioBackupProgress progress)? onProgress,
+  }) => _audioBackup.run(
+    overrideBatteryPolicy: overrideBatteryPolicy,
+    onProgress: onProgress,
+  );
 
   Future<void> _synchronizeCore() async {
     final deviceId = _repository.deviceId;

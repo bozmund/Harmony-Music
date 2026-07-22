@@ -107,6 +107,8 @@ abstract class SettingsRepository {
   Future<void> deleteHomeScreenDataTime();
   String? getRecentSongId();
   Future<void> setRecentSongId(String songId);
+  bool getHasSeenWelcomeScreen();
+  Future<void> setHasSeenWelcomeScreen(bool value);
   Future<void> seedDefaults(bool updateCheckFlag);
   Future<void> clearAll();
   Map<String, dynamic> developerValues();

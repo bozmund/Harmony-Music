@@ -9,7 +9,10 @@ import 'package:path_provider/path_provider.dart';
 
 import '../app/navigation/app_navigator.dart';
 import '../domain/repositories/download_repository.dart';
+import '../domain/repositories/download_retry_repository.dart';
 import '../domain/repositories/settings_repository.dart';
+import 'resolver/resolver_client.dart';
+import 'resolver/resolver_configuration.dart';
 import '../utils/runtime_platform.dart';
 import '../utils/observable_state.dart';
 import '/services/constant.dart';
@@ -26,10 +29,17 @@ import '../ui/screens/Library/library_controller.dart';
 //import '../models/thumbnail.dart' as th;
 
 class Downloader extends ChangeNotifier implements DownloaderContract {
-  Downloader(this._downloadRepository, this._settingsRepository);
+  Downloader(
+    this._downloadRepository,
+    this._settingsRepository,
+    this._resolverClient,
+    this._retryRepository,
+  ) : failedDownloadCount = ObservableValue(_retryRepository.count);
 
   final DownloadRepository _downloadRepository;
   final SettingsRepository _settingsRepository;
+  final ResolverClient _resolverClient;
+  final DownloadRetryRepository _retryRepository;
 
   final _dio = Dio(
     BaseOptions(
@@ -48,6 +58,7 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
   final currentDownloadPhase = ObservableValue("");
   final currentDownloadDebugMessage = ObservableValue("");
   final lastDownloadError = ObservableValue("");
+  final ObservableValue<int> failedDownloadCount;
   CancelToken? _activeCancelToken;
 
   static const _streamFetchTimeout = Duration(seconds: 45);
@@ -55,6 +66,7 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
   static const _thumbnailDownloadTimeout = Duration(seconds: 20);
   static const _audioDownloadMaxAttempts = 3;
   static const _playlistDownloadDelay = Duration(seconds: 1);
+  static const _resolverPrefetchTimeout = Duration(seconds: 5);
 
   ObservableList<MediaItem> songQueue = ObservableList();
 
@@ -230,11 +242,30 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
     }
   }
 
+  /// Requeues every persisted local-download failure. Entries remain in the
+  /// retry list until the song completes successfully, so an interrupted retry
+  /// never loses work.
+  Future<void> retryFailedDownloads() async {
+    if (!(await checkPermissionNDir())) return;
+    final failedSongs = _retryRepository.getAll();
+    for (final song in failedSongs) {
+      if (!songQueue.contains(song) &&
+          !await _downloadRepository.containsDownload(song.id)) {
+        songQueue.add(song);
+      }
+    }
+    _notifyDownloaderChanged();
+    if (!isJobRunning.value && songQueue.isNotEmpty) {
+      await triggerDownloadingJob();
+    }
+  }
+
   Future<void> writeFileStream(MediaItem song) async {
     final traceId = "${song.id}-${DateTime.now().millisecondsSinceEpoch}";
     final stopwatch = Stopwatch()..start();
     final downloadingFormat = _settingsRepository.getDownloadingFormat();
 
+    await _requestResolverPrefetch(song, traceId);
     _setPhase("resolvingStream", "Resolving stream", song, traceId);
     final playerResponse = await StreamProvider.fetch(
       song.id,
@@ -254,6 +285,7 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
         "[$traceId] Requested song ${song.title} is not downloadable: ${playerResponse.statusMSG}",
         tag: LogTags.downloader,
       );
+      await _rememberFailedDownload(song);
       return;
     }
 
@@ -317,6 +349,7 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
     final downloadedSong = MediaItemBuilder.fromJson(songJson);
 
     await _downloadRepository.saveDownloadedSongJson(song.id, songJson);
+    await _removeFailedDownload(song.id);
     printINFO(
       "[$traceId] Saved download metadata for ${song.id}; streamInfo=${songJson["streamInfo"] != null}",
       tag: LogTags.downloader,
@@ -465,6 +498,42 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
     }
   }
 
+  Future<void> _requestResolverPrefetch(MediaItem song, String traceId) async {
+    final configuration = ResolverConfiguration.load(_settingsRepository);
+    final baseUrl = configuration.baseUrl;
+    if (!configuration.enabled || baseUrl == null) return;
+
+    _setPhase("requestingResolver", "Requesting Resolver", song, traceId);
+    try {
+      await _resolverClient
+          .prefetch(baseUrl, [song.id])
+          .timeout(_resolverPrefetchTimeout);
+      printINFO(
+        "[$traceId] Requested Resolver prefetch for ${song.id}",
+        tag: LogTags.downloader,
+      );
+    } catch (error) {
+      // Resolver preparation improves later playback but never blocks the
+      // established local downloader.
+      printWarning(
+        "[$traceId] Resolver prefetch unavailable; continuing local download: $error",
+        tag: LogTags.downloader,
+      );
+    }
+  }
+
+  Future<void> _rememberFailedDownload(MediaItem song) async {
+    await _retryRepository.remember(song);
+    failedDownloadCount.value = _retryRepository.count;
+    _notifyDownloaderChanged();
+  }
+
+  Future<void> _removeFailedDownload(String songId) async {
+    await _retryRepository.remove(songId);
+    failedDownloadCount.value = _retryRepository.count;
+    _notifyDownloaderChanged();
+  }
+
   bool _isRetryableAudioDownloadError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout ||
@@ -542,6 +611,9 @@ class Downloader extends ChangeNotifier implements DownloaderContract {
       includeMemory: true,
       flush: true,
     );
+    if (song != null && message != "Download cancelled") {
+      unawaited(_rememberFailedDownload(song));
+    }
     if (showSnack && song != null) {
       _showDownloadError(song, '', localizeGeneralError: true);
     }

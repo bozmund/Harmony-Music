@@ -390,6 +390,14 @@
   "cloudBackupNotNow": "Not now",
   "cloudBackupNow": "Back up downloaded songs now",
   "cloudBackupInProgress": "Backing up downloaded songs…",
+  "cloudBackupProgress": "Backing up downloaded songs: {completed} of {total} ({percentage}%)",
+  "@cloudBackupProgress": {
+    "placeholders": {
+      "completed": { "type": "int" },
+      "total": { "type": "int" },
+      "percentage": { "type": "int" }
+    }
+  },
   "cloudBackupComplete": "Downloaded-song backup finished.",
   "cloudBackupWifiRequired": "Connect to Wi-Fi to back up downloaded songs.",
   "cloudBackupFailed": "Cloud backup failed. Try again.",
@@ -402,4 +410,7 @@
   "cloudBackupAnyway": "Back up anyway",
   "shareAndroidApp": "Share Harmony Music",
   "shareAndroidAppDescription": "Share a direct link to the latest Android APK."
+  ,"retryFailedDownloads": "Retry failed downloads"
+  ,"retryFailedDownloadsDescription": "{count} failed song downloads are ready to retry."
+  ,"@retryFailedDownloadsDescription": {"placeholders": {"count": {"type": "int"}}}
 }
