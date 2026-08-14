@@ -5,29 +5,40 @@ import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart' show Key;
 
 import '../../data/repositories/cloud_sync_repository.dart';
+import '../../ui/player/player_controller.dart';
 import '../../ui/screens/Library/library_controller.dart';
 import '../../ui/screens/Playlist/playlist_screen_controller.dart';
 import '../../utils/helper.dart';
 import '../constant.dart';
 import 'cloud_playback_gateway.dart';
 import 'harmony_cloud_client.dart';
+import 'playback_socket_client.dart';
 
 class CloudSyncCoordinator implements CloudPlaybackGateway {
-  CloudSyncCoordinator(this._repository, this._client);
+  CloudSyncCoordinator(this._repository, this._client, {PlaybackSocketTransport? socket})
+    : _socket = socket;
 
   final CloudSyncRepository _repository;
   final HarmonyCloudClient _client;
+  // Nullable: sockets are a live-push nicety, not something every construction
+  // site (tests included) needs to wire up. Without one, this coordinator is
+  // exactly what it was before — poll-and-debounce only.
+  final PlaybackSocketTransport? _socket;
   Future<void>? _activeSync;
   Timer? _debounce;
   Timer? _poll;
   StreamSubscription<void>? _localChanges;
+  StreamSubscription<Map<String, dynamic>>? _remoteChanges;
 
-  /// How often an idle device asks for what other devices have written.
+  /// How often an idle device asks for what other devices have written, when
+  /// nothing told it sooner.
   ///
   /// Sync used to run only at app start, so a device left open never learned
   /// about anything: a song liked on the phone stayed invisible on the desktop
   /// until it was restarted. A pull with nothing to send is a single small
-  /// request, so this is cheap enough to run while the app is open.
+  /// request, so this is cheap enough to run while the app is open — and it is
+  /// the fallback for a missed or dropped `libraryChanged` push (see
+  /// `_onRemoteFrame`), not just the whole mechanism.
   static const _pollInterval = Duration(minutes: 1);
 
   bool get enabled => _repository.enabled;
@@ -82,6 +93,7 @@ class CloudSyncCoordinator implements CloudPlaybackGateway {
     if (!enabled) return;
     _localChanges = await _repository.watchLocalChanges(schedule);
     _poll = Timer.periodic(_pollInterval, (_) => unawaited(synchronize()));
+    _remoteChanges = _socket?.frames.listen(_onRemoteFrame);
   }
 
   Future<void> stop() async {
@@ -91,6 +103,20 @@ class CloudSyncCoordinator implements CloudPlaybackGateway {
     _poll = null;
     await _localChanges?.cancel();
     _localChanges = null;
+    await _remoteChanges?.cancel();
+    _remoteChanges = null;
+  }
+
+  /// Another device's edit just landed on the server — pull it now instead of
+  /// waiting on the next poll tick, which could be up to a minute away.
+  ///
+  /// No debounce here: the frame itself already is one, since the server only
+  /// broadcasts once per sync that actually changed something, and
+  /// `synchronize()` coalesces overlapping calls on its own (`_activeSync`), so
+  /// a burst of pushes costs at most one extra round trip, never a pile-up.
+  void _onRemoteFrame(Map<String, dynamic> frame) {
+    if (frame['type'] != 'libraryChanged') return;
+    unawaited(synchronize());
   }
 
   void schedule() {
@@ -234,6 +260,14 @@ class CloudSyncCoordinator implements CloudPlaybackGateway {
         Key(boxName).hashCode.toString(),
       );
       unawaited(screen?.fetchSongsFromDatabase(boxName));
+    }
+    // The Favourites list above is the only thing that watched this box —
+    // the heart icon on the mini-player, full player, and an open song-info
+    // sheet all read `PlayerController.isCurrentSongFav`, which nothing here
+    // touched. A liked song pulled in from another device stayed shown as
+    // unliked until the current song changed for an unrelated reason.
+    if (boxes.contains(BoxNames.libFav)) {
+      unawaited(PlayerControllerRegistry.current?.refreshFavoriteStatus());
     }
   }
 

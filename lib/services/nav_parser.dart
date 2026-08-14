@@ -473,14 +473,25 @@ Map<String, dynamic> parseWatchTrack(Map<String, dynamic> data) {
   return track;
 }
 
-String? getTabBrowseId(Map<String, dynamic> watchNextRenderer, int tabId) {
-  if (!watchNextRenderer['tabs'][tabId]['tabRenderer'].containsKey(
-    'unselectable',
-  )) {
-    return watchNextRenderer['tabs'][tabId]['tabRenderer']['endpoint']['browseEndpoint']['browseId'];
-  } else {
+/// The browse id behind a watch-panel tab (1 = lyrics, 2 = related), or null
+/// when that tab does not offer one.
+///
+/// Null is an ordinary answer. This used to read the id by indexing straight
+/// through `['endpoint']['browseEndpoint']['browseId']`, treating "the tab is
+/// not marked `unselectable`" as proof that an `endpoint` exists. For some
+/// tracks it is not: the tab is selectable and simply carries no endpoint, so
+/// `null['browseEndpoint']` threw. That throw escaped `getWatchPlaylist`
+/// entirely — and since it happens before a single track is parsed, it
+/// discarded the whole watch queue of an otherwise perfectly good response,
+/// leaving the tapped song playing alone. Deterministic per track, which is why
+/// only some songs ever failed to fill their queue.
+String? getTabBrowseId(dynamic watchNextRenderer, int tabId) {
+  final tabRenderer = nav(watchNextRenderer, ['tabs', tabId, 'tabRenderer']);
+  if (tabRenderer is! Map || tabRenderer.containsKey('unselectable')) {
     return null;
   }
+  return nav(tabRenderer, ['endpoint', 'browseEndpoint', 'browseId'])
+      as String?;
 }
 
 ///Parse playlist songs, Also used in Album Song parsing

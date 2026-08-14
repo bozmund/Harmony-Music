@@ -1355,4 +1355,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sessionExpiredMessage =>
       'You have been signed out. Sync is paused until you sign back in.';
+
+  @override
+  String get findingSimilarSongs => 'Finding similar songs…';
 }

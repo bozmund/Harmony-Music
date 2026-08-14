@@ -139,6 +139,13 @@ abstract class AuthServiceContract {
   Future<void> logout();
 
   Future<String?> accessToken({bool forceRefresh = false});
+
+  /// Fires when a restored session stops being usable while the app is running,
+  /// so the UI can drop to signed-out immediately rather than at the next
+  /// launch. Only a credential the identity provider actually rejected counts —
+  /// a failed request is not a revocation, and emitting on one would sign users
+  /// out every time the network dropped.
+  Stream<void> get onSessionRevoked;
 }
 
 abstract class FilePickerContract {

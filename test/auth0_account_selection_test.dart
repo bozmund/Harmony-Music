@@ -36,10 +36,19 @@ void main() {
   });
 
   test('session restoration diagnostics do not include exception contents', () {
-    expect(
-      RegExp(r'_logSessionRestoreFailure\(error\)').allMatches(service),
-      hasLength(2),
-    );
+    // Every restore-failure log must go through the redacting helper, passing
+    // the caught error and nothing else. Counting the call sites instead just
+    // meant adding a legitimate one broke the test while an unredacted log
+    // slipped through unnoticed — the opposite of what this guards.
+    // `void _logSessionRestoreFailure(Object error)` is the declaration, not a
+    // call site.
+    final logCalls = RegExp(
+      r'(?<!void )_logSessionRestoreFailure\(([^)]*)\)',
+    ).allMatches(service);
+    expect(logCalls, isNotEmpty);
+    for (final call in logCalls) {
+      expect(call.group(1), 'error');
+    }
     expect(
       service,
       contains("'Auth0 session restoration failed (\${error.runtimeType}).'"),

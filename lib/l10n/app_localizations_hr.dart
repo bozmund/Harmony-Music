@@ -1361,4 +1361,7 @@ class AppLocalizationsHr extends AppLocalizations {
   @override
   String get sessionExpiredMessage =>
       'Odjavljen si. Sinkronizacija je pauzirana dok se ponovno ne prijaviš.';
+
+  @override
+  String get findingSimilarSongs => 'Tražim slične pjesme…';
 }

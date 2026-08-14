@@ -2641,6 +2641,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You have been signed out. Sync is paused until you sign back in.'**
   String get sessionExpiredMessage;
+
+  /// No description provided for @findingSimilarSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Finding similar songs…'**
+  String get findingSimilarSongs;
 }
 
 class _AppLocalizationsDelegate

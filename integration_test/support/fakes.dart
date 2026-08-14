@@ -669,6 +669,21 @@ class FakeAuthService implements AuthServiceContract {
   @override
   Future<String?> accessToken({bool forceRefresh = false}) async =>
       restorableSession == null ? null : 'fake-access-token';
+
+  final _sessionRevoked = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get onSessionRevoked => _sessionRevoked.stream;
+
+  /// Kills the session the way an expired refresh token does mid-run: the
+  /// stored credentials are gone and everyone watching is told, without the
+  /// app having been relaunched.
+  void expireSession() {
+    restorableSession = null;
+    _sessionRevoked.add(null);
+  }
+
+  void dispose() => unawaited(_sessionRevoked.close());
 }
 
 /// A `UserProfile` with only the fields tests actually assert on populated.

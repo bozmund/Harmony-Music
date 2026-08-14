@@ -1,0 +1,92 @@
+// Zed run tasks for Harmony Music, mirroring the existing VS Code (.vscode/launch.json)
+// and Android Studio (.idea/runConfigurations/Harmony_Music_profile.xml) launch configs.
+//
+// Zed's task terminal runs `flutter` non-interactively, so when no device is pinned and
+// more than one is connected, `flutter run` silently picks one instead of prompting like
+// it does in a normal interactive terminal. Rather than hardcoding a specific device
+// id/name (which breaks across reconnects, or as soon as a different phone is plugged
+// in), each task calls tool/zed_flutter_run.ps1, which looks up whichever device is
+// currently connected for that platform at run time, prints its name, and launches it.
+[
+  {
+    "label": "Harmony Music (Windows)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "windows", "-Mode", "debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "Harmony Music (Windows, profile)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "windows", "-Mode", "profile"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "Harmony Music (Windows, release)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "windows", "-Mode", "release"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "Harmony Music (Chrome)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "chrome", "-Mode", "debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "Harmony Music (Chrome, profile)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "chrome", "-Mode", "profile"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "Harmony Music (Chrome, release)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "chrome", "-Mode", "release"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "Harmony Music (Android)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "android", "-Mode", "debug"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "Harmony Music (Android, profile)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "android", "-Mode", "profile"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "Harmony Music (Android, release)",
+    "command": "pwsh",
+    "args": ["-NoProfile", "-File", "tool/zed_flutter_run.ps1", "-Platform", "android", "-Mode", "release"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  }
+]

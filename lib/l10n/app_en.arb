@@ -429,4 +429,5 @@
   ,"replaceWithAccountLibrary": "Use my account's library"
   ,"sessionExpiredMessage": "You have been signed out. Sync is paused until you sign back in."
   ,"dismiss": "Dismiss"
+  ,"findingSimilarSongs": "Finding similar songs…"
 }
