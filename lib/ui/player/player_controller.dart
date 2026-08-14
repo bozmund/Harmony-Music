@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io' show SocketException;
+import 'package:dio/dio.dart' show DioException;
 import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -88,6 +90,13 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   final playerPanelMinHeight = ObservableValue(0.0);
   bool initFlagForPlayer = true;
   final isQueueReorderingInProcess = ObservableValue(false);
+
+  /// Whether a tap's queue is still being fetched. The tapped song starts
+  /// playing immediately against a placeholder queue of just itself, so without
+  /// this the gap between "playing" and "queue filled" — which a retry can
+  /// stretch to several seconds — is indistinguishable from a queue that simply
+  /// never filled.
+  final isQueueExpanding = ObservableValue(false);
   PanelController playerPanelController = PanelController();
   PanelController queuePanelController = PanelController();
   AnimationController? gesturePlayerStateAnimationController;
@@ -1650,28 +1659,55 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     isRadioModeOn = radio;
 
     final queueUpdate = Future<List<MediaItem>?>.delayed(Duration.zero, () async {
-      final content = await _musicServices.getWatchPlaylist(
-        videoId: mediaItem?.id ?? "",
-        radio: radio,
-        playlistId: playlistId,
-      );
-      if (selectionGeneration != _playNowSelectionGeneration) return null;
-      radioContinuationParam = content['additionalParamsForNext'];
-      final tracks = List<MediaItem>.from(content['tracks']);
-      await _playbackCommands.updateQueue(tracks);
-      if (selectionGeneration != _playNowSelectionGeneration) return null;
-      if (isShuffleModeEnabled.value) {
-        await _playbackCommands.shuffleFromIndex(0);
-      }
+      isQueueExpanding.value = true;
+      try {
+        final content = await _fetchWatchQueue(
+          videoId: mediaItem?.id ?? "",
+          radio: radio,
+          playlistId: playlistId,
+          selectionGeneration: selectionGeneration,
+        );
+        if (content == null ||
+            selectionGeneration != _playNowSelectionGeneration) {
+          return null;
+        }
+        radioContinuationParam = content['additionalParamsForNext'];
+        final tracks = List<MediaItem>.from(content['tracks'] ?? const []);
+        // An empty expansion is not worth clobbering the playing song's
+        // placeholder queue with — that would leave the user with nothing.
+        if (tracks.isEmpty) return null;
+        await _playbackCommands.updateQueue(tracks);
+        if (selectionGeneration != _playNowSelectionGeneration) return null;
+        if (isShuffleModeEnabled.value) {
+          await _playbackCommands.shuffleFromIndex(0);
+        }
 
-      // added here to broadcast current mediaItem via Audio Service as list is updated
-      // if radio is started on current playing song
-      if (radio && (currentSong.value?.id == mediaItem?.id)) {
-        await _audioHandler.customAction("updateMediaItemInAudioService", {
-          "index": 0,
-        });
+        // added here to broadcast current mediaItem via Audio Service as list is updated
+        // if radio is started on current playing song
+        if (radio && (currentSong.value?.id == mediaItem?.id)) {
+          await _audioHandler.customAction("updateMediaItemInAudioService", {
+            "index": 0,
+          });
+        }
+        return tracks;
+      } catch (error, stackTrace) {
+        // Nothing downstream awaits this on the local path — it is consumed by
+        // an `unawaited(...then(...))` — so an escaping error became an
+        // unhandled async error and left the queue at the one placeholder song
+        // with no trace of why.
+        printERROR(
+          'queue expansion failed for ${mediaItem?.id}: $error',
+          tag: LogTags.player,
+        );
+        printERROR(stackTrace, tag: LogTags.player);
+        return null;
+      } finally {
+        // A newer selection owns the indicator from the moment it claims a
+        // generation; clearing it here would hide that one's progress.
+        if (selectionGeneration == _playNowSelectionGeneration) {
+          isQueueExpanding.value = false;
+        }
       }
-      return tracks;
     });
 
     if (playlistId != null) {
@@ -1757,6 +1793,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     // A playlist/album tap also supersedes any standalone selection whose
     // watch-queue lookup is still running.
     _playNowSelectionGeneration++;
+    // This queue arrives whole, so any expansion still running for an earlier
+    // tap is both superseded and no longer worth indicating. Its own `finally`
+    // deliberately will not clear the flag once outranked, so the new owner has
+    // to.
+    isQueueExpanding.value = false;
     isRadioModeOn = false;
     //open player pane,set current song and push first song into playing list,
 
@@ -1795,6 +1836,69 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   Future<void> startRadio(MediaItem? mediaItem, {String? playlistId}) async {
     radioInitiatorItem = mediaItem ?? playlistId;
     await pushSongToQueue(mediaItem, playlistId: playlistId, radio: true);
+  }
+
+  /// How many times a tap's queue expansion is attempted before giving up.
+  static const _queueExpansionAttempts = 5;
+
+  /// Whether a failed watch-queue lookup could plausibly succeed if tried again.
+  ///
+  /// Only the ones that never reached a usable response: a request that did not
+  /// complete. Everything else means the document arrived and the parser choked
+  /// on it, which no amount of retrying changes.
+  static bool _isTransientLookupFailure(Object error) =>
+      error is DioException || error is SocketException || error is TimeoutException;
+
+  /// Fetches the watch playlist that turns a single tap into a real queue,
+  /// retrying with backoff instead of surrendering on the first failure.
+  ///
+  /// This is one network request against an endpoint returning a large,
+  /// frequently changing document, so it fails often enough to matter. It used
+  /// to be issued exactly once with no error handling at all: a blip left
+  /// `setSourceNPlay`'s placeholder single-song queue in place, the tapped song
+  /// played normally, and nothing anywhere said the queue had not filled.
+  ///
+  /// Returns null when every attempt failed or a newer selection superseded
+  /// this one — a retry loop must never outlive the tap that started it, or it
+  /// would eventually overwrite a queue the user has since chosen.
+  Future<Map<String, dynamic>?> _fetchWatchQueue({
+    required String videoId,
+    required String? playlistId,
+    required bool radio,
+    required int selectionGeneration,
+  }) async {
+    var backoff = const Duration(seconds: 1);
+    for (var attempt = 1; attempt <= _queueExpansionAttempts; attempt++) {
+      if (_disposed || selectionGeneration != _playNowSelectionGeneration) {
+        return null;
+      }
+      try {
+        return await _musicServices.getWatchPlaylist(
+          videoId: videoId,
+          radio: radio,
+          playlistId: playlistId,
+        );
+      } catch (error, stackTrace) {
+        // A response we already received and could not parse will parse exactly
+        // the same way on every retry. Backing off five times over fifteen
+        // seconds only makes the user watch a progress indicator promise
+        // something that is never coming.
+        final retryable = _isTransientLookupFailure(error);
+        printERROR(
+          'watch queue lookup failed for $videoId '
+          '${retryable ? '(attempt $attempt of $_queueExpansionAttempts)' : '(not retryable)'}'
+          ': $error',
+          tag: LogTags.player,
+        );
+        if (!retryable || attempt == _queueExpansionAttempts) {
+          printERROR(stackTrace, tag: LogTags.player);
+          return null;
+        }
+        await Future<void>.delayed(backoff);
+        backoff *= 2;
+      }
+    }
+    return null;
   }
 
   Future<void> _addRadioContinuation(dynamic item) async {
@@ -2287,6 +2391,18 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     }
   }
 
+  /// Re-checks the currently playing song's favorite status against Hive.
+  ///
+  /// `isCurrentSongFav` otherwise only ever updates on a song change or a
+  /// local toggle — a favorite pulled in by cloud sync from another device
+  /// left the heart icon showing whatever it showed before, even long after
+  /// the pull actually landed. `CloudSyncCoordinator` calls this whenever a
+  /// sync touches the favorites box.
+  Future<void> refreshFavoriteStatus() async {
+    final song = currentSong.value;
+    if (song != null) await _checkFavFor(song);
+  }
+
   Future<void> toggleFavourite() async {
     final currMediaItem = currentSong.value!;
     await _libraryRepository.setFavorite(
@@ -2703,6 +2819,28 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       printERROR(e, tag: LogTags.player);
     }
     super.dispose();
+  }
+}
+
+/// The single app-wide `PlayerController`, reachable without a Riverpod
+/// dependency edge — mirrors `LibrarySongsControllerRegistry` and exists for
+/// the same reason: `CloudSyncCoordinator` needs to reach a live controller
+/// from a background sync, and `ref.watch`ing it there would force the whole
+/// audio subsystem to initialize the moment sync starts, which can be well
+/// before anything is otherwise ready for it.
+class PlayerControllerRegistry {
+  PlayerControllerRegistry._();
+
+  static PlayerController? _controller;
+
+  /// Never a disposed controller: this is static, so without the check it
+  /// keeps handing out the last one registered long after the app that owned
+  /// it is gone.
+  static PlayerController? get current =>
+      _controller?._disposed == true ? null : _controller;
+
+  static void register(PlayerController controller) {
+    _controller = controller;
   }
 }
 

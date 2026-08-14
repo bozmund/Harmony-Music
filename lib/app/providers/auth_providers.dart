@@ -18,9 +18,11 @@ import '../../services/resolver/resolver_discovery_service.dart';
 import '../../ui/screens/Library/library_controller.dart';
 import 'repository_providers.dart';
 
-final auth0ServiceProvider = Provider<Auth0Service>(
-  (ref) => Auth0Service.create(),
-);
+final auth0ServiceProvider = Provider<Auth0Service>((ref) {
+  final service = Auth0Service.create();
+  ref.onDispose(() => unawaited(service.dispose()));
+  return service;
+});
 
 /// Indirection so tests can substitute a fake without `auth0ServiceProvider`
 /// itself needing to return anything other than a real `Auth0Service` —
@@ -75,7 +77,14 @@ final cloudSyncCoordinatorProvider = Provider<CloudSyncCoordinator>((ref) {
   final auth = ref.watch(auth0ServiceProvider);
   final repository = CloudSyncRepository(ref.watch(playlistRepositoryProvider));
   final client = HarmonyCloudClient(accessToken: auth.accessToken);
-  return CloudSyncCoordinator(repository, client);
+  // Same socket playback already uses — a `libraryChanged` frame is how a
+  // device left open hears about another device's edit immediately, instead
+  // of waiting on the poll timer.
+  return CloudSyncCoordinator(
+    repository,
+    client,
+    socket: ref.watch(playbackSocketClientProvider),
+  );
 });
 
 class AuthController extends ChangeNotifier {
@@ -85,9 +94,14 @@ class AuthController extends ChangeNotifier {
     this._settings, {
     required Future<void> Function(Future<void> Function(String))
     fcmStarter,
-  }) : _fcmStarter = fcmStarter;
+  }) : _fcmStarter = fcmStarter {
+    _revocationSubscription = _service.onSessionRevoked.listen(
+      (_) => unawaited(_onSessionRevoked()),
+    );
+  }
 
   final AuthServiceContract _service;
+  StreamSubscription<void>? _revocationSubscription;
   final CloudSyncCoordinator _cloud;
   final SettingsRepository _settings;
   final Future<void> Function(Future<void> Function(String)) _fcmStarter;
@@ -206,6 +220,27 @@ class AuthController extends ChangeNotifier {
     unawaited(_activateDeviceControl());
     if (_cloud.enabled) unawaited(_startCloudSync());
   });
+
+  /// The session died under us. This is the same end state as a deliberate
+  /// sign-out — the device keeps its library and its account subject, so
+  /// [needsReauthentication] turns true and the banner and settings badge
+  /// appear — except nobody asked for it, so it must not wait for a relaunch to
+  /// be admitted. Clearing the subject here would instead make the device look
+  /// like it never belonged to an account and silence the very warning this
+  /// exists to raise.
+  Future<void> _onSessionRevoked() async {
+    if (userProfile == null) return;
+    userProfile = null;
+    sessionExpiredNoticeDismissed = false;
+    notifyListeners();
+    await _cloud.stop();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_revocationSubscription?.cancel());
+    super.dispose();
+  }
 
   Future<void> logout() async => _run(() async {
     await _cloud.stop();

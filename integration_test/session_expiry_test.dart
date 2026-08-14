@@ -195,6 +195,57 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a session that dies mid-run surfaces without waiting for a relaunch',
+    (tester) async {
+      // Windows keeps its own credentials, and a refresh Auth0 rejects used to
+      // clear them silently: the account row still showed a signed-in user,
+      // sync kept "running", and every cloud call quietly 401'd until the app
+      // was next launched. The banner is derived from being signed out, so all
+      // that was missing was anyone saying it had happened.
+      final auth = FakeAuthService()
+        ..restorableSession = testUserProfile(sub: 'auth0|user-1');
+      await bootTestApp(tester, authService: auth, cloudSyncEnabled: true);
+      addTearDown(auth.dispose);
+
+      await openLibrary(tester);
+      expect(find.byIcon(Icons.cloud_off_outlined), findsNothing);
+
+      auth.expireSession();
+      await pumpFrames(tester);
+
+      expect(find.byIcon(Icons.cloud_off_outlined), findsOneWidget);
+      expect(find.textContaining('You have been signed out'), findsOneWidget);
+
+      await openSettings(tester);
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      expect(find.text('Login / Register'), findsOneWidget);
+    },
+  );
+
+  testWidgets('signing back in after a mid-run expiry clears the warning', (
+    tester,
+  ) async {
+    final auth = FakeAuthService()
+      ..restorableSession = testUserProfile(sub: 'auth0|user-1');
+    await bootTestApp(tester, authService: auth, cloudSyncEnabled: true);
+    addTearDown(auth.dispose);
+
+    auth.expireSession();
+    await pumpFrames(tester);
+
+    await openSettings(tester);
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+
+    auth.nextLogin = testUserProfile(sub: 'auth0|user-1');
+    await tester.tap(find.text('Login / Register'));
+    await pumpFrames(tester);
+
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+    await openLibrary(tester);
+    expect(find.byIcon(Icons.cloud_off_outlined), findsNothing);
+  });
+
   testWidgets('the library stays editable while the session is lapsed', (
     tester,
   ) async {

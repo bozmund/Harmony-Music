@@ -36,11 +36,25 @@ class UpNextQueue extends ConsumerWidget {
           playerController.currentQueue,
           playerController.currentSongIndex,
           playerController.isShuffleModeEnabled,
+          playerController.isQueueExpanding,
         ]),
         builder: (context, _) {
           final displayQueue = playerController.displayQueue;
           return ReorderableListView.builder(
-            footer: SizedBox(height: bottomPadding),
+            // A tapped song plays against a placeholder queue of just itself
+            // while its similar songs are still being fetched. Without this the
+            // wait — which a retry can stretch to seconds — looks exactly like a
+            // queue that never filled at all.
+            footer: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (playerController.isQueueExpanding.value)
+                  _QueueExpandingRow(
+                    key: const Key('queue-expanding-indicator'),
+                  ),
+                SizedBox(height: bottomPadding),
+              ],
+            ),
             scrollController: isQueueInSlidePanel
                 ? playerController.scrollController
                 : null,
@@ -222,6 +236,42 @@ class UpNextQueue extends ConsumerWidget {
             },
           );
         },
+      ),
+    );
+  }
+}
+
+/// The placeholder rendered under the queue while a tap's similar songs are
+/// still being fetched.
+///
+/// Deliberately built from [BasicShimmerContainer] rather than a spinner: it is
+/// the same pending treatment the rows above use for a song whose metadata has
+/// not landed yet, so a filling queue reads as one continuous list rather than
+/// a list with a loading widget stapled to it. It also holds still, which keeps
+/// it safe to await in tests.
+class _QueueExpandingRow extends StatelessWidget {
+  const _QueueExpandingRow({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.only(
+        top: 0,
+        left: RuntimePlatform.isAndroid ? 30 : 0,
+        right: 25,
+      ),
+      leading: const Padding(
+        padding: EdgeInsets.only(left: 8),
+        child: BasicShimmerContainer(Size(50, 50)),
+      ),
+      title: Text(
+        context.l10n.findingSimilarSongs,
+        maxLines: 1,
+        style: Theme.of(context).textTheme.titleSmall,
+      ),
+      subtitle: const Padding(
+        padding: EdgeInsets.symmetric(vertical: 4),
+        child: BasicShimmerContainer(Size(90, 10)),
       ),
     );
   }

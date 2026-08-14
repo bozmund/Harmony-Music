@@ -544,7 +544,17 @@ class SongInfoController extends ChangeNotifier
        _songCacheRepository = songCacheRepository,
        _playerController = playerController,
        _settingsScreenController = settingsScreenController,
-       _downloader = downloader;
+       _downloader = downloader {
+    // A sheet opened for the currently playing song would otherwise show
+    // whatever `_setInitStatus` read at open time indefinitely — a favorite
+    // pulled in later by cloud sync from another device never reaches this
+    // field on its own. Piggybacking on the player's own `isCurrentSongFav`
+    // (which `CloudSyncCoordinator` does keep fresh, via
+    // `PlayerController.refreshFavoriteStatus`) needs no Hive-watching here.
+    if (calledFromPlayer) {
+      _playerController.isCurrentSongFav.addListener(_onPlayerFavChanged);
+    }
+  }
 
   final LibraryRepository _libraryRepository;
   final DownloadRepository _downloadRepository;
@@ -578,12 +588,23 @@ class SongInfoController extends ChangeNotifier
     }
   }
 
+  /// Mirrors `PlayerController.isCurrentSongFav` while this sheet is showing
+  /// the currently playing song — see the constructor for why.
+  void _onPlayerFavChanged() {
+    if (_playerController.currentSong.value?.id != song.id) return;
+    final playerValue = _playerController.isCurrentSongFav.value;
+    if (isCurrentSongFav == playerValue) return;
+    isCurrentSongFav = playerValue;
+    notifyListeners();
+  }
+
   Future<void> toggleFav() async {
     if (calledFromPlayer) {
       if (_playerController.currentSong.value == song) {
+        // Flips PlayerController.isCurrentSongFav, which `_onPlayerFavChanged`
+        // mirrors back here and notifies — flipping this field again after
+        // would undo that and leave it showing the opposite of the real state.
         await _playerController.toggleFavourite();
-        isCurrentSongFav = !isCurrentSongFav;
-        notifyListeners();
         return;
       }
     }
@@ -647,6 +668,14 @@ class SongInfoController extends ChangeNotifier
         isCurrentSongFav) {
       await _downloader.download(song);
     }
+  }
+
+  @override
+  void dispose() {
+    if (calledFromPlayer) {
+      _playerController.isCurrentSongFav.removeListener(_onPlayerFavChanged);
+    }
+    super.dispose();
   }
 }
 

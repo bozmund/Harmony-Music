@@ -1,5 +1,6 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_lyric/flutter_lyric.dart';
@@ -15,6 +16,7 @@ import 'package:harmonymusic/ui/player/components/lyrics_widget.dart';
 import 'package:harmonymusic/ui/player/components/mini_player.dart';
 import 'package:harmonymusic/ui/player/components/player_control.dart';
 import 'package:harmonymusic/ui/player/player_controller.dart';
+import 'package:harmonymusic/ui/screens/Search/search_result_screen.dart';
 import 'package:harmonymusic/ui/widgets/loader.dart';
 import 'package:harmonymusic/ui/widgets/image_widget.dart';
 import 'package:hive/hive.dart';
@@ -34,8 +36,12 @@ void main() {
     WidgetTester tester,
     bool Function() condition, {
     String? reason,
+    // The default covers anything that only awaits the fakes. Queue expansion
+    // now backs off between retries (1s, 2s, 4s, …), so those waits are
+    // deliberately measured in seconds and need to say so.
+    int attempts = 30,
   }) async {
-    for (var attempt = 0; attempt < 30; attempt++) {
+    for (var attempt = 0; attempt < attempts; attempt++) {
       if (condition()) return;
       await tester.pump(const Duration(milliseconds: 100));
     }
@@ -881,4 +887,448 @@ void main() {
     expect(handle.audioHandler.customActionNames, contains('clearQueue'));
     expect(controller.currentQueue, isEmpty);
   });
+
+  // ---------------------------------------------------------------------------
+  // Queue expansion
+  //
+  // Tapping a single song is supposed to give you a queue, not one song. The
+  // tapped song starts immediately against a placeholder queue of just itself
+  // (`setSourceNPlay` does `queue.add([currMed])`) and the watch-playlist lookup
+  // overwrites that a moment later. That lookup used to be issued exactly once
+  // with no error handling at all, and on the local path its result was consumed
+  // by an `unawaited(...then(...))` with no `onError` — so any throw left the
+  // placeholder in place, played the song perfectly, and said nothing. It was
+  // intermittent and online-only, because offline library playback goes through
+  // `playPlayListSong`, which never makes the call.
+  // ---------------------------------------------------------------------------
+
+  /// Lets a song change's side effects finish before the test ends.
+  ///
+  /// Selecting a song kicks off Hive writes that nothing in the test awaits —
+  /// `_addToRP`, `_backfillLibraryDuration`. A test that stops at its last
+  /// assertion leaves them running into `bootTestApp`'s teardown, which closes
+  /// the boxes and deletes the temp directory underneath them; the resulting
+  /// `PathNotFoundException` is reported against whichever test happens to be
+  /// on screen. The established tests avoid it by doing more UI work after
+  /// playback starts, which these do not.
+  Future<void> settleSongSideEffects(WidgetTester tester) async {
+    await tester.pump(const Duration(milliseconds: 900));
+  }
+
+  Future<void> submitSearch(WidgetTester tester, String query) async {
+    await tester.tap(find.byIcon(Icons.search).hitTestable());
+    await tester.pump(const Duration(milliseconds: 600));
+    final field = find.byType(TextField).hitTestable();
+    expect(field, findsWidgets, reason: 'the search screen should be open');
+
+    await tester.enterText(field.first, query);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await pumpUntil(
+      tester,
+      () => find.byType(SearchResultScreen).evaluate().isNotEmpty,
+      reason: 'submitting the query should navigate to the results',
+    );
+    // The results screen fetches on arrival; give the list a chance to build.
+    await tester.pump(const Duration(milliseconds: 600));
+  }
+
+  testWidgets('a home tap fills the queue with similar songs', (tester) async {
+    final handle = await bootTestApp(tester);
+    handle.audioHandler.completeSourceLoadsAutomatically = true;
+
+    await tester.tap(find.text('Fixture Song').hitTestable().first);
+    await pumpUntil(
+      tester,
+      () => handle.audioHandler.queue.value.length == 2,
+      reason: 'the tap should be expanded into its watch queue, not left as '
+          'the single song that was tapped',
+    );
+
+    expect(handle.audioHandler.mediaItem.value?.id, 'song-1');
+    expect(
+      handle.audioHandler.queue.value.map((song) => song.id),
+      ['song-1', 'song-2'],
+    );
+    await settleSongSideEffects(tester);
+  });
+
+  testWidgets('a search-result tap fills the queue with similar songs', (
+    tester,
+  ) async {
+    // The other half of the reported symptom, and the half with no coverage at
+    // all until now. It reaches the same `pushSongToQueue` as a home tap, but
+    // through an entirely different widget tree.
+    final handle = await bootTestApp(tester);
+    handle.audioHandler.completeSourceLoadsAutomatically = true;
+
+    await submitSearch(tester, 'fixture');
+    final result = find.text('Fixture Song').hitTestable();
+    expect(result, findsWidgets, reason: 'the search should list the fixture song');
+
+    await tester.tap(result.first);
+    await pumpUntil(
+      tester,
+      () => handle.audioHandler.queue.value.length == 2,
+      reason: 'a searched song must expand into a queue exactly like a home tap',
+    );
+    expect(handle.audioHandler.mediaItem.value?.id, 'song-1');
+    await settleSongSideEffects(tester);
+  });
+
+  testWidgets('a failed watch-playlist lookup is retried, not surrendered to', (
+    tester,
+  ) async {
+    final music = _FlakyWatchQueueService(failuresBeforeSuccess: 1);
+    final handle = await bootTestApp(tester, musicService: music);
+    handle.audioHandler.completeSourceLoadsAutomatically = true;
+
+    await tester.tap(find.text('Fixture Song').hitTestable().first);
+
+    // The song itself never depended on the lookup and must not start waiting
+    // on it now.
+    await pumpUntil(
+      tester,
+      () => handle.audioHandler.mediaItem.value?.id == 'song-1',
+      reason: 'playback starts against the placeholder queue regardless',
+    );
+
+    await pumpUntil(
+      tester,
+      () => handle.audioHandler.queue.value.length == 2,
+      reason: 'the retry should recover the queue a single failure used to '
+          'strand at one song',
+      attempts: 60,
+    );
+    expect(music.watchQueueCalls, greaterThan(1));
+    await settleSongSideEffects(tester);
+  });
+
+  testWidgets('the queue shows it is still filling while a retry is in flight', (
+    tester,
+  ) async {
+    // Three failures put the success at ~7s of backoff (1s + 2s + 4s), which is
+    // comfortably longer than the second or so it takes to open the player and
+    // the queue panel below. One failure would land the queue at ~1s and race
+    // the navigation.
+    final music = _FlakyWatchQueueService(failuresBeforeSuccess: 3);
+    final handle = await bootTestApp(tester, musicService: music);
+    handle.audioHandler.completeSourceLoadsAutomatically = true;
+    final controller = handle.container.read(playerControllerProvider);
+
+    await tester.tap(find.text('Fixture Song').hitTestable().first);
+    await pumpUntil(
+      tester,
+      () => controller.isQueueExpanding.value,
+      reason: 'the wait has to be visible, or a slow queue is '
+          'indistinguishable from one that never filled',
+    );
+
+    // Let the player surface before navigating. Reach the queue panel by
+    // whichever route this device offers: with `autoOpenPlayer` on (the
+    // default) and a phone-width screen the full player takes over by itself,
+    // so the mini-player route exists only when it does not.
+    await pumpUntil(
+      tester,
+      () => find.byIcon(Icons.keyboard_arrow_up).hitTestable().evaluate().isNotEmpty ||
+          find
+              .descendant(
+                of: find.byType(MiniPlayer),
+                matching: find.text('Fixture Song'),
+              )
+              .hitTestable()
+              .evaluate()
+              .isNotEmpty,
+      reason: 'the player should appear once the song starts',
+    );
+    if (find.byIcon(Icons.keyboard_arrow_up).hitTestable().evaluate().isEmpty) {
+      await openFullPlayer(tester);
+    }
+    await tester.tap(find.byIcon(Icons.keyboard_arrow_up).hitTestable().first);
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(
+      controller.isQueueExpanding.value,
+      isTrue,
+      reason: 'the queue must still be filling, or this asserts nothing',
+    );
+    expect(find.byKey(const Key('queue-expanding-indicator')), findsOneWidget);
+
+    // Three failures means the queue lands after 1s + 2s + 4s of backoff. Wait
+    // past that: leaving the loop running into teardown also leaves Hive work
+    // in flight against a directory the harness has already deleted.
+    await pumpUntil(
+      tester,
+      () => !controller.isQueueExpanding.value,
+      reason: 'the indicator must resolve once the queue lands',
+      attempts: 200,
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const Key('queue-expanding-indicator')), findsNothing);
+    expect(handle.audioHandler.queue.value.length, 2);
+    await settleSongSideEffects(tester);
+  });
+
+  testWidgets('a newer tap cancels an in-flight retry loop', (tester) async {
+    // A retry loop that outlives its own selection would eventually overwrite a
+    // queue the user has since chosen — the exact failure the generation guard
+    // exists to prevent, now that the lookup can live for seconds.
+    final music = _FlakyWatchQueueService(failuresBeforeSuccess: 1);
+    final handle = await bootTestApp(tester, musicService: music);
+    handle.audioHandler.completeSourceLoadsAutomatically = true;
+    final controller = handle.container.read(playerControllerProvider);
+
+    await tester.tap(find.text('Fixture Song').hitTestable().first);
+    await pumpUntil(tester, () => controller.isQueueExpanding.value);
+
+    // Supersede it while the first lookup is still failing and backing off.
+    // Through the controller rather than a second Home tile: by now the player
+    // panel has auto-opened over Home, so the tile is not reachable — and what
+    // is under test is the generation guard's effect on the retry loop, not the
+    // widget route that bumps it. `remote_playback_test.dart` drives its
+    // ordering races the same way.
+    music.failuresBeforeSuccess = 0;
+    await controller.pushSongToQueue(music.songTwo);
+    await pumpUntil(
+      tester,
+      () =>
+          handle.audioHandler.mediaItem.value?.id == 'song-2' &&
+          handle.audioHandler.queue.value.length == 2,
+      reason: 'the newer tap owns the queue',
+      attempts: 60,
+    );
+
+    await pumpUntil(
+      tester,
+      () => !controller.isQueueExpanding.value,
+      reason: 'the superseded loop must not leave the indicator running',
+      attempts: 60,
+    );
+    await settleSongSideEffects(tester);
+  });
+
+  testWidgets('a permanently failing lookup degrades instead of hanging', (
+    tester,
+  ) async {
+    // Every attempt throws. The song still plays, nothing escapes as an
+    // unhandled async error, and the indicator gives up rather than spinning
+    // forever — a degraded state that is decided rather than accidental.
+    final music = _FlakyWatchQueueService(failuresBeforeSuccess: 1000);
+    final handle = await bootTestApp(tester, musicService: music);
+    handle.audioHandler.completeSourceLoadsAutomatically = true;
+    final controller = handle.container.read(playerControllerProvider);
+
+    await tester.tap(find.text('Fixture Song').hitTestable().first);
+    await pumpUntil(
+      tester,
+      () => handle.audioHandler.mediaItem.value?.id == 'song-1',
+      reason: 'a dead lookup must never stop the tapped song from playing',
+    );
+
+    // Confirm it actually started expanding first: without this the wait below
+    // is satisfied by a flag that was never raised, and the test passes while
+    // proving nothing.
+    await pumpUntil(
+      tester,
+      () => controller.isQueueExpanding.value,
+      reason: 'the expansion should be under way',
+    );
+
+    // Five attempts with 1s + 2s + 4s + 8s of backoff, so ~15s to exhaustion.
+    // Waiting it out is also what leaves nothing in flight at teardown.
+    await pumpUntil(
+      tester,
+      () => !controller.isQueueExpanding.value,
+      reason: 'the retries are bounded, so the indicator must resolve',
+      attempts: 300,
+    );
+    expect(handle.audioHandler.queue.value.map((song) => song.id), ['song-1']);
+    expect(
+      music.watchQueueCalls,
+      5,
+      reason: 'every attempt should have been made before giving up',
+    );
+    await settleSongSideEffects(tester);
+  });
+
+  testWidgets('an unparseable response is given up on immediately', (
+    tester,
+  ) async {
+    // The failure actually seen on Windows: `getTabBrowseId` indexed through a
+    // watch-panel tab that carried no `endpoint`, so the response arrived and
+    // the parse threw. Retrying that cannot help — the same document parses the
+    // same way every time — and doing it anyway kept the "finding similar
+    // songs" row up for ~15s before admitting nothing was coming.
+    final music = _FlakyWatchQueueService(
+      failuresBeforeSuccess: 1000,
+      failure: _LookupFailure.unparseable,
+    );
+    final handle = await bootTestApp(tester, musicService: music);
+    handle.audioHandler.completeSourceLoadsAutomatically = true;
+    final controller = handle.container.read(playerControllerProvider);
+
+    await tester.tap(find.text('Fixture Song').hitTestable().first);
+
+    // Anchor on the lookup itself, not on the handler's song: the audio handler
+    // is shared across the whole suite and still holds `song-1` from an earlier
+    // test, so waiting on that would pass before this tap did anything at all.
+    await pumpUntil(
+      tester,
+      () => music.watchQueueCalls >= 1,
+      reason: 'the tap should attempt a queue expansion',
+    );
+
+    // Long enough that a retry would have happened: the first backoff is 1s.
+    await tester.pump(const Duration(seconds: 2));
+
+    expect(
+      music.watchQueueCalls,
+      1,
+      reason: 'a response that failed to parse must be attempted exactly once — '
+          'the same document parses the same way every time',
+    );
+    expect(
+      controller.isQueueExpanding.value,
+      isFalse,
+      reason: 'the indicator must clear at once, not after fifteen seconds of '
+          'pointless backoff',
+    );
+    expect(handle.audioHandler.mediaItem.value?.id, 'song-1');
+    expect(handle.audioHandler.queue.value.map((song) => song.id), ['song-1']);
+    await settleSongSideEffects(tester);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Cross-device favorite freshness
+  //
+  // `isCurrentSongFav` used to only ever update on a song change or a local
+  // toggle. Liking a song on the phone reached this device's Hive box fine —
+  // cloud sync's own tests already covered that — but the heart icon on an
+  // already-open Windows session kept showing unliked regardless, because
+  // nothing re-checked it once the pull landed. These are the sync-facing half
+  // of that fix: `PlayerControllerRegistry` making the running controller
+  // reachable from a background service, and `refreshFavoriteStatus` actually
+  // updating `isCurrentSongFav` when asked to.
+  // ---------------------------------------------------------------------------
+
+  testWidgets(
+    'PlayerControllerRegistry exposes the same instance the app is running',
+    (tester) async {
+      final handle = await bootTestApp(tester);
+
+      expect(
+        PlayerControllerRegistry.current,
+        same(handle.container.read(playerControllerProvider)),
+      );
+    },
+  );
+
+  testWidgets(
+    'refreshFavoriteStatus updates the heart icon for a favorite that arrived '
+    'from outside the player — the shape a sync pull takes',
+    (tester) async {
+      final handle = await startFixturePlayback(tester);
+      final controller = handle.container.read(playerControllerProvider);
+      expect(controller.currentSong.value?.id, 'song-1');
+      expect(
+        controller.isCurrentSongFav.value,
+        isFalse,
+        reason: 'the fixture song starts unliked',
+      );
+
+      // Not `toggleFavourite()` — that is the LOCAL toggle path and already
+      // updates the icon on its own. This writes to Hive the way
+      // `CloudSyncRepository.applyRemote` does when a pull lands a favorite
+      // from another device: straight to the box, with nothing in between
+      // that would notify the player.
+      await handle.container
+          .read(libraryRepositoryProvider)
+          .setFavorite(controller.currentSong.value!, true);
+      expect(
+        controller.isCurrentSongFav.value,
+        isFalse,
+        reason: 'confirms the write alone does not reach the icon — that is '
+            'the bug this method exists to close',
+      );
+
+      await PlayerControllerRegistry.current!.refreshFavoriteStatus();
+
+      expect(controller.isCurrentSongFav.value, isTrue);
+    },
+  );
+
+  testWidgets(
+    'refreshFavoriteStatus is a no-op with nothing playing',
+    (tester) async {
+      final handle = await bootTestApp(tester);
+      final controller = handle.container.read(playerControllerProvider);
+      expect(controller.currentSong.value, isNull);
+
+      // Must not throw reaching for a current song that does not exist — a
+      // sync can land before the user has ever tapped a song.
+      await controller.refreshFavoriteStatus();
+
+      expect(controller.isCurrentSongFav.value, isFalse);
+    },
+  );
+}
+
+/// A music service whose watch-playlist lookup throws the first
+/// [failuresBeforeSuccess] times it is called.
+///
+/// Modelled on `_HomeSelectionMusicService` in `remote_playback_test.dart`:
+/// subclass the shared fake and override the one call the scenario is about.
+enum _LookupFailure { transient, unparseable }
+
+class _FlakyWatchQueueService extends FakeMusicService {
+  _FlakyWatchQueueService({
+    required this.failuresBeforeSuccess,
+    this.failure = _LookupFailure.transient,
+  });
+
+  int failuresBeforeSuccess;
+
+  /// Which kind of failure to raise. The controller retries only failures that
+  /// never reached a usable response; a parse error is given up on at once.
+  final _LookupFailure failure;
+
+  int watchQueueCalls = 0;
+
+  @override
+  Future<Map<String, dynamic>> getWatchPlaylist({
+    String videoId = "",
+    String? playlistId,
+    int limit = 25,
+    bool radio = false,
+    bool shuffle = false,
+    String? additionalParamsNext,
+    bool onlyRelated = false,
+  }) async {
+    watchQueueCalls++;
+    if (watchQueueCalls <= failuresBeforeSuccess) {
+      throw switch (failure) {
+        // A request that never completed — the case retrying exists for.
+        _LookupFailure.transient => DioException.connectionError(
+          requestOptions: RequestOptions(path: '/youtubei/v1/next'),
+          reason: 'watch playlist unreachable',
+        ),
+        // The shape that actually bit on Windows: the response arrived and the
+        // parser choked on it. `getTabBrowseId` raised exactly this by indexing
+        // through a tab that carried no `endpoint`.
+        _LookupFailure.unparseable => NoSuchMethodError.withInvocation(
+          null,
+          Invocation.method(#[], const ['browseEndpoint']),
+        ),
+      };
+    }
+    return super.getWatchPlaylist(
+      videoId: videoId,
+      playlistId: playlistId,
+      limit: limit,
+      radio: radio,
+      shuffle: shuffle,
+      additionalParamsNext: additionalParamsNext,
+      onlyRelated: onlyRelated,
+    );
+  }
 }

@@ -74,6 +74,49 @@ void main() {
       );
     });
 
+    test('only transient watch-queue failures are retried', () {
+      // A response that arrived and failed to parse will parse identically on
+      // every retry. Retrying it anyway spent ~15s of backoff keeping the
+      // "finding similar songs" indicator up for a queue that was never coming.
+      final block = _methodBlock(source, '_fetchWatchQueue');
+
+      expect(block, contains('_isTransientLookupFailure(error)'));
+      expect(
+        block,
+        contains('if (!retryable || attempt == _queueExpansionAttempts)'),
+        reason: 'a non-retryable failure must give up on the first attempt',
+      );
+      expect(
+        block.indexOf('_isTransientLookupFailure(error)'),
+        lessThan(block.indexOf('await Future<void>.delayed(backoff)')),
+        reason: 'the backoff must be gated on the failure being transient',
+      );
+
+      // Only failures that never reached a usable response.
+      expect(source, contains('error is DioException'));
+      expect(source, contains('error is SocketException'));
+      expect(source, contains('error is TimeoutException'));
+    });
+
+    test('a superseded selection abandons its retry loop', () {
+      final block = _methodBlock(source, '_fetchWatchQueue');
+
+      expect(
+        block,
+        contains(
+          'if (_disposed || selectionGeneration != _playNowSelectionGeneration)',
+        ),
+        reason:
+            'a loop that outlives its tap would overwrite a queue the user has '
+            'since chosen',
+      );
+      expect(
+        block.indexOf('_playNowSelectionGeneration'),
+        lessThan(block.indexOf('_musicServices.getWatchPlaylist')),
+        reason: 'the check belongs before each attempt, not after it',
+      );
+    });
+
     test('playlist playback updates queue before playByIndex', () {
       final block = _methodBlock(source, 'playPlayListSong');
       final panelIndex = block.indexOf('await _playerPanelCheck();');
@@ -577,6 +620,15 @@ String _methodBlock(String source, String methodName) {
   }
   if (methodStart == -1) {
     methodStart = source.indexOf('bool $methodName(');
+  }
+  if (methodStart == -1) {
+    // Any other return type, including generics like
+    // `Future<Map<String, dynamic>?>`. Anchored on the declaration's leading
+    // indentation so a call site cannot match instead.
+    methodStart = RegExp(
+      r'\n  [\w<>,?\s]+ ' + RegExp.escape(methodName) + r'\(',
+    ).firstMatch(source)?.start ??
+        -1;
   }
   expect(methodStart, isNot(-1), reason: 'Missing $methodName');
   final bodyStart = _methodBodyStart(source, methodStart);

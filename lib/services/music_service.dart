@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../domain/repositories/settings_repository.dart';
 import '/models/album.dart';
@@ -255,6 +256,27 @@ class MusicServices implements MusicServiceContract {
     return {'title': item['title'], 'contents': []};
   }
 
+  /// The playlist id advertised by the watch panel's entries, or null when none
+  /// of them carry one.
+  ///
+  /// Null is an ordinary answer here: the id is a convenience the queue
+  /// expansion in `PlayerController.pushSongToQueue` never even reads. It used
+  /// to be taken with `.first` over the non-null ids, which throws
+  /// `StateError: No element` on a response that simply has none — and because
+  /// that throw escaped the whole of [getWatchPlaylist], it discarded every
+  /// track alongside it and left the tapped song alone in the queue.
+  @visibleForTesting
+  static dynamic watchPanelPlaylistId(List<dynamic> contents) {
+    for (final content in contents) {
+      final id = nav(content, [
+        'playlistPanelVideoRenderer',
+        ...navigation_playlist_id,
+      ]);
+      if (id != null) return id;
+    }
+    return null;
+  }
+
   @override
   Future<Map<String, dynamic>> getWatchPlaylist({
     String videoId = "",
@@ -315,31 +337,40 @@ class MusicServices implements MusicServiceContract {
         'watchNextTabbedResultsRenderer',
       ]);
 
-      lyricsBrowseId = getTabBrowseId(watchNextRenderer, 1);
-      relatedBrowseId = getTabBrowseId(watchNextRenderer, 2);
+      // Defense in depth behind `getTabBrowseId`'s own null-safety. These two
+      // are decorative — the queue expansion in `PlayerController` never reads
+      // them — but they are resolved upstream of every track, so anything that
+      // throws here takes the entire watch queue down with it. That is exactly
+      // how a tab with no `endpoint` used to leave a tapped song playing alone.
+      try {
+        lyricsBrowseId = getTabBrowseId(watchNextRenderer, 1);
+        relatedBrowseId = getTabBrowseId(watchNextRenderer, 2);
+      } catch (error) {
+        printERROR(
+          'watch panel tab ids unavailable for $videoId: $error',
+          tag: LogTags.musicService,
+        );
+      }
       if (onlyRelated) {
         return {'lyrics': lyricsBrowseId, 'related': relatedBrowseId};
       }
 
-      results.addAll(
-        nav(watchNextRenderer, [
-          ...tab_content,
-          'musicQueueRenderer',
-          'content',
-          'playlistPanelRenderer',
-        ]),
-      );
-      playlist = results['contents']
-          .map(
-            (content) => nav(content, [
-              'playlistPanelVideoRenderer',
-              ...navigation_playlist_id,
-            ]),
-          )
-          .where((e) => e != null)
-          .toList()
-          .first;
-      tracks.addAll(parseWatchPlaylist(results['contents']));
+      final panel = nav(watchNextRenderer, [
+        ...tab_content,
+        'musicQueueRenderer',
+        'content',
+        'playlistPanelRenderer',
+      ]);
+      // An unexpected response shape leaves `nav` returning null. Adding null
+      // to a map throws, and so does mapping over the absent contents below —
+      // both of which used to take down the whole call, and with it the caller's
+      // queue expansion, rather than yielding an empty result it could handle.
+      if (panel is Map) results.addAll(panel);
+      final contents = results['contents'];
+      if (contents is List) {
+        playlist = watchPanelPlaylistId(contents);
+        tracks.addAll(parseWatchPlaylist(contents));
+      }
     }
 
     dynamic additionalParamsForNext;

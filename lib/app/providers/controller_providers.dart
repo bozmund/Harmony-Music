@@ -41,6 +41,7 @@ final ChangeNotifierProvider<PlayerController> playerControllerProvider =
         musicService: ref.read(musicServiceContractProvider),
         playbackCommands: ref.read(playbackCommandServiceProvider),
       );
+      PlayerControllerRegistry.register(controller);
       unawaited(controller.init());
       return controller;
     });

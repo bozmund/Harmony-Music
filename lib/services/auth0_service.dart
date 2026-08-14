@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
@@ -9,6 +10,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../utils/runtime_platform.dart';
 import 'app_contracts.dart';
+import 'cloud/harmony_cloud_client.dart';
 
 /// Service that wraps Auth0 authentication for Harmony Music.
 ///
@@ -37,7 +39,34 @@ class Auth0Service implements AuthServiceContract {
     this._scheme,
     this._audience,
     this._storage,
-    this.isConfigured,
+    this.isConfigured, {
+    Dio? refreshClient,
+  }) : _refreshClient = refreshClient ?? Dio();
+
+  /// Builds a service around a caller-supplied credential store and HTTP client.
+  ///
+  /// Exists so the Windows session rules — an offline launch keeps you signed
+  /// in, a rejected grant does not — can be asserted against real code rather
+  /// than a source-text guard. Those two outcomes are indistinguishable from
+  /// outside the class, and getting them the wrong way round signs every
+  /// Windows user out the first time they open the app without a connection.
+  @visibleForTesting
+  factory Auth0Service.forTesting({
+    required FlutterSecureStorage storage,
+    required Dio refreshClient,
+    String domain = 'test.auth0.test',
+    String clientId = 'test-client',
+    String scheme = 'harmonymusic',
+    String audience = 'https://resolver.test',
+  }) => Auth0Service._(
+    Auth0(domain, clientId),
+    domain,
+    clientId,
+    scheme,
+    audience,
+    storage,
+    true,
+    refreshClient: refreshClient,
   );
 
   late final Auth0 _auth0;
@@ -46,9 +75,31 @@ class Auth0Service implements AuthServiceContract {
   late final String _scheme;
   late final String _audience;
   late final FlutterSecureStorage _storage;
+  final Dio _refreshClient;
   Future<String?>? _windowsRefreshInFlight;
 
+  final _sessionRevoked = StreamController<void>.broadcast();
+
+  /// Set by [_markWindowsSessionRevoked] so [_restoreWindowsSession] can tell a
+  /// grant Auth0 actually rejected from a token we merely failed to reach the
+  /// network to mint. Both come back from [_windowsAccessToken] as a bare null,
+  /// and treating them alike would sign the user out on every offline launch.
+  bool _windowsSessionRevoked = false;
+
   final bool isConfigured;
+
+  /// Fires when a stored session stops being usable while the app is running —
+  /// a refresh token Auth0 rejected, not a network failure.
+  ///
+  /// Windows only for now. The mobile path routes through `CredentialsManager`,
+  /// whose failures arrive as a single opaque exception that cannot distinguish
+  /// a revoked grant from a dead connection; guessing there would sign phone
+  /// users out whenever they walked into a tunnel. Mobile keeps surfacing a
+  /// lapsed session on the next launch, which it already does correctly.
+  @override
+  Stream<void> get onSessionRevoked => _sessionRevoked.stream;
+
+  Future<void> dispose() => _sessionRevoked.close();
 
   bool get isSupportedPlatform =>
       RuntimePlatform.isAndroid ||
@@ -60,6 +111,25 @@ class Auth0Service implements AuthServiceContract {
 
   String get _callbackScheme =>
       RuntimePlatform.isWindows ? _windowsCallbackScheme : _scheme;
+
+  /// Where Auth0 sends the browser after a Windows sign-in, instead of straight
+  /// at `harmonymusic://callback`.
+  ///
+  /// The custom scheme still does the actual handoff — this page performs it —
+  /// but redirecting through a real page means the tab ends on "you can close
+  /// this tab" rather than sitting on the Auth0 login form forever. Nothing can
+  /// close it for the user: a tab only auto-closes when it never committed a
+  /// page (which is why the *logout* tab vanishes), and `window.close()` does
+  /// nothing in a tab the user did not script-open.
+  ///
+  /// The scheme rides as a path segment rather than a query parameter: Auth0
+  /// matches `redirect_uri` against Allowed Callback URLs exactly, so a query
+  /// string would have to be registered verbatim. Debug and release therefore
+  /// have one registered URL each, and both must be listed alongside the custom
+  /// schemes, which the plugin still validates `appCustomURL` against.
+  String get _windowsRedirectUrl =>
+      '${HarmonyCloudClient.defaultBaseUrl.replaceAll(RegExp(r'/+$'), '')}'
+      '/auth/windows/callback/$_windowsCallbackScheme';
 
   /// Use [domain] from `.env` or a fallback so the app doesn't crash
   /// when `.env` is missing; the service will simply remain
@@ -90,7 +160,7 @@ class Auth0Service implements AuthServiceContract {
   Future<UserProfile?> tryRestoreSession() async {
     if (!isAvailable) return null;
     if (RuntimePlatform.isWindows) {
-      return _restoreFromSecureStorage();
+      return _restoreWindowsSession();
     }
     // Android / iOS / macOS — use built-in CredentialsManager.
     try {
@@ -121,6 +191,7 @@ class Auth0Service implements AuthServiceContract {
     final credentials = RuntimePlatform.isWindows
         ? await _auth0.windowsWebAuthentication().login(
             appCustomURL: '$_callbackScheme://callback',
+            redirectUrl: _windowsRedirectUrl,
             audience: _audience.isEmpty ? null : _audience,
             scopes: scopes,
             parameters: parameters,
@@ -214,6 +285,46 @@ class Auth0Service implements AuthServiceContract {
     }
   }
 
+  /// Windows keeps its own credentials, so restoring one has to prove the token
+  /// still works. Reading the cached profile alone — which is all this used to
+  /// do — meant a device whose refresh token died months ago still launched
+  /// looking signed in, while every cloud call quietly 401'd behind it. Mobile
+  /// never had the problem: `CredentialsManager.credentials()` throws on a dead
+  /// grant, which is exactly the signal this reconstructs.
+  Future<UserProfile?> _restoreWindowsSession() async {
+    final profile = await _restoreFromSecureStorage();
+    if (profile == null) return null;
+    // With no audience configured there is no Resolver token to mint, so
+    // `accessToken` returns null for every caller. That is a missing setting,
+    // not an expired session, and must not read as one.
+    if (_audience.isEmpty) return profile;
+
+    _windowsSessionRevoked = false;
+    String? token;
+    try {
+      token = await _windowsAccessToken(forceRefresh: false);
+    } catch (error) {
+      // Anything the refresh did not anticipate (a malformed stored blob, a
+      // socket teardown) is not evidence the grant is gone. Keep the session
+      // and let the next attempt decide.
+      _logSessionRestoreFailure(error);
+      return profile;
+    }
+    if (token != null) return profile;
+    // Only a grant Auth0 rejected ends the session. A network failure leaves
+    // the stored credentials alone and the user signed in, so the next launch
+    // with a connection can recover on its own.
+    return _windowsSessionRevoked ? null : profile;
+  }
+
+  /// The stored session is unusable and has been cleared. Records it for an
+  /// in-progress restore and tells anyone watching, so a session that dies
+  /// mid-run surfaces immediately instead of at the next launch.
+  void _markWindowsSessionRevoked() {
+    _windowsSessionRevoked = true;
+    if (!_sessionRevoked.isClosed) _sessionRevoked.add(null);
+  }
+
   Future<UserProfile?> _restoreFromSecureStorage() async {
     try {
       final raw = await _storage.read(key: 'auth0_credentials');
@@ -243,7 +354,13 @@ class Auth0Service implements AuthServiceContract {
     if (!needsRefresh) return accessToken;
 
     final refreshToken = credentials['refreshToken'] as String?;
-    if (refreshToken == null || refreshToken.isEmpty) return null;
+    if (refreshToken == null || refreshToken.isEmpty) {
+      // An expired access token with nothing to renew it is as dead as a
+      // rejected grant — there is no request that could ever recover it.
+      _markWindowsSessionRevoked();
+      await _clearPersistedCredentials();
+      return null;
+    }
     return _windowsRefreshInFlight ??= _refreshWindowsCredentials(
       credentials,
       refreshToken,
@@ -255,7 +372,7 @@ class Auth0Service implements AuthServiceContract {
     String refreshToken,
   ) async {
     try {
-      final response = await Dio().postUri<Map<String, dynamic>>(
+      final response = await _refreshClient.postUri<Map<String, dynamic>>(
         Uri.https(_domain, '/oauth/token'),
         data: {
           'grant_type': 'refresh_token',
@@ -295,6 +412,7 @@ class Auth0Service implements AuthServiceContract {
       // failures keep the stored session intact so a later retry can succeed.
       if (error.response?.statusCode == 400 ||
           error.response?.statusCode == 401) {
+        _markWindowsSessionRevoked();
         await _clearPersistedCredentials();
       }
       return null;
