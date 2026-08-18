@@ -54,9 +54,9 @@ class ResolverPlaybackClient {
        _accessToken = accessToken,
        _enabled = enabled,
        _discovery = discovery,
-       _httpClient = httpClient ?? HttpClient() {
+       _httpClient = httpClient ?? (enabled ? HttpClient() : null) {
     _httpClient
-      ..maxConnectionsPerHost = maxConnectionsPerAuthority
+      ?..maxConnectionsPerHost = maxConnectionsPerAuthority
       ..idleTimeout = idleConnectionTimeout
       ..connectionTimeout = connectionTimeout;
   }
@@ -70,9 +70,11 @@ class ResolverPlaybackClient {
   final Future<String?> Function() _accessToken;
   final bool _enabled;
   final ResolverDiscoveryService? _discovery;
-  final HttpClient _httpClient;
+  final HttpClient? _httpClient;
   Future<void>? _warmUpInFlight;
   bool _disposed = false;
+
+  HttpClient get _client => _httpClient!;
 
   Future<ResolverAudioSource?> open(
     String videoId, {
@@ -212,7 +214,7 @@ class ResolverPlaybackClient {
         return ResolverAudioSource(
           uri: uri,
           headers: Map<String, String>.unmodifiable(headers),
-          httpClient: _httpClient,
+          httpClient: _client,
           initialResponse: response,
           initialIterator: iterator,
           initialPrefix: Uint8List.fromList(bytes),
@@ -228,7 +230,7 @@ class ResolverPlaybackClient {
   }
 
   Future<void> prefetch(List<String> videoIds) async {
-    if (videoIds.isEmpty || _disposed) return;
+    if (videoIds.isEmpty || _disposed || !_enabled) return;
     final configuration = ResolverConfiguration.load(_settings);
     final baseUrl = configuration.baseUrl;
     if (!configuration.enabled || baseUrl == null) return;
@@ -236,9 +238,7 @@ class ResolverPlaybackClient {
     try {
       final token = await _accessToken();
       Future<int> send(String? bearerToken) async {
-        final request = await _httpClient.postUrl(
-          baseUrl.resolve('v1/prefetch'),
-        );
+        final request = await _client.postUrl(baseUrl.resolve('v1/prefetch'));
         request.headers.contentType = ContentType.json;
         if (bearerToken != null && bearerToken.isNotEmpty) {
           request.headers.set(
@@ -285,7 +285,7 @@ class ResolverPlaybackClient {
     final configuration = ResolverConfiguration.load(_settings);
     final baseUrl = configuration.baseUrl;
     if (_disposed || !configuration.enabled || baseUrl == null) return;
-    final request = await _httpClient.getUrl(baseUrl.resolve('health/live'));
+    final request = await _client.getUrl(baseUrl.resolve('health/live'));
     final response = await request.close();
     await response.drain<void>();
   }
@@ -293,7 +293,7 @@ class ResolverPlaybackClient {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    _httpClient.close(force: true);
+    _httpClient?.close(force: true);
   }
 
   void _throwIfCancelled(ResolverOpenCancellation? cancellation) {
@@ -306,7 +306,7 @@ class ResolverPlaybackClient {
     Uri uri,
     ResolverOpenCancellation? cancellation,
   ) {
-    final operation = _httpClient.getUrl(uri);
+    final operation = _client.getUrl(uri);
     return _waitForCancellation(
       operation,
       cancellation,

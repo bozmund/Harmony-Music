@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:harmonymusic/l10n/l10n.dart';
@@ -64,6 +65,12 @@ class LibrarySongsController extends ChangeNotifier {
   String _supportDirPath = '';
 
   Future<void> init() async {
+    if (kIsWeb) {
+      await reloadSongs(notify: false);
+      isSongFetched = true;
+      notifyListeners();
+      return;
+    }
     _supportDirPath = (await getApplicationSupportDirectory()).path;
     // Make sure that song cached in system or not cleared by system
     // if cleared then it will remove from database as well

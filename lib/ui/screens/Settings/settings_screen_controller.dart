@@ -145,7 +145,7 @@ class SettingsScreenController extends ChangeNotifier
     WidgetsBinding.instance.addObserver(this);
     await _setInitValue();
     await _createInAppSongDownDir();
-    await clearCachedUpdateApks();
+    await clearCachedUpdateInstallers();
   }
 
   @override
@@ -223,9 +223,12 @@ class SettingsScreenController extends ChangeNotifier
         'https://github.com/bozmund/Harmony-Music/releases/latest';
 
     if (isUpdateDownloading.value) return;
-    if (update == null ||
-        !RuntimePlatform.isAndroid ||
-        !_isApkUrl(update.downloadUrl)) {
+    final isAndroidUpdate =
+        RuntimePlatform.isAndroid && _isApkUrl(update?.downloadUrl ?? '');
+    final isWindowsUpdate =
+        RuntimePlatform.isWindows &&
+        _isWindowsInstallerUrl(update?.downloadUrl ?? '');
+    if (update == null || (!isAndroidUpdate && !isWindowsUpdate)) {
       await AppPlatformService.openUrl(fallbackUrl);
       return;
     }
@@ -237,15 +240,16 @@ class SettingsScreenController extends ChangeNotifier
 
     try {
       final updateDir = await _updateCacheDir();
-      await clearCachedUpdateApks();
+      await clearCachedUpdateInstallers();
       if (!await updateDir.exists()) {
         await updateDir.create(recursive: true);
       }
 
-      final apkPath = "${updateDir.path}/${_updateApkFileName(update)}";
+      final installerPath =
+          "${updateDir.path}/${_updateInstallerFileName(update)}";
       await Dio().download(
         update.downloadUrl,
-        apkPath,
+        installerPath,
         options: Options(responseType: ResponseType.bytes),
         onReceiveProgress: (received, total) {
           if (total <= 0) return;
@@ -254,14 +258,22 @@ class SettingsScreenController extends ChangeNotifier
         },
       );
 
-      final apkFile = File(apkPath);
-      if (!await apkFile.exists() || await apkFile.length() == 0) {
-        throw const FileSystemException('Downloaded APK is missing or empty');
+      final installerFile = File(installerPath);
+      if (!await installerFile.exists() || await installerFile.length() == 0) {
+        throw const FileSystemException(
+          'Downloaded update installer is missing or empty',
+        );
       }
 
       updateDownloadProgress.value = 1;
       notifyListeners();
-      await AppPlatformService.installApk(apkPath);
+      if (isWindowsUpdate) {
+        await _audioHandler.customAction('saveSession');
+        await AppPlatformService.launchWindowsInstaller(installerPath);
+        await AppPlatformService.restartApp();
+        return;
+      }
+      await AppPlatformService.installApk(installerPath);
     } on PlatformException catch (e) {
       if (e.code == "INSTALL_PERMISSION_REQUIRED") {
         updateDownloadError.value =
@@ -269,23 +281,29 @@ class SettingsScreenController extends ChangeNotifier
         notifyListeners();
         _showUpdateMessage(updateDownloadError.value);
       } else {
-        updateDownloadError.value = "Update install failed. Opening browser.";
+        updateDownloadError.value = isWindowsUpdate
+            ? _updateDownloadFailedMessage()
+            : "Update install failed. Opening browser.";
         notifyListeners();
         _showUpdateMessage(updateDownloadError.value);
-        await AppPlatformService.openUrl(fallbackUrl);
+        if (!isWindowsUpdate) {
+          await AppPlatformService.openUrl(fallbackUrl);
+        }
       }
     } catch (e) {
-      updateDownloadError.value = "Update download failed. Opening browser.";
+      updateDownloadError.value = _updateDownloadFailedMessage();
       notifyListeners();
       _showUpdateMessage(updateDownloadError.value);
-      await AppPlatformService.openUrl(fallbackUrl);
+      if (!isWindowsUpdate) {
+        await AppPlatformService.openUrl(fallbackUrl);
+      }
     } finally {
       isUpdateDownloading.value = false;
       notifyListeners();
     }
   }
 
-  Future<void> clearCachedUpdateApks() async {
+  Future<void> clearCachedUpdateInstallers() async {
     try {
       final updateDir = await _updateCacheDir();
       if (await updateDir.exists()) {
@@ -306,13 +324,25 @@ class SettingsScreenController extends ChangeNotifier
     return uri != null && uri.path.toLowerCase().endsWith(".apk");
   }
 
-  String _updateApkFileName(UpdateInfo info) {
+  bool _isWindowsInstallerUrl(String url) {
+    final uri = Uri.tryParse(url);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.path.toLowerCase().endsWith('.exe');
+  }
+
+  String _updateInstallerFileName(UpdateInfo info) {
     final safeVersion = info.version.replaceAll(
       RegExp(r'[^a-zA-Z0-9._-]'),
       '_',
     );
-    return "harmonymusic-${info.channel.name}-$safeVersion.apk";
+    final extension = RuntimePlatform.isWindows ? 'exe' : 'apk';
+    return "harmonymusic-${info.channel.name}-$safeVersion.$extension";
   }
+
+  String _updateDownloadFailedMessage() =>
+      AppNavigator.context?.l10n.updateDownloadFailed ??
+      'Update download failed. Please try again.';
 
   void _showUpdateMessage(String message) {
     final context = AppNavigator.context;

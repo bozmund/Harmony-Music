@@ -82,15 +82,37 @@ void main() {
         .hitTestable();
     expect(miniTitle, findsOneWidget);
     await tester.tap(miniTitle);
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(AlbumArtNLyrics).hitTestable(), findsOneWidget);
+    // Wait for the entrance animation rather than guessing at it: a fixed pump
+    // can land while the panel is still sliding, so the artwork is present but
+    // the controls below it are not yet hit-testable — which then fails in
+    // whichever helper runs next instead of here.
+    await pumpUntil(
+      tester,
+      () => find.byType(AlbumArtNLyrics).hitTestable().evaluate().isNotEmpty,
+      reason: 'the full player should open when the mini player is tapped',
+    );
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
   }
 
   Future<void> openQueue(WidgetTester tester) async {
+    await pumpUntil(
+      tester,
+      () =>
+          find.byIcon(Icons.keyboard_arrow_up).hitTestable().evaluate().isNotEmpty,
+      reason: 'the queue handle should be reachable once the player settles',
+    );
     final queueHandle = find.byIcon(Icons.keyboard_arrow_up).hitTestable();
     expect(queueHandle, findsOneWidget);
     await tester.tap(queueHandle);
-    await tester.pump(const Duration(milliseconds: 500));
+    await pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('queue-row-song-1-0'))
+          .hitTestable()
+          .evaluate()
+          .isNotEmpty,
+      reason: 'the queue panel should list its rows once open',
+    );
     expect(
       find.byKey(const Key('queue-row-song-1-0')).hitTestable(),
       findsOneWidget,
@@ -119,6 +141,11 @@ void main() {
       .hitTestable();
 
   Future<void> selectPlainLyrics(WidgetTester tester) async {
+    await pumpUntil(
+      tester,
+      () => find.byType(ToggleSwitch).hitTestable().evaluate().isNotEmpty,
+      reason: 'the lyrics mode toggle should appear once the panel settles',
+    );
     final toggle = find.byType(ToggleSwitch).hitTestable();
     expect(toggle, findsOneWidget);
     final bounds = tester.getRect(toggle);
@@ -1271,6 +1298,24 @@ void main() {
       expect(controller.isCurrentSongFav.value, isFalse);
     },
   );
+
+  testWidgets('with autoOpenPlayer on, the full player takes over by itself', (
+    tester,
+  ) async {
+    // The harness pins the preference off so MiniPlayer assertions do not
+    // depend on the device's screen width. Production defaults it *on*, so
+    // that path needs covering somewhere or the flip would quietly delete the
+    // only test of it.
+    final handle = await bootTestApp(tester, autoOpenPlayer: true);
+    handle.audioHandler.completeSourceLoadsAutomatically = true;
+
+    await tester.tap(find.text('Fixture Song').hitTestable().first);
+    await pumpUntil(
+      tester,
+      () => find.byType(AlbumArtNLyrics).hitTestable().evaluate().isNotEmpty,
+      reason: 'the full player should open without the user tapping again',
+    );
+  });
 }
 
 /// A music service whose watch-playlist lookup throws the first

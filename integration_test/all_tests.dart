@@ -9,6 +9,7 @@ import 'player_behavior_test.dart' as player_behavior;
 import 'resolver_phone_test.dart' as resolver_phone;
 import 'remote_playback_test.dart' as remote_playback;
 import 'session_expiry_test.dart' as session_expiry;
+import 'song_resolve_live_test.dart' as song_resolve_live;
 import 'unliked_download_dialog_test.dart' as unliked_download_dialog;
 
 /// Runs every integration test from one entrypoint.
@@ -43,4 +44,6 @@ void main() {
   group('session expiry', session_expiry.main);
   group('account lifecycle smoke', account_lifecycle_smoke.main);
   group('resolver phone', resolver_phone.main);
+  // Skips itself unless LIVE_RESOLVE_SONG_ID is defined; see the file header.
+  group('song resolve live', song_resolve_live.main);
 }

@@ -162,11 +162,25 @@ class SongDownloadButton extends ConsumerWidget {
                         song.id,
                       )) {
                         if (!context.mounted) return;
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        // Resolve the messenger before popping: afterwards this
+                        // context may no longer sit under one.
+                        final messenger = ScaffoldMessenger.of(context);
+                        final message = context.l10n.songAlreadyOfflineAlert;
+                        // The pop exists to dismiss the song-info sheet this
+                        // button usually lives in. From the player there is no
+                        // sheet, so popping took the last page off the stack —
+                        // go_router asserts on an empty configuration and the
+                        // window goes black. `canPop` alone is not enough: from
+                        // the player something *is* poppable, it just is not
+                        // ours to close.
+                        final navigator = Navigator.of(context);
+                        if (!calledFromPlayer && navigator.canPop()) {
+                          navigator.pop();
+                        }
+                        messenger.showSnackBar(
                           snackbar(
                             context,
-                            context.l10n.songAlreadyOfflineAlert,
+                            message,
                             size: SanckBarSize.BIG,
                           ),
                         );

@@ -1,4 +1,7 @@
-const domain = "https://music.youtube.com/";
+const domain = String.fromEnvironment(
+  'YOUTUBE_MUSIC_PROXY_URL',
+  defaultValue: 'https://music.youtube.com/',
+);
 const String baseUrl = '${domain}youtubei/v1/';
 const fixedParms =
     '?prettyPrint=false&alt=json&key=AI'

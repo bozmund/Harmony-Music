@@ -58,31 +58,36 @@ extension StringUtility on String {
 
   /// Format: HH:MM:SS
   Duration? toDuration() {
-    if (this == 'SHORTS' || trim().isEmpty) {
+    if (this == 'LIVE' || this == 'SHORTS' || trim().isEmpty) {
       return null;
     }
 
     final parts = split(':');
     assert(parts.length <= 3);
 
-    if (parts.length == 1) {
-      return Duration(seconds: int.parse(parts.first));
+    try {
+      if (parts.length == 1) {
+        return Duration(seconds: int.parse(parts.first));
+      }
+      if (parts.length == 2) {
+        return Duration(
+          minutes: int.parse(parts[0]),
+          seconds: int.parse(parts[1]),
+        );
+      }
+      if (parts.length == 3) {
+        return Duration(
+          hours: int.parse(parts[0]),
+          minutes: int.parse(parts[1]),
+          seconds: int.parse(parts[2]),
+        );
+      }
+    } on FormatException {
+      return null;
     }
-    if (parts.length == 2) {
-      return Duration(
-        minutes: int.parse(parts[0]),
-        seconds: int.parse(parts[1]),
-      );
-    }
-    if (parts.length == 3) {
-      return Duration(
-        hours: int.parse(parts[0]),
-        minutes: int.parse(parts[1]),
-        seconds: int.parse(parts[2]),
-      );
-    }
+
     // Shouldn't reach here.
-    throw Error();
+    throw StateError('Invalid duration parts');
   }
 
   DateTime parseDateTime() => DateTime.parse(this);
@@ -161,7 +166,7 @@ extension StringUtility2 on String? {
     return false;
   }
 
-  /// Format: `<quantity> <unit> ago` (e.g. 5 years ago)
+  /// Format: {quantity} {unit} ago (5 years ago)
   DateTime? toDateTime() {
     if (this == null) {
       return null;
@@ -195,6 +200,17 @@ extension StringUtility2 on String? {
     };
 
     return DateTime.now().subtract(time);
+  }
+
+  Uri? toUri() {
+    if (this == null) {
+      return null;
+    }
+    try {
+      return Uri.parse(this!);
+    } on FormatException {
+      return null;
+    }
   }
 
   DateTime? tryParseDateTime() {
@@ -253,7 +269,7 @@ extension GetOrNullMap on Map {
     return v;
   }
 
-  /// Get a `List<Map<String, dynamic>>` from a map.
+  /// Get a [List<Map<String, dynamic>>>] from a map.
   List<Map<String, dynamic>>? getList(String key, [String? orKey]) {
     var v = this[key];
     if (v == null) {
@@ -293,7 +309,7 @@ extension GetOrNullMap on Map {
         return null;
       }
     }
-    return value as T;
+    return value as T?;
   }
 }
 

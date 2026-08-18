@@ -293,6 +293,15 @@
   "checkUpdate": "Check for updates",
   "upToDate": "App is up to date",
   "checkingUpdate": "Checking for updates...",
+  "downloadingUpdate": "Downloading update {progress}%",
+  "@downloadingUpdate": {
+    "placeholders": {
+      "progress": {
+        "type": "int"
+      }
+    }
+  },
+  "updateDownloadFailed": "Update download failed. Please try again.",
   "chooseUpdateChannel": "Choose your update channel",
   "chooseUpdateChannelDes": "Harmony Music now offers two update channels. Pick how you want to receive updates — you can change this anytime in Settings.",
   "stableChannelOption": "Stable (recommended)",

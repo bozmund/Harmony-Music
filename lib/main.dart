@@ -9,9 +9,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:smtc_windows/smtc_windows.dart';
 
 import 'app/providers/app_service_registration.dart';
 import 'app/providers/app_locale_provider.dart';
@@ -27,6 +25,7 @@ import 'services/auth0_service.dart';
 import 'services/resolver/resolver_playback_client.dart';
 import 'services/resolver/resolver_discovery_service.dart';
 import 'services/crash_diagnostics_service.dart';
+import 'services/desktop_audio_platform.dart';
 import 'services/system_ui_mode_service.dart';
 import 'utils/app_link_controller.dart';
 import '/services/audio_handler.dart';
@@ -44,7 +43,9 @@ Future<void> main() async {
       WidgetsFlutterBinding.ensureInitialized();
       FirebaseMessaging.onBackgroundMessage(cloudFcmBackgroundHandler);
       await dotenv.load(fileName: '.env', isOptional: true);
-      await CrashDiagnosticsService.instance.init();
+      if (!kIsWeb) {
+        await CrashDiagnosticsService.instance.init();
+      }
       _installCrashDiagnosticsHandlers();
       _configureFlutterImageCache();
       await initHive();
@@ -52,11 +53,11 @@ Future<void> main() async {
         // just_audio_media_kit is a Dart platform implementation, so it must
         // be registered before the first AudioPlayer is created. Without this
         // Windows playback can advance without creating an output/mixer session.
-        JustAudioMediaKit.registerWith();
+        DesktopAudioPlatform.register();
       }
       if (RuntimePlatform.isWindows) {
         try {
-          await SMTCWindows.initialize();
+          await DesktopAudioPlatform.initializeWindowsMediaControls();
         } catch (error, stackTrace) {
           CrashDiagnosticsService.instance.record(
             'windows-smtc',
@@ -89,6 +90,7 @@ Future<void> main() async {
           settings: settingsRepository,
           accessToken: auth0Service.accessToken,
           discovery: ResolverDiscoveryService(),
+          enabled: !kIsWeb,
         ),
       );
       bootstrapContainer.dispose();
@@ -111,6 +113,7 @@ Future<void> main() async {
       );
     },
     (error, stackTrace) {
+      debugPrint('Harmony Music startup failed: $error\n$stackTrace');
       CrashDiagnosticsService.instance.recordZoneError(error, stackTrace);
     },
   );
@@ -153,7 +156,7 @@ class MyApp extends ConsumerWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!RuntimePlatform.isDesktop) {
+    if (!kIsWeb && !RuntimePlatform.isDesktop) {
       appLinksController ??= AppLinksController(
         musicService: ref.read(musicServiceContractProvider),
         playerController: ref.read(playerControllerProvider),
@@ -220,15 +223,19 @@ class MyApp extends ConsumerWidget {
 }
 
 Future<void> initHive() async {
-  String applicationDataDirectoryPath;
-  if (RuntimePlatform.isDesktop) {
-    applicationDataDirectoryPath =
-        "${(await getApplicationSupportDirectory()).path}/db";
+  if (kIsWeb) {
+    await Hive.initFlutter();
   } else {
-    applicationDataDirectoryPath =
-        (await getApplicationDocumentsDirectory()).path;
+    String applicationDataDirectoryPath;
+    if (RuntimePlatform.isDesktop) {
+      applicationDataDirectoryPath =
+          "${(await getApplicationSupportDirectory()).path}/db";
+    } else {
+      applicationDataDirectoryPath =
+          (await getApplicationDocumentsDirectory()).path;
+    }
+    await Hive.initFlutter(applicationDataDirectoryPath);
   }
-  await Hive.initFlutter(applicationDataDirectoryPath);
   await Hive.openBox(BoxNames.songsCache);
   await Hive.openBox(BoxNames.songDownloads);
   await Hive.openBox(BoxNames.songsUrlCache);

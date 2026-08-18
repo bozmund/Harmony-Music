@@ -95,6 +95,7 @@ Future<TestAppHandle> bootTestApp(
   CloudPlaybackGateway? playbackGateway,
   Future<void> Function()? seedHive,
   bool cloudSyncEnabled = false,
+  bool autoOpenPlayer = false,
 }) async {
   // resolverClientProvider and playbackSocketClientProvider construct a real
   // Auth0Service directly (see auth_providers.dart) regardless of the
@@ -122,6 +123,14 @@ Future<TestAppHandle> bootTestApp(
   ]) {
     await Hive.openBox(box);
   }
+  // `getAutoOpenPlayer()` defaults to true in production, which on a
+  // phone-width device makes the full player take over the moment a song
+  // starts — so `find.byType(MiniPlayer)` finds nothing and the assertion
+  // outcome depends on the screen size of whatever device the suite happens to
+  // run on. Pin it here so layout is deterministic, and let the tests that
+  // actually care about the auto-open behaviour opt back in.
+  await Hive.box(BoxNames.appPrefs).put(PrefKeys.autoOpenPlayer, autoOpenPlayer);
+
   if (seedHive != null) await seedHive();
 
   final auth = authService ?? FakeAuthService();

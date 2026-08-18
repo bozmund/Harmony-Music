@@ -98,6 +98,8 @@ abstract class AppPlatformContract {
 
   Future<void> installApk(String path);
 
+  Future<void> launchWindowsInstaller(String path);
+
   Future<void> restartApp({bool terminate = true});
 }
 

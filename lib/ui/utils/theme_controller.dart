@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../domain/repositories/settings_repository.dart';
 import '/utils/helper.dart';
+import '/utils/runtime_platform.dart';
 import 'app_text_and_action_theme.dart';
 
 class ThemeController extends ChangeNotifier {
@@ -466,7 +466,7 @@ class ThemeController extends ChangeNotifier {
   }
 
   Future<void> setWindowsTitleBarColor(Color color) async {
-    if (!Platform.isWindows) return;
+    if (!RuntimePlatform.isWindows) return;
     try {
       Future.delayed(
         const Duration(milliseconds: 350),

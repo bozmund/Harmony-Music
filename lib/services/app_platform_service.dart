@@ -135,6 +135,16 @@ class DefaultAppPlatformService implements AppPlatformContract {
   }
 
   @override
+  Future<void> launchWindowsInstaller(String path) async {
+    if (!Platform.isWindows) {
+      throw UnsupportedError(
+        'Windows installer launch is only supported on Windows',
+      );
+    }
+    await Process.start(path, const [], mode: ProcessStartMode.detached);
+  }
+
+  @override
   Future<void> restartApp({bool terminate = true}) async {
     if (Platform.isAndroid) {
       try {
@@ -172,6 +182,9 @@ class AppPlatformService {
   static Future<void> openUrl(String url) => _service.openUrl(url);
 
   static Future<void> installApk(String path) => _service.installApk(path);
+
+  static Future<void> launchWindowsInstaller(String path) =>
+      _service.launchWindowsInstaller(path);
 
   static Future<void> restartApp({bool terminate = true}) =>
       _service.restartApp(terminate: terminate);

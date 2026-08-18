@@ -820,7 +820,9 @@ class ListenTogetherController extends ChangeNotifier
   static String _generateId() {
     final rnd = Random();
     return '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
-        '-${rnd.nextInt(1 << 32).toRadixString(36)}';
+        // dart2js uses JavaScript bitwise integers, where `1 << 32` becomes
+        // zero. Keep the bound safely within the portable Random range.
+        '-${rnd.nextInt(0x7fffffff).toRadixString(36)}';
   }
 
   @override

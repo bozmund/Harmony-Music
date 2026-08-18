@@ -9,7 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:harmonymusic/l10n/app_localizations.dart';
 import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audio_service/audio_service.dart';
 
@@ -30,6 +29,7 @@ import '/services/playback_preload_service.dart';
 import '/services/playback_start_trace.dart';
 import '/services/previous_track_policy.dart';
 import '/services/equalizer.dart';
+import '/services/desktop_audio_platform.dart';
 import '/services/stream_service.dart';
 import '/models/hm_streaming_data.dart';
 import '/services/background_task.dart';
@@ -42,8 +42,6 @@ import '/models/media_Item_builder.dart';
 import '/services/utils.dart';
 import '../ui/screens/Library/library_controller.dart';
 
-// ignore: unused_import, implementation_imports, depend_on_referenced_packages
-import "package:media_kit/src/player/platform_player.dart" show MPVLogLevel;
 
 const _androidNotificationArtSize = 256;
 const _fallbackCompletionGrace = Duration(milliseconds: 1250);
@@ -78,6 +76,11 @@ Future<AudioHandler> initAudioService({
           enabled: false,
         ),
   );
+  // audio_service configures a native media session. Its platform channel has
+  // no browser implementation, while MyAudioHandler itself uses just_audio's
+  // web backend directly. Avoid waiting on that unavailable channel before
+  // the Flutter UI can mount.
+  if (kIsWeb) return handler;
   return await AudioService.init(
     builder: () => handler,
     config: const AudioServiceConfig(
@@ -102,7 +105,7 @@ class MyAudioHandler extends BaseAudioHandler {
   late final _cacheDir;
   late AudioPlayer _player;
   late MediaLibrary _mediaLibrary;
-  late PlaybackPreloadService _preloadService;
+  PlaybackPreloadService? _preloadService;
   late final SettingsRepository _settingsRepository;
   late final LibraryRepository _libraryRepository;
   late final DownloadRepository _downloadRepository;
@@ -159,6 +162,20 @@ class MyAudioHandler extends BaseAudioHandler {
   HMStreamingData? _preparedNextStreamInfo;
   static const _androidTargetBufferBytes = 8 * 1024 * 1024;
 
+  /// Backstop on resolving a song's stream before playback starts.
+  ///
+  /// The inner paths have their own, tighter bounds; this exists so that no
+  /// combination of them can leave the await unsettled. `playByIndex` and
+  /// `setSourceNPlay` tear down the previous source *before* this completes, so
+  /// a future that never settles is a permanently wedged player showing a
+  /// spinner and no error, which is what issue #66 reported. A TimeoutException
+  /// here lands in the same catch as any other failure and gets the existing
+  /// error surfacing for free.
+  ///
+  /// Sits above every inner bound — including the resolver's 30s ingestion
+  /// poll — so it only ever fires on a genuine stall, never on a slow song.
+  static const _sourceResolveTimeout = Duration(seconds: 60);
+
   List<MediaItem>? _queueBeforeShuffle;
 
   final _playList =
@@ -183,16 +200,15 @@ class MyAudioHandler extends BaseAudioHandler {
     _resolverPlaybackClient = resolverPlaybackClient;
 
     if (RuntimePlatform.isWindows || RuntimePlatform.isLinux) {
-      JustAudioMediaKit.title = 'Harmony music';
-      JustAudioMediaKit.protocolWhitelist = const ['http', 'https', 'file'];
-      JustAudioMediaKit.mpvLogLevel = MPVLogLevel.warn;
-      JustAudioMediaKit.diagnosticCallback = (category, message) {
-        CrashDiagnosticsService.instance.recordLog(
-          'info',
-          'windows-audio/$category',
-          message,
-        );
-      };
+      DesktopAudioPlatform.configure(
+        onDiagnostic: (category, message) {
+          CrashDiagnosticsService.instance.recordLog(
+            'info',
+            'windows-audio/$category',
+            message,
+          );
+        },
+      );
     }
 
     _mediaLibrary = MediaLibrary(
@@ -238,23 +254,25 @@ class MyAudioHandler extends BaseAudioHandler {
 
   Future<void> _init() async {
     unawaited(_resolverPlaybackClient.warmUp());
-    await _createCacheDir();
-    _preloadService = PlaybackPreloadService(
-      preloadDirectory: Directory("$_cacheDir/preloadedSongs"),
-      resolveStreamInfo:
-          (songId, {generateNewUrl = false, offlineReplacementUrl = false}) =>
-              checkNGetUrl(
-                songId,
-                generateNewUrl: generateNewUrl,
-                offlineReplacementUrl: offlineReplacementUrl,
-                allowResolver:
-                    _effectiveResolverSourceMode() ==
-                    ResolverSourceMode.resolverOnly,
-              ),
-      settingsRepository: _settingsRepository,
-      songCacheRepository: _songCacheRepository,
-    );
-    await _preloadService.init();
+    if (!kIsWeb) {
+      await _createCacheDir();
+      _preloadService = PlaybackPreloadService(
+        preloadDirectory: Directory("$_cacheDir/preloadedSongs"),
+        resolveStreamInfo:
+            (songId, {generateNewUrl = false, offlineReplacementUrl = false}) =>
+                checkNGetUrl(
+                  songId,
+                  generateNewUrl: generateNewUrl,
+                  offlineReplacementUrl: offlineReplacementUrl,
+                  allowResolver:
+                      _effectiveResolverSourceMode() ==
+                      ResolverSourceMode.resolverOnly,
+                ),
+        settingsRepository: _settingsRepository,
+        songCacheRepository: _songCacheRepository,
+      );
+      await _preloadService!.init();
+    }
     await _addEmptyList();
 
     _notifyAudioHandlerAboutPlaybackEvents();
@@ -262,9 +280,13 @@ class MyAudioHandler extends BaseAudioHandler {
     _listenForEndPositionFallback();
     _listenForSequenceStateChanges();
 
-    await _player.setSkipSilenceEnabled(
-      _settingsRepository.getSkipSilenceEnabled(),
-    );
+    // Skip-silence is implemented by the Android player only. Calling it on
+    // the browser throws before the application can render.
+    if (!kIsWeb) {
+      await _player.setSkipSilenceEnabled(
+        _settingsRepository.getSkipSilenceEnabled(),
+      );
+    }
 
     loopModeEnabled = _settingsRepository.getLoopModeEnabled();
     shuffleModeEnabled = _settingsRepository.getShuffleModeEnabled();
@@ -388,10 +410,12 @@ class MyAudioHandler extends BaseAudioHandler {
         unawaited(_resolverPlaybackClient.prefetch(nextIds));
       }
     }
+    final preloadService = _preloadService;
+    if (preloadService == null) return;
     final candidateIndices = currentQueueIndex == null
         ? <int>[]
-        : _preloadCandidateIndices(_preloadService.range);
-    _preloadService.schedule(
+        : _preloadCandidateIndices(preloadService.range);
+    preloadService.schedule(
       queue: queueSnapshot,
       candidateIndices: candidateIndices,
       isPlaying: _player.playing,
@@ -400,7 +424,10 @@ class MyAudioHandler extends BaseAudioHandler {
   }
 
   void _clearPreloadWindow() {
-    unawaited(_preloadService.clear());
+    final preloadService = _preloadService;
+    if (preloadService != null) {
+      unawaited(preloadService.clear());
+    }
   }
 
   List<int> _preloadCandidateIndices(int range) {
@@ -443,11 +470,17 @@ class MyAudioHandler extends BaseAudioHandler {
   Future<HMStreamingData> _streamInfoForSong(
     MediaItem song, {
     bool generateNewUrl = false,
-  }) => _preloadService.streamInfoFor(
-    song,
-    generateNewUrl: generateNewUrl,
-    fallback: () => checkNGetUrl(song.id, generateNewUrl: generateNewUrl),
-  );
+  }) {
+    final preloadService = _preloadService;
+    if (preloadService == null) {
+      return checkNGetUrl(song.id, generateNewUrl: generateNewUrl);
+    }
+    return preloadService.streamInfoFor(
+      song,
+      generateNewUrl: generateNewUrl,
+      fallback: () => checkNGetUrl(song.id, generateNewUrl: generateNewUrl),
+    );
+  }
 
   void _listenSessionIdStream() {
     _player.androidAudioSessionIdStream.listen((int? id) {
@@ -747,7 +780,7 @@ class MyAudioHandler extends BaseAudioHandler {
       'preparedForGeneration': _preparedForGeneration,
       'preparedNextIndex': _preparedNextIndex,
       'preparedNextSongId': _preparedNextSongId,
-      'preloadRange': _preloadService.range,
+      'preloadRange': _preloadService?.range ?? 0,
       'lastPreloadPlaying': _lastPreloadPlaying,
       'queueBeforeShuffleLength': _queueBeforeShuffle?.length,
       'errorCode': playback.errorCode,
@@ -1314,7 +1347,13 @@ class MyAudioHandler extends BaseAudioHandler {
         "${(await getApplicationSupportDirectory()).path}/Music";
     final isInSupportDir = path.contains(supportMusicPath);
     final hasExternalAccess = await PermissionService.getExtStoragePermission();
-    if (!isInSupportDir && !(hasExternalAccess && await File(path).exists())) {
+    // Being inside our own directory does not exempt the file from having to
+    // exist — same trap as checkNGetUrl, and preloading a missing file stalls
+    // the player instead of failing.
+    final reachable = isInSupportDir
+        ? await _localSourceFileExists(path)
+        : hasExternalAccess && await File(path).exists();
+    if (!reachable) {
       return null;
     }
 
@@ -1462,10 +1501,22 @@ class MyAudioHandler extends BaseAudioHandler {
         _activePlaybackTrace?.firstEncodedByte(source: _currentPlaybackSource);
         return source.withTag(mediaItem);
       }
+      // Falling through would hand just_audio `resolver:///<id>` verbatim —
+      // a scheme no platform player understands, surfacing as an opaque
+      // source error. A miss is reachable: _resetResolverSources() clears the
+      // whole map and runs at the top of both resolver entry points,
+      // including from the preload path, so preparing the next song can drop
+      // a source this one has not consumed yet.
+      printWarning(
+        'Resolver source for ${mediaItem.id} was gone before playback; '
+        're-resolving instead of handing the player a resolver:// URI',
+        tag: LogTags.audioHandler,
+      );
+      throw StateError('resolver source unavailable for ${mediaItem.id}');
     }
     final cacheSongsEnabled = _settingsRepository.getCacheSongs();
     final trace = _activePlaybackTrace;
-    final preloadedSource = _preloadService.createAudioSource(
+    final preloadedSource = _preloadService?.createAudioSource(
       mediaItem,
       cacheSongsEnabled: cacheSongsEnabled,
       onResponseReady: () =>
@@ -1788,7 +1839,7 @@ class MyAudioHandler extends BaseAudioHandler {
         _sessionSaveDebounce?.cancel();
         _periodicPositionSaveTimer?.cancel();
         _periodicPositionSaveTimer = null;
-        await _preloadService.clear();
+        await _preloadService?.clear();
         await _player.dispose();
         await _resetResolverSources();
         _resolverPlaybackClient.dispose();
@@ -1845,9 +1896,10 @@ class MyAudioHandler extends BaseAudioHandler {
             await _clearCurrentSourceForReplacement();
           }
 
-          var streamInfo = await futureStreamInfo;
+          var streamInfo = await futureStreamInfo.timeout(_sourceResolveTimeout);
           if (requestGeneration != _playbackGeneration ||
               songIndex != currentIndex) {
+            isSongLoading = false;
             _endSourceSwitch();
             return;
           }
@@ -1855,9 +1907,10 @@ class MyAudioHandler extends BaseAudioHandler {
             streamInfo = await checkNGetUrl(
               currentSong.id,
               generateNewUrl: true,
-            );
+            ).timeout(_sourceResolveTimeout);
             if (requestGeneration != _playbackGeneration ||
                 songIndex != currentIndex) {
+              isSongLoading = false;
               _endSourceSwitch();
               return;
             }
@@ -1914,6 +1967,7 @@ class MyAudioHandler extends BaseAudioHandler {
                     );
                 if (requestGeneration != _playbackGeneration ||
                     songIndex != currentIndex) {
+                  isSongLoading = false;
                   _endSourceSwitch();
                   return;
                 }
@@ -1951,6 +2005,7 @@ class MyAudioHandler extends BaseAudioHandler {
                   );
               if (requestGeneration != _playbackGeneration ||
                   songIndex != currentIndex) {
+                isSongLoading = false;
                 _endSourceSwitch();
                 return;
               }
@@ -2041,13 +2096,17 @@ class MyAudioHandler extends BaseAudioHandler {
           );
           final futureStreamInfo = _sourceInfoForPlayback(currMed);
           await _clearCurrentSourceForReplacement();
-          var streamInfo = await futureStreamInfo;
+          var streamInfo = await futureStreamInfo.timeout(_sourceResolveTimeout);
           if (requestGeneration != _playbackGeneration) {
+            isSongLoading = false;
             _endSourceSwitch();
             return;
           }
           if (!streamInfo.playable) {
-            streamInfo = await checkNGetUrl(currMed.id, generateNewUrl: true);
+            streamInfo = await checkNGetUrl(
+              currMed.id,
+              generateNewUrl: true,
+            ).timeout(_sourceResolveTimeout);
           }
           if (!streamInfo.playable) {
             currentSongUrl = null;
@@ -2096,6 +2155,7 @@ class MyAudioHandler extends BaseAudioHandler {
                   stackTrace: stackTrace,
                 );
             if (requestGeneration != _playbackGeneration) {
+              isSongLoading = false;
               _endSourceSwitch();
               return;
             }
@@ -2252,7 +2312,7 @@ class MyAudioHandler extends BaseAudioHandler {
 
       case 'updatePlaybackPreloadRange':
         final range = extras?['range'];
-        await _preloadService.setRange(range is int ? range : 0);
+        await _preloadService?.setRange(range is int ? range : 0);
         _schedulePreloadWindow();
         break;
 
@@ -2264,12 +2324,12 @@ class MyAudioHandler extends BaseAudioHandler {
                 modeIndex < PlaybackMode.values.length
             ? PlaybackMode.values[modeIndex]
             : PlaybackMode.classic;
-        await _preloadService.setMode(mode);
+        await _preloadService?.setMode(mode);
         _schedulePreloadWindow();
         break;
 
       case 'preloadConfigChanged':
-        await _preloadService.clear();
+        await _preloadService?.clear();
         _schedulePreloadWindow();
         break;
       default:
@@ -2342,17 +2402,38 @@ class MyAudioHandler extends BaseAudioHandler {
   }
 
   Future<void> _normalizeVolume(double currentLoudnessDb) async {
-    double loudnessDifference = -5 - currentLoudnessDb;
+    // 0 means "no loudness data", not "0 dB". Every source that cannot supply
+    // a real measurement writes this sentinel: the Resolver, the cached-song
+    // and download placeholders, and the extractor whenever the player
+    // response omits the field. Treating it as a genuine reading applied
+    // 10^(-5/20) = 0.56 to *every* track — no normalization at all, just a
+    // permanent ~44% volume cut. Skipping is the only honest response.
+    if (currentLoudnessDb == 0) {
+      return;
+    }
 
     // Converted loudness difference to a volume multiplier
     // We use a factor to convert dB difference to a linear scale
     // 10^(difference / 20) converts dB difference to a linear volume factor
+    final loudnessDifference = -5 - currentLoudnessDb;
     final volumeAdjustment = pow(10.0, loudnessDifference / 20.0);
+
+    // Relative to what the user actually asked for. Assigning the adjustment
+    // outright made normalization and the volume slider fight over the same
+    // player property, so a mid-song volume change survived only until the
+    // next track started and then snapped back.
+    final userVolume = _settingsRepository.getVolume() / 100;
+    // Attenuate only. Most tracks measure quieter than the -5 dB target, so
+    // the raw adjustment is usually >1; multiplying by it would push a user
+    // sitting at 50% up towards 100% — louder than they asked for — because
+    // the clamp only catches the result, not the intent.
+    final target = userVolume * min(volumeAdjustment.toDouble(), 1.0);
     printINFO(
-      "loudness:$currentLoudnessDb Normalized volume: $volumeAdjustment",
+      "loudness:$currentLoudnessDb adjustment:$volumeAdjustment "
+      "userVolume:$userVolume -> $target",
       tag: LogTags.audioHandler,
     );
-    await _player.setVolume(volumeAdjustment.toDouble().clamp(0, 1.0));
+    await _player.setVolume(target.toDouble());
   }
 
   Future<void> saveSessionData({Duration? positionOverride}) async {
@@ -2557,7 +2638,25 @@ class MyAudioHandler extends BaseAudioHandler {
       final supportMusicPath =
           "${(await getApplicationSupportDirectory()).path}/Music";
       if (path.contains(supportMusicPath)) {
-        return streamInfo;
+        // A path inside our own directory is not proof the file is still
+        // there: OS storage cleanup, a manual delete, or a restored backup
+        // whose paths were rewritten can all outlive the Hive entry. Skipping
+        // this check does not fail loudly — just_audio parks in `loading`
+        // forever on a missing file, which reads as a hung player rather than
+        // an error, so fall through to online resolution instead.
+        if (await _localSourceFileExists(path)) {
+          return streamInfo;
+        }
+        printWarning(
+          "Download entry for $songId points at a missing file; resolving online",
+          tag: LogTags.audioHandler,
+        );
+        return checkNGetUrl(
+          songId,
+          generateNewUrl: generateNewUrl,
+          offlineReplacementUrl: true,
+          allowResolver: allowResolver,
+        );
       }
       //check file access and if file exist in storage
       final status = await PermissionService.getExtStoragePermission();
@@ -2583,7 +2682,8 @@ class MyAudioHandler extends BaseAudioHandler {
           : await _songCacheRepository.getStreamCacheEntry(songId);
       if (streamInfoJson != null && !generateNewUrl) {
         if (streamInfoJson.runtimeType.toString().contains("Map") &&
-            !isExpired(url: streamInfoJson['lowQualityAudio']['url'])) {
+            !isExpired(url: streamInfoJson['lowQualityAudio']['url']) &&
+            _cachedUrlStillPlayable(streamInfoJson['lowQualityAudio']['url'])) {
           printINFO("Got cached Url ($songId)", tag: LogTags.audioHandler);
           streamInfo = HMStreamingData.fromJson(streamInfoJson);
         }
@@ -2746,14 +2846,96 @@ class MyAudioHandler extends BaseAudioHandler {
         failed();
       }
     }());
-    final winner = await completer.future;
-    return winner;
+    // Both branches report failure through `failed()`, so the completer settles
+    // on its own in every case either of them actually reports. This bound is
+    // for the case neither does: the resolver's ingestion poll is capped, but a
+    // stalled response-body read is not, and a branch that goes silent rather
+    // than failing leaves `failures` short of 2 forever. The caller has already
+    // torn down the previous source by this point, so an unsettled future here
+    // is a permanently wedged player rather than a slow song (issue #66).
+    try {
+      return await completer.future.timeout(_onlineResolveTimeout);
+    } on TimeoutException {
+      cancellation.cancel();
+      if (identical(_activeResolverCancellation, cancellation)) {
+        _activeResolverCancellation = null;
+      }
+      printWarning(
+        'Online resolve for $songId exceeded '
+        '${_onlineResolveTimeout.inSeconds}s with no branch reporting back',
+        tag: LogTags.audioHandler,
+      );
+      return HMStreamingData(playable: false, statusMSG: 'resolverPlaybackFailed');
+    }
   }
+
+  /// The point at which a race in which neither branch reported back is given
+  /// up on. Above the resolver's own 30s ingestion poll, so a cold track it is
+  /// still fetching is never cut off by this.
+  static const _onlineResolveTimeout = Duration(seconds: 45);
+
+  /// How long the app's own extraction may take before it forfeits the race.
+  ///
+  /// youtube_explode's client sets no read timeout, so a half-open socket
+  /// neither returns nor throws. `_raceOnlineResolvers` only completes when a
+  /// branch succeeds or *both* report failure, so one silent branch used to
+  /// wedge playback permanently: the caller awaited a future that could never
+  /// settle, having already torn down the previous source (issue #66).
+  ///
+  /// Deliberately below the Resolver's own 30s ingestion poll, so a cold track
+  /// the Resolver is still ingesting stays able to win rather than being cut
+  /// off by this branch giving up.
+  static const _localExtractionTimeout = Duration(seconds: 20);
+
+  /// Whether a cached URL came from a client whose URLs still play.
+  ///
+  /// Expiry alone is not enough. When YouTube gated the older clients behind a
+  /// proof-of-origin token, every URL already in the cache kept its unexpired
+  /// `expire` stamp while quietly becoming unplayable — so the cache served
+  /// them, ExoPlayer got a 403, and playback only recovered on the retry that
+  /// re-resolves. One wasted load per previously-played song.
+  ///
+  /// Keying on the issuing client (`c=`) instead means a client switch
+  /// invalidates its own cache entries automatically, here and on the next
+  /// switch. Non-http entries (offline replacements, cached files) are left
+  /// alone: they have no client and never go stale this way.
+  static bool _cachedUrlStillPlayable(Object? url) {
+    if (url is! String || !url.startsWith('http')) return true;
+    final client = Uri.tryParse(url)?.queryParameters['c'];
+    if (client == null) return true;
+    return client == _streamClientName;
+  }
+
+  /// The innertube client [StreamProvider] requests first. Cached URLs issued
+  /// by any other client are treated as stale.
+  static const _streamClientName = 'VISIONOS';
 
   Future<HMStreamingData> _resolveLocalOnline(String songId) async {
     final token = RootIsolateToken.instance;
-    final json = await Isolate.run(() => getStreamInfo(songId, token));
-    return HMStreamingData.fromJson(json);
+    try {
+      // Off the UI thread deliberately: extraction is slow enough that running
+      // it on the main isolate blocks input long enough to ANR. The VISIONOS
+      // client needs no signature deciphering, so nothing here requires the
+      // Flutter bindings a background isolate lacks.
+      final json = await Isolate.run(
+        () => getStreamInfo(songId, token),
+      ).timeout(_localExtractionTimeout);
+      return HMStreamingData.fromJson(json);
+    } on TimeoutException {
+      // Losing the race is the useful outcome: it lets the caller's `failed()`
+      // run, so the Resolver's answer can still play the song.
+      printWarning(
+        'Local extraction for $songId exceeded '
+        '${_localExtractionTimeout.inSeconds}s; forfeiting to the resolver',
+        tag: LogTags.audioHandler,
+      );
+      // `networkError`, not a new status: a read that never returns is a
+      // network failure, and `notifyPlayError` shows any unrecognised status
+      // to the user verbatim. In `existingOnly` mode this value is what the
+      // caller gets back, so an invented one would put a raw identifier in a
+      // snackbar.
+      return HMStreamingData(playable: false, statusMSG: 'networkError');
+    }
   }
 }
 

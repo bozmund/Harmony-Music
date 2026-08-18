@@ -4,12 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('registers MediaKit before creating the audio service on desktop', () {
+    // The call itself moved behind DesktopAudioPlatform when desktop-only
+    // symbols were split into a native/stub pair, so `main.dart` names the
+    // facade and only the native half touches JustAudioMediaKit. The ordering
+    // this test exists to protect is unchanged.
     final source = File('lib/main.dart').readAsStringSync();
-    final registration = source.indexOf('JustAudioMediaKit.registerWith()');
+    final registration = source.indexOf('DesktopAudioPlatform.register()');
     final audioService = source.indexOf('initAudioService(');
 
     expect(registration, greaterThanOrEqualTo(0));
     expect(audioService, greaterThan(registration));
+    expect(
+      File('lib/services/desktop_audio_platform_native.dart').readAsStringSync(),
+      contains('JustAudioMediaKit.registerWith()'),
+    );
   });
 
   test('normal playback stop pauses while lifecycle stop remains real', () {
@@ -101,21 +109,39 @@ void main() {
 
   test('Windows SMTC is initialized before controllers use it', () {
     final main = File('lib/main.dart').readAsStringSync();
-    final initialize = main.indexOf('await SMTCWindows.initialize()');
+    final initialize = main.indexOf(
+      'await DesktopAudioPlatform.initializeWindowsMediaControls()',
+    );
     final audioService = main.indexOf('initAudioService(');
 
     expect(initialize, greaterThanOrEqualTo(0));
     expect(audioService, greaterThan(initialize));
+    // No `await` in the needle: the native side is an arrow body returning the
+    // future, and the await lives at the call site above.
+    expect(
+      File('lib/services/desktop_audio_platform_native.dart').readAsStringSync(),
+      contains('SMTCWindows.initialize()'),
+    );
   });
 
   test('Windows audio backend records endpoint diagnostics', () {
     final handler = File('lib/services/audio_handler.dart').readAsStringSync();
+    final desktop = File(
+      'lib/services/desktop_audio_platform_native.dart',
+    ).readAsStringSync();
     final adapter = File(
       'third_party/just_audio_media_kit/lib/mediakit_player.dart',
     ).readAsStringSync();
 
-    expect(handler, contains('JustAudioMediaKit.diagnosticCallback'));
+    // The callback is wired on the native side; the handler still owns what is
+    // done with it, which is why only the first expectation moved.
+    expect(desktop, contains('JustAudioMediaKit.diagnosticCallback'));
     expect(handler, contains('windows-audio/\$category'));
+    // `audio-device` and `audio-params` reach the callback as mpv *warnings*.
+    // The library defaults to `error`, so dropping this line silently empties
+    // the diagnostics — which is exactly what happened once already.
+    expect(desktop, contains('JustAudioMediaKit.mpvLogLevel'));
+    expect(desktop, contains('MPVLogLevel.warn'));
     expect(adapter, contains("'audio-device'"));
     expect(adapter, contains("'audio-params'"));
   });

@@ -17,3 +17,4 @@
 | 2026-07-28 | [Account-scoped library: Songs filtering, account switch, sign-out visibility](2026-07-28_1702_account_scoped_library.md) | In progress |
 | 2026-07-28 | [End-to-end integration tests for account-scoped library](2026-07-28_1749_account_scoped_library_integration_tests.md) | In progress |
 | 2026-07-28 | [Stop the player flashing shimmer on seek and replay](2026-07-28_0000_stop_player_shimmer_flash_on_seek_and_replay.md) | In progress |
+| 2026-08-19 | [Harmony Music clean-up and correctness pass](2026-08-19_0007_harmony_music_cleanup_and_correctness_pass.md) | In progress |

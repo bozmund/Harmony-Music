@@ -70,7 +70,7 @@ class NewVersionDialog extends ConsumerWidget {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 20),
                   child: Text(
-                    "Downloading update $progress%",
+                    context.l10n.downloadingUpdate(progress),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 );
