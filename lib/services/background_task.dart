@@ -27,6 +27,8 @@ import 'package:harmonymusic/services/stream_service.dart';
 //   }
 // }
 
+/// Runs in a short-lived background isolate, so [token] is required: platform
+/// channels are unavailable there until the messenger is bound to it.
 Future<Map<String, dynamic>> getStreamInfo(String songId, dynamic token) async {
   if (songId.substring(0, 4) == "MPED") {
     songId = songId.substring(4);

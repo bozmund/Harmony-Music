@@ -142,6 +142,9 @@ class _FakeAppPlatform implements AppPlatformContract {
   Future<void> installApk(String path) async {}
 
   @override
+  Future<void> launchWindowsInstaller(String path) async {}
+
+  @override
   Future<void> openUrl(String url) async {}
 
   @override

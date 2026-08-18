@@ -293,6 +293,15 @@
   "checkUpdate": "Provjeri ažuriranja",
   "upToDate": "Aplikacija je ažurirana",
   "checkingUpdate": "Provjera ažuriranja...",
+  "downloadingUpdate": "Preuzimanje ažuriranja: {progress}%",
+  "@downloadingUpdate": {
+    "placeholders": {
+      "progress": {
+        "type": "int"
+      }
+    }
+  },
+  "updateDownloadFailed": "Preuzimanje ažuriranja nije uspjelo. Pokušajte ponovno.",
   "chooseUpdateChannel": "Odaberi kanal ažuriranja",
   "chooseUpdateChannelDes": "Harmony Music sada nudi dva kanala ažuriranja. Odaberi kako želiš primati ažuriranja — to možeš u bilo kojem trenutku promijeniti u postavkama.",
   "stableChannelOption": "Stabilni (preporučeno)",

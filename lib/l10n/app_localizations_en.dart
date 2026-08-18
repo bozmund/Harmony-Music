@@ -926,6 +926,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get checkingUpdate => 'Checking for updates...';
 
   @override
+  String downloadingUpdate(int progress) {
+    return 'Downloading update $progress%';
+  }
+
+  @override
+  String get updateDownloadFailed =>
+      'Update download failed. Please try again.';
+
+  @override
   String get chooseUpdateChannel => 'Choose your update channel';
 
   @override

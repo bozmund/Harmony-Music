@@ -59,6 +59,10 @@ void main() {
         () => platform.openUrl('https://example.test'),
       ).thenAnswer((_) async {});
       when(() => platform.installApk('/tmp/app.apk')).thenAnswer((_) async {});
+      when(
+        () => platform.launchWindowsInstaller('C:/updates/harmony-update.exe'),
+      ).thenAnswer((_) async {});
+      when(() => platform.restartApp()).thenAnswer((_) async {});
       when(() => platform.setPlaybackWakeLock(true)).thenAnswer((_) async {});
       when(
         () => platform.getSystemNavigationMode(),
@@ -68,11 +72,19 @@ void main() {
 
       await AppPlatformService.openUrl('https://example.test');
       await AppPlatformService.installApk('/tmp/app.apk');
+      await AppPlatformService.launchWindowsInstaller(
+        'C:/updates/harmony-update.exe',
+      );
+      await AppPlatformService.restartApp();
       await AppPlatformService.setPlaybackWakeLock(true);
       final navigationMode = await AppPlatformService.getSystemNavigationMode();
 
       verify(() => platform.openUrl('https://example.test')).called(1);
       verify(() => platform.installApk('/tmp/app.apk')).called(1);
+      verify(
+        () => platform.launchWindowsInstaller('C:/updates/harmony-update.exe'),
+      ).called(1);
+      verify(() => platform.restartApp()).called(1);
       verify(() => platform.setPlaybackWakeLock(true)).called(1);
       verify(() => platform.getSystemNavigationMode()).called(1);
       expect(navigationMode, SystemNavigationMode.buttons);

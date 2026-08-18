@@ -1,18 +1,14 @@
 import 'dart:collection';
-import 'dart:io' show SocketException;
 
 import 'package:logging/logging.dart';
 
 import '../../exceptions/exceptions.dart';
 import '../../extensions/helpers_extension.dart';
-import '../../js/js_engine.dart';
 import '../../retry.dart';
-import '../../reverse_engineering/cipher/cipher_manifest.dart';
+import '../../reverse_engineering/challenges/js_challenge.dart';
 import '../../reverse_engineering/heuristics.dart';
 import '../../reverse_engineering/models/stream_info_provider.dart';
 import '../../reverse_engineering/pages/watch_page.dart';
-import '../../reverse_engineering/player/player_source_dart.dart'
-    if (dart.library.ui) '../../reverse_engineering/player/player_source_flutter.dart';
 import '../../reverse_engineering/youtube_http_client.dart';
 import '../video_id.dart';
 import '../youtube_api_client.dart';
@@ -24,21 +20,27 @@ class StreamClient {
   static final _logger = Logger('YoutubeExplode.StreamsClient');
   final YoutubeHttpClient _httpClient;
   final StreamController _controller;
+  final BaseJSChallengeSolver? _jsChallengeSolver;
 
   /// Initializes an instance of [StreamClient]
-  StreamClient(this._httpClient) : _controller = StreamController(_httpClient);
+  StreamClient(this._httpClient, {BaseJSChallengeSolver? jsSolver})
+      : _controller = StreamController(_httpClient),
+        _jsChallengeSolver = jsSolver;
 
   /// Gets the manifest that contains information
   /// about available streams in the specified video.
   ///
   /// See [YoutubeApiClient] for all the possible clients that can be set using the [ytClients] parameter.
   /// If [ytClients] is null the library automatically manages the clients, otherwise only the clients provided are used.
-  /// Currently by default the  [YoutubeApiClient.ios] clients is used, if the extraction fails the [YoutubeApiClient.tv] client is used instead.
+  /// Currently by default the  [YoutubeApiClient.androidSdkless] client is used,
+  /// and if a js solver is provided the [YoutubeApiClient.safari] is used additionally.
   ///
-  /// Note that age restricted videos are no longer support due to the changes in the YouTube API.
+  ///
+  /// Note: if using any android client youtube often prevents downloading the same stream multiple times or downloading more than one stream from the same manifest.
+  /// Note: that age restricted videos are no longer support due to the changes in the YouTube API.
   ///
   /// If [requireWatchPage] (default: true) is set to false the watch page is not used to extract the streams (so the process can be faster) but
-  /// it COULD be less reliable (not tested thoroughly).
+  /// it probably will be less reliable.
   /// If the extracted streams require signature decoding for which the watch page is required, the client will automatically fetch the watch page anyways (e.g. [YoutubeApiClient.tv]).
   ///
   /// If the extraction fails an exception is thrown, to diagnose the issue enable the logging from the `logging` package, and open an issue with the output.
@@ -58,15 +60,16 @@ class StreamClient {
           'Use the ytClient parameter instead passing the proper [YoutubeApiClient]s')
       bool fullManifest = false,
       List<YoutubeApiClient>? ytClients,
-      bool requireWatchPage = false}) async {
+      bool requireWatchPage = true}) async {
+    assert(ytClients == null || ytClients.isNotEmpty,
+        'ytClients cannot be an empty list');
+
     videoId = VideoId.fromString(videoId);
-    final clients = ytClients ??
-        [
-          YoutubeApiClient.androidVr,
-          YoutubeApiClient.android,
-          YoutubeApiClient.ios,
-          YoutubeApiClient.tv,
-        ];
+    final clients = ytClients ?? [YoutubeApiClient.androidSdkless];
+
+    if (_jsChallengeSolver != null && ytClients == null) {
+      clients.add(YoutubeApiClient.safari);
+    }
 
     final uniqueStreams = LinkedHashSet<StreamInfo>(
       equals: (a, b) {
@@ -91,31 +94,26 @@ class StreamClient {
           'Getting stream manifest for video $videoId with client: ${client.payload['context']['client']['clientName']}');
       try {
         await retry(_httpClient, () async {
-          final streams = await _getStreams(videoId,
-                  ytClient: client, requireWatchPage: requireWatchPage)
-              .toList();
+          final streams = await _getStreams(
+            videoId,
+            ytClient: client,
+            requireWatchPage: requireWatchPage,
+          ).toList();
           if (streams.isEmpty) {
             throw VideoUnavailableException(
               'Video "$videoId" does not contain any playable streams.',
             );
           }
 
-          final response = await _httpClient.head(streams.last.url);
+          final response = await _httpClient.head(streams.first.url);
           if (response.statusCode == 403) {
             throw YoutubeExplodeException(
-              'Video $videoId returned 403 (stream: ${streams.last.tag})',
+              'Video $videoId returned 403 (stream: ${streams.first.tag})',
             );
           }
-
           uniqueStreams.addAll(streams);
-        }, youtubeApiClient: client);
-        if (uniqueStreams.isNotEmpty) {
-          break;
-        }
+        });
       } catch (e, s) {
-        if (e is SocketException) {
-          rethrow;
-        }
         _logger.severe(
             'Failed to get stream manifest for video $videoId with client: ${client.payload['context']['client']['clientName']}. Reason: $e\n',
             e,
@@ -129,6 +127,10 @@ class StreamClient {
       return getManifest(videoId, ytClients: [YoutubeApiClient.tv]);
     }
     if (uniqueStreams.isEmpty) {
+      if (lastException is Error && lastException.stackTrace != null) {
+        throw Error.throwWithStackTrace(
+            lastException, lastException.stackTrace!);
+      }
       throw lastException ??
           VideoUnavailableException(
               'Video "$videoId" has no available streams');
@@ -152,7 +154,7 @@ class StreamClient {
     if (!playerResponse.isVideoPlayable) {
       throw VideoUnplayableException.unplayable(
         videoId,
-        reason: playerResponse.videoPlayabilityError,
+        reason: playerResponse.videoPlayabilityError ?? '',
       );
     }
 
@@ -171,24 +173,20 @@ class StreamClient {
 
   Stream<StreamInfo> _getStreams(VideoId videoId,
       {required YoutubeApiClient ytClient,
-      required bool requireWatchPage}) async* {
+      bool requireWatchPage = true}) async* {
     // Use await for instead of yield* to catch exceptions
     await for (final stream
-        in _getStream(videoId, ytClient, requireWatchPage)) {
+        in _getStream(videoId, ytClient, requireWatchPage: requireWatchPage)) {
       yield stream;
     }
   }
 
   Stream<StreamInfo> _getStream(VideoId videoId, YoutubeApiClient ytClient,
-      bool requireWatchPage) async* {
-    final watchPage = ([
-      YoutubeApiClient.mweb,
-      YoutubeApiClient.safari,
-      YoutubeApiClient.tv
-    ]).contains(ytClient)
-        ? await WatchPage.get(_httpClient, videoId.value)
-        : null;
-
+      {bool requireWatchPage = true}) async* {
+    WatchPage? watchPage;
+    if (requireWatchPage) {
+      watchPage = await WatchPage.get(_httpClient, videoId.value);
+    }
     final playerResponse = await _controller
         .getPlayerResponse(videoId, ytClient, watchPage: watchPage);
 
@@ -204,7 +202,6 @@ class StreamClient {
     }
 
     if (!playerResponse.isVideoPlayable) {
-      await getVisitorData(generateNew: true);
       throw VideoUnplayableException.unplayable(
         videoId,
         reason: playerResponse.videoPlayabilityError ?? '',
@@ -213,77 +210,117 @@ class StreamClient {
     yield* _parseStreamInfo(playerResponse.streams,
         watchPage: watchPage, videoId: videoId);
 
-    // if (!playerResponse.dashManifestUrl.isNullOrWhiteSpace) {
-    //   final dashManifest =
-    //       await _controller.getDashManifest(playerResponse.dashManifestUrl!);
-    //   yield* _parseStreamInfo(dashManifest.streams,
-    //       watchPage: watchPage, videoId: videoId);
-    // }
-    // if (!playerResponse.hlsManifestUrl.isNullOrWhiteSpace) {
-    //   final hlsManifest =
-    //       await _controller.getHlsManifest(playerResponse.hlsManifestUrl!);
-    //   yield* _parseStreamInfo(hlsManifest.streams,
-    //       watchPage: watchPage, videoId: videoId);
-    // }
+    if (!playerResponse.dashManifestUrl.isNullOrWhiteSpace) {
+      final dashManifest =
+          await _controller.getDashManifest(playerResponse.dashManifestUrl!);
+      yield* _parseStreamInfo(dashManifest.streams,
+          watchPage: watchPage, videoId: videoId);
+    }
+    if (!playerResponse.hlsManifestUrl.isNullOrWhiteSpace) {
+      final hlsManifest =
+          await _controller.getHlsManifest(playerResponse.hlsManifestUrl!);
+      yield* _parseStreamInfo(hlsManifest.streams,
+          watchPage: watchPage, videoId: videoId);
+    }
   }
-
-  String? _playerScript;
-  Future<String> _getPlayerScript([WatchPage? page]) async {
-    page ??= await WatchPage.get(_httpClient, '');
-    return _playerScript ??= await _httpClient.getString(page.sourceUrl);
-  }
-
-  Future<String> _getDecipherFunction(WatchPage watchPage) async {
-    final playerScript = await _getPlayerScript(watchPage);
-    final funcNameExp = RegExp(
-        r'function\(\w+\)\{[^}]*\.slice\(0,0\).*?return\s?\w+?\.join\(""\)};',
-        dotAll: true);
-    final funcMatch = funcNameExp.firstMatch(playerScript);
-    return funcMatch!.group(0)!.replaceFirst('function', 'function main');
-  }
-
-  final _nSigCache = <String, String>{};
 
   Stream<StreamInfo> _parseStreamInfo(Iterable<StreamInfoProvider> streams,
       {WatchPage? watchPage, VideoId? videoId}) async* {
-    assert(watchPage != null || videoId != null,
-        'Either watchPage or videoId must be provided');
-    String? funcCode;
-    CipherManifest? cipherManifest;
+    // First pass: collect all unique challenges
+    final nChallenges = <String>{};
+    final sigChallenges = <String>{};
 
+    final solver = _jsChallengeSolver;
+    if (solver != null) {
+      for (final stream in streams) {
+        try {
+          final url = Uri.parse(stream.url);
+          if (url.queryParameters.containsKey('n')) {
+            nChallenges.add(url.queryParameters['n']!);
+          }
+          if (stream.signatureParameter != null) {
+            sigChallenges.add(stream.signature!);
+          }
+        } catch (e) {
+          // Skip invalid URLs, will be handled in second pass
+        }
+      }
+    }
+
+    // Bulk solve all challenges
+    final solvedChallenges = <String, String?>{};
+    if (watchPage != null &&
+        solver != null &&
+        (nChallenges.isNotEmpty || sigChallenges.isNotEmpty)) {
+      final requests = <JSChallengeType, List<String>>{};
+      if (nChallenges.isNotEmpty) {
+        requests[JSChallengeType.n] = nChallenges.toList();
+      }
+      if (sigChallenges.isNotEmpty) {
+        requests[JSChallengeType.sig] = sigChallenges.toList();
+      }
+
+      try {
+        solvedChallenges
+            .addAll(await solver.solveBulk(watchPage.sourceUrl!, requests));
+      } catch (e) {
+        _logger.warning('Could not bulk solve challenges: $e');
+        // Fall back to individual solving if bulk fails
+      }
+    }
+
+    // Second pass: process streams with solved challenges
     for (final stream in streams) {
-      // restrict to audio streams
-      if (stream.audioCodec.isNullOrWhiteSpace) {
+      final itag = stream.tag;
+      late Uri url;
+      try {
+        url = Uri.parse(stream.url);
+      } catch (e) {
         continue;
       }
-      final itag = stream.tag;
-      var url = Uri.parse(stream.url);
 
-      if (url.queryParameters.containsKey('n')) {
-        final nParam = url.queryParameters['n']!;
-        late final String deciphered;
-        if (_nSigCache.containsKey(nParam)) {
-          deciphered = _nSigCache[nParam]!;
-        } else {
-          funcCode ??= await _getDecipherFunction(
-              watchPage ??= await WatchPage.get(_httpClient, videoId!.value));
-          deciphered = _nSigCache[nParam] = JSEngine.run(funcCode, [nParam]);
-          _logger.fine(
-              'Deciphered n-sig: ${url.queryParameters['n']} -> $deciphered');
+      if (solver != null && watchPage != null) {
+        if (url.queryParameters.containsKey('n')) {
+          final nParam = url.queryParameters['n']!;
+          final decoded = solvedChallenges[nParam];
+          if (decoded != null) {
+            url = url.setQueryParam('n', decoded);
+            _logger.fine(
+                'Decoded n-sig for stream itag $itag. $nParam -> $decoded}');
+          } else {
+            // Fallback to individual solving if bulk solving didn't provide result
+            try {
+              final individualDecoded = await solver.solve(
+                  watchPage.sourceUrl!, JSChallengeType.n, nParam);
+              url = url.setQueryParam('n', individualDecoded);
+              _logger.fine(
+                  'Decoded n-sig for stream itag $itag (individual). $nParam -> $individualDecoded}');
+            } catch (e) {
+              _logger.warning('Could not decipher n-sig using JS solver: $e');
+            }
+          }
         }
-        url = url.setQueryParam('n', deciphered);
-      }
-      if (stream.signatureParameter != null) {
-        cipherManifest ??=
-            CipherManifest.decode(await _getPlayerScript(watchPage));
-        final sig = stream.signature!;
-        final sigParam = stream.signatureParameter!;
-        if (cipherManifest != null) {
-          final sigDeciphered = cipherManifest.decipher(sig);
-          url = url.setQueryParam(sigParam, sigDeciphered);
-          _logger.fine('Deciphered signature: $sig -> $sigDeciphered');
-        } else {
-          _logger.warning('Could not decipher signature: $sig');
+        if (stream.signatureParameter != null) {
+          final sigParam = stream.signatureParameter!;
+          final sig = stream.signature!;
+          final decoded = solvedChallenges[sig];
+          if (decoded != null) {
+            url = url.setQueryParam(sigParam, decoded);
+            _logger.fine(
+                'Decoded signature for stream itag $itag. $sigParam -> $decoded}');
+          } else {
+            // Fallback to individual solving if bulk solving didn't provide result
+            try {
+              final individualDecoded = await solver.solve(
+                  watchPage.sourceUrl!, JSChallengeType.sig, sig);
+              url = url.setQueryParam(sigParam, individualDecoded);
+              _logger.fine(
+                  'Decoded signature for stream itag $itag (individual). $sigParam -> $individualDecoded}');
+            } catch (e) {
+              _logger
+                  .warning('Could not decipher signature using JS solver: $e');
+            }
+          }
         }
       }
 
@@ -429,6 +466,7 @@ class StreamClient {
             stream.fragments ?? const [],
             stream.codec,
             stream.audioTrack,
+            // FORK PATCH (loudnessDb): see audio_only_stream_info.dart.
             stream.loudnessDb ?? 0.0,
             stream.duration);
       } else {

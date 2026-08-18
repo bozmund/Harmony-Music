@@ -2,7 +2,7 @@ name: harmonymusic
 description: A cross platform app for music streaming.
 publish_to: "none"
 
-version: 6.1.3+32
+version: 6.2.0+33
 
 environment:
   sdk: ">=3.10.3 <4.0.0"
@@ -60,6 +60,9 @@ dependencies:
   window_manager: ^0.5.2
   youtube_explode_dart:
     path: third_party/youtube_explode_dart
+  # In-process JS engine (QuickJS on Android/Windows/Linux, JavaScriptCore on
+  # Apple) used to solve YouTube's signature challenges. youtube_explode 3.x
+  # ships only a Deno-subprocess solver, which cannot run on a phone.
 dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_test:

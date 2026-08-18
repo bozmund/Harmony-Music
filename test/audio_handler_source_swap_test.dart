@@ -640,6 +640,131 @@ void main() {
       expect(block, contains('Map<String, dynamic>.from'));
       expect(block, contains('offlineReplacementUrl: true'));
     });
+
+    // Issue #66: the player was found wedged mid-resolve — previous source torn
+    // down, playlist empty, isSongLoading stuck true, no error ever raised. The
+    // await that resolves a song's stream was unbounded, so a socket that went
+    // silent rather than failing hung playback permanently.
+    group('stream resolution is always bounded', () {
+      test('both play actions bound the resolve they await', () {
+        for (final name in ['playByIndex', 'setSourceNPlay']) {
+          final block = _caseBlock(source, name);
+          expect(
+            block,
+            contains('await futureStreamInfo.timeout('),
+            reason:
+                '\$name tears down the old source before this await, so an '
+                'unbounded one is a permanently spinning player',
+          );
+          expect(
+            block,
+            contains('.timeout(_sourceResolveTimeout)'),
+            reason: '\$name must bound its generateNewUrl retry too',
+          );
+        }
+      });
+
+      test('the backstop sits above every inner bound', () {
+        // It must never cut off a resolve that is legitimately still working —
+        // notably the resolver's 30s ingestion poll for a cold track.
+        expect(source, contains('_sourceResolveTimeout = Duration(seconds: 60)'));
+        expect(source, contains('_onlineResolveTimeout = Duration(seconds: 45)'));
+        expect(
+          source,
+          contains('_localExtractionTimeout = Duration(seconds: 20)'),
+        );
+      });
+
+      test('a silent extraction forfeits the race instead of stalling it', () {
+        final block = _methodBlock(source, '_resolveLocalOnline');
+
+        expect(
+          block,
+          contains('.timeout(_localExtractionTimeout)'),
+          reason:
+              'youtube_explode sets no read timeout, so a half-open socket '
+              'neither returns nor throws',
+        );
+        expect(
+          block,
+          contains('on TimeoutException'),
+          reason: 'the timeout must be caught here, not thrown at the race',
+        );
+        expect(
+          block,
+          contains('playable: false'),
+          reason:
+              'returning non-playable is what makes the race call failed(), '
+              'letting the resolver still win and the song still play',
+        );
+      });
+
+      test('every failure status the UI can receive is localized', () {
+        // notifyPlayError falls through to `_ => message`, so any statusMSG it
+        // does not recognise is shown to the user as a raw identifier. In
+        // existingOnly mode _resolveLocalOnline's status reaches it directly.
+        // Only failures reach the snackbar; 'OK' rides along with a playable
+        // result and is never shown.
+        final known = {'networkError', 'resolverPlaybackFailed', 'OK'};
+        final statuses = RegExp("statusMSG: '([A-Za-z]+)'")
+            .allMatches(source)
+            .map((match) => match.group(1)!)
+            .toSet();
+
+        expect(statuses, contains('resolverPlaybackFailed'));
+        expect(
+          statuses.difference(known),
+          isEmpty,
+          reason:
+              'these statuses have no case in PlayerController.notifyPlayError, '
+              'so the user would see the identifier itself in a snackbar',
+        );
+      });
+
+      test('the race settles even when neither branch reports back', () {
+        final block = _methodBlock(source, '_raceOnlineResolvers');
+
+        expect(
+          block,
+          contains('completer.future.timeout(_onlineResolveTimeout)'),
+          reason:
+              'the completer only fires on a success or on failures == 2, so a '
+              'branch that goes silent leaves it unsettled forever',
+        );
+        expect(block, contains('on TimeoutException'));
+      });
+    });
+
+    test('an abandoned request never leaves the spinner running', () {
+      // These fire whenever a newer tap supersedes an in-flight one, so they
+      // are reachable in ordinary use. _endSourceSwitch() deliberately touches
+      // only the switch flags, so each site has to clear isSongLoading itself.
+      for (final name in ['playByIndex', 'setSourceNPlay']) {
+        final block = _caseBlock(source, name);
+        final segments = block.split('_endSourceSwitch();');
+        var abandonSites = 0;
+
+        // segments[i] is the code BEFORE the i-th call; segments[i + 1] the code
+        // after it. An abandon site is one whose next statement is `return;`.
+        for (var i = 0; i < segments.length - 1; i++) {
+          if (!segments[i + 1].trimLeft().startsWith('return;')) continue;
+          abandonSites++;
+          expect(
+            segments[i].trimRight().endsWith('isSongLoading = false;'),
+            isTrue,
+            reason:
+                'an "_endSourceSwitch(); return;" in $name is not preceded by '
+                'isSongLoading = false, so the spinner outlives the request',
+          );
+        }
+
+        expect(
+          abandonSites,
+          greaterThan(0),
+          reason: 'expected $name to have abandon paths to check',
+        );
+      }
+    });
   });
 }
 

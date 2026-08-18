@@ -313,6 +313,9 @@ class FakeAppPlatform implements AppPlatformContract {
   }
 
   @override
+  Future<void> launchWindowsInstaller(String path) async {}
+
+  @override
   Future<void> restartApp({bool terminate = true}) async {
     restarted = true;
   }

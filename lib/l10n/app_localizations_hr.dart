@@ -929,6 +929,15 @@ class AppLocalizationsHr extends AppLocalizations {
   String get checkingUpdate => 'Provjera ažuriranja...';
 
   @override
+  String downloadingUpdate(int progress) {
+    return 'Preuzimanje ažuriranja: $progress%';
+  }
+
+  @override
+  String get updateDownloadFailed =>
+      'Preuzimanje ažuriranja nije uspjelo. Pokušajte ponovno.';
+
+  @override
   String get chooseUpdateChannel => 'Odaberi kanal ažuriranja';
 
   @override

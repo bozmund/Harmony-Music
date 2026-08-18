@@ -1,3 +1,69 @@
+## 3.1.0
+- Code refactoring
+- Update EJS module to 0.8.0
+- Fix: channel, playlist, videos apis.
+
+## 3.0.5
+- Re-add requireWatchPage functionality to `getManifest`.
+- Allow specifying deno path. Thanks to @obemu.
+- Support for live urls. Thanks to @Rerurate514.
+
+## 3.0.4
+- Fix EJS exports.
+
+## 3.0.3
+- Add comment `ejs` solvers class.
+- Update `tv` client.
+
+## 3.0.2
+- Implement bulk challenges solver.
+
+## 3.0.1
+- Fix issue with the `deno` signature solver where the command line arguments on some systems where too long.
+- Small optimizations by reusing the already preprocessed player in the `js` solver.
+
+## 3.0.0
+- Implement `deno` js signature solver.
+- Implement new interfaces for custom JS challenges solver.
+
+## 2.5.3
+- Update `android` client.
+- Stop throwing when signature can't be found, instead just skip that stream.
+- Fix parsing error when a collaboration video appeared in a search result.
+
+## 2.5.2
+- Add `Video.musicData` getter.
+
+## 2.5.1
+- Fix related videos api.
+
+## 2.5.0
+- Implement new function decipherer.
+- Fix bug preventing fetching more than 100 videos in a playlist. Thanks to @khaled-0
+- Expose header getter to `YoutubeHttpClient`. Thanks to @khaled-0
+
+
+## 2.4.2
+- Update safari client.
+- Fix signature deciphering.
+
+## 2.4.1
+- Update IOS client.
+
+## 2.4.0
+- Update IOS client.
+- Implement visitor data extraction. Port from: https://github.com/Tyrrrz/YoutubeExplode/commit/84e29bb
+- Support freezed 3.0.0.
+
+## 2.3.10
+- Update dev_dependencies
+- Fix #328. Shorts extraction from channel uploads.
+- Skip tests that always fail on GitHub actions.
+
+## 2.3.9
+- Fix HLS extraction.
+- Fix JSEngine: -, * operators.
+
 ## 2.3.8
 - Simplify Playlist ID matching logic by @khaled-0 in https://github.com/Hexer10/youtube_explode_dart/pull/316
 - Fix Parsing JSON response for shorts by @JorWo in https://github.com/Hexer10/youtube_explode_dart/pull/313

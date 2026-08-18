@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-import 'package:http/http.dart' as http;
+
 import '../../retry.dart';
 import '../youtube_http_client.dart';
 
@@ -64,25 +62,4 @@ class _CachedValue<T> {
     expireTime = now + cacheTime;
     value = newValue;
   }
-}
-
-Future<String?> getVisitorDataCommon() async {
-  try {
-    final x = await http
-        .get(Uri.parse("https://www.youtube.com/sw.js_data"), headers: {
-      "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
-    });
-    String resBody = x.body;
-    if (x.statusCode == 200 && resBody.contains(")]}'")) {
-      resBody = resBody.replaceFirst(")]}'", "");
-      final visitorData_ = (jsonDecode(resBody))[0][2][0][0][13];
-      return visitorData_;
-    }
-  } catch (e) {
-    if (e is SocketException) {
-      rethrow;
-    }
-  }
-  return null;
 }

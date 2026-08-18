@@ -1856,6 +1856,18 @@ abstract class AppLocalizations {
   /// **'Checking for updates...'**
   String get checkingUpdate;
 
+  /// No description provided for @downloadingUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading update {progress}%'**
+  String downloadingUpdate(int progress);
+
+  /// No description provided for @updateDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Update download failed. Please try again.'**
+  String get updateDownloadFailed;
+
   /// No description provided for @chooseUpdateChannel.
   ///
   /// In en, this message translates to:

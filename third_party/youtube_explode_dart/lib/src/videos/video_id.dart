@@ -7,12 +7,13 @@ part 'video_id.g.dart';
 
 /// Encapsulates a valid YouTube video ID.
 @freezed
-class VideoId with _$VideoId {
+abstract class VideoId with _$VideoId {
   static final _regMatchExp = RegExp(r'youtube\..+?/watch.*?v=(.*?)(?:&|/|$)');
   static final _shortMatchExp = RegExp(r'youtu\.be/(.*?)(?:\?|&|/|$)');
   static final _embedMatchExp = RegExp(r'youtube\..+?/embed/(.*?)(?:\?|&|/|$)');
   static final _shortsMatchExp =
       RegExp(r'youtube\..+/shorts/([A-Za-z0-9-_]+$)');
+  static final _liveMatchExp = RegExp(r'youtube\..+?/live/(.*?)(?:\?|&|/|$)');
 
   /// Initializes an instance of [VideoId] with a url or video id.
   factory VideoId(String idOrUrl) {
@@ -97,6 +98,13 @@ class VideoId with _$VideoId {
     if (!shortsMatch.isNullOrWhiteSpace && validateVideoId(shortsMatch!)) {
       return shortsMatch;
     }
+
+    // https://www.youtube.com/live/yIVRs6YSbOM
+    final liveMatch = _liveMatchExp.firstMatch(url)?.group(1);
+    if (!liveMatch.isNullOrWhiteSpace && validateVideoId(liveMatch!)) {
+      return liveMatch;
+    }
+
     return null;
   }
 }

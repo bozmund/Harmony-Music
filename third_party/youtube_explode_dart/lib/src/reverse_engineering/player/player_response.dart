@@ -10,11 +10,11 @@ import '../models/stream_info_provider.dart';
 ///
 class PlayerResponse {
   // Json parsed map
-  JsonMap root;
+  final JsonMap root;
 
   ///
   late final String playabilityStatus =
-      root.get('playabilityStatus')!.getT<String>('status')!;
+      root.getJson<String>('playabilityStatus/status') ?? '';
 
   ///
   bool get isVideoAvailable => playabilityStatus.toLowerCase() != 'error';
@@ -23,72 +23,60 @@ class PlayerResponse {
   bool get isVideoPlayable => playabilityStatus.toLowerCase() == 'ok';
 
   ///
-  String get videoTitle => root.get('videoDetails')!.getT<String>('title')!;
+  String get videoTitle => root.getJson<String>('videoDetails/title') ?? '';
 
   ///
-  String get videoAuthor => root.get('videoDetails')!.getT<String>('author')!;
+  String get videoAuthor => root.getJson<String>('videoDetails/author') ?? '';
 
   ///
   DateTime? get videoUploadDate => root
-      .get('microformat')
-      ?.get('playerMicroformatRenderer')
-      ?.getT<String>('uploadDate')
+      .getJson<String>('microformat/playerMicroformatRenderer/uploadDate')
       ?.parseDateTime();
 
   ///
   DateTime? get videoPublishDate => root
-      .get('microformat')
-      ?.get('playerMicroformatRenderer')
-      ?.getT<String>('publishDate')
+      .getJson<String>('microformat/playerMicroformatRenderer/publishDate')
       ?.parseDateTime();
 
   ///
   String get videoChannelId =>
-      root.get('videoDetails')!.getT<String>('channelId')!;
+      root.getJson<String>('videoDetails/channelId') ?? '';
 
   ///
   Duration get videoDuration => Duration(
-        seconds:
-            int.parse(root.get('videoDetails')!.getT<String>('lengthSeconds')!),
+        seconds: int.tryParse(
+                root.getJson<String>('videoDetails/lengthSeconds') ?? '') ??
+            0,
       );
 
   ///
   List<String> get videoKeywords =>
-      root
-          .get('videoDetails')
-          ?.getT<List<dynamic>>('keywords')
-          ?.cast<String>() ??
+      root.getJson<List<dynamic>>('videoDetails/keywords')?.cast<String>() ??
       const [];
 
   ///
   String get videoDescription =>
-      root.get('videoDetails')!.getT<String>('shortDescription')!;
+      root.getJson<String>('videoDetails/shortDescription') ?? '';
 
   ///
   int get videoViewCount =>
-      int.parse(root.get('videoDetails')!.getT<String>('viewCount')!);
+      int.tryParse(root.getJson<String>('videoDetails/viewCount') ?? '') ?? 0;
 
   ///
   String? get previewVideoId =>
-      root
-          .get('playabilityStatus')
-          ?.get('errorScreen')
-          ?.get('playerLegacyDesktopYpcTrailerRenderer')
-          ?.getT<String>('trailerVideoId') ??
+      root.getJson<String>(
+        'playabilityStatus/errorScreen/playerLegacyDesktopYpcTrailerRenderer/trailerVideoId',
+      ) ??
       Uri.splitQueryString(
-        root
-                .get('playabilityStatus')
-                ?.get('errorScreen')
-                ?.get('')
-                ?.get('ypcTrailerRenderer')
-                ?.getT<String>('playerVars') ??
+        root.getJson<String>(
+              'playabilityStatus/errorScreen//ypcTrailerRenderer/playerVars',
+            ) ??
             '',
       )['video_id'] ??
       root
-          .get('playabilityStatus')
-          ?.get("errorScreen")
-          ?.get("ypcTrailerRenderer")
-          ?.getT<String>("playerResponse")
+          .getJson<String>(
+            'playabilityStatus/errorScreen/ypcTrailerRenderer/playerResponse',
+          )
           // From https://github.com/Tyrrrz/YoutubeExplode
           // YouTube uses weird base64-like encoding here that I don't know how to deal with.
           // It's supposed to have JSON inside, but if extracted as is, it contains garbage.
@@ -104,55 +92,58 @@ class PlayerResponse {
           ?.nullIfWhitespace;
 
   ///
-  bool get isLive => root.get('videoDetails')?.getT<bool>('isLive') ?? false;
+  bool get isLive => root.getJson<bool>('videoDetails/isLive') ?? false;
 
   ///
   String? get hlsManifestUrl =>
-      root.get('streamingData')?.getT<String>('hlsManifestUrl');
+      root.getJson<String>('streamingData/hlsManifestUrl');
 
   ///
   String? get dashManifestUrl =>
-      root.get('streamingData')?.getT<String>('dashManifestUrl');
+      root.getJson<String>('streamingData/dashManifestUrl');
+
+  // FORK PATCH (loudnessDb): Harmony normalizes playback volume per track.
+  // InnerTube carries this per *video*, not per format, so reading it off a
+  // format entry yields null for every stream and normalization silently
+  // degrades to a fixed attenuation. Threaded into each _StreamInfo below.
+  late final double? loudnessDb =
+      (root.getJson<num>('playerConfig/audioConfig/loudnessDb') ??
+              root.getJson<num>('playerConfig/audioConfig/perceptualLoudnessDb'))
+          ?.toDouble();
 
   ///
   late final List<StreamInfoProvider> muxedStreams = root
-          .get('streamingData')
-          ?.getList('formats')
-          ?.map((e) => _StreamInfo(e, StreamSource.muxed))
+          .getJson<List<dynamic>>('streamingData/formats')
+          ?.map((e) => _StreamInfo(e as JsonMap, StreamSource.muxed, loudnessDb))
           .toList() ??
       const <StreamInfoProvider>[];
 
   ///
   late final List<StreamInfoProvider> adaptiveStreams = root
-          .get('streamingData')
-          ?.getList('adaptiveFormats')
-          ?.map((e) => e.getT<String>("mimeType")!.contains("audio")
-              ? _StreamInfo(e, StreamSource.adaptive)
-              : null)
-          .whereType<StreamInfoProvider>()
+          .getJson<List<dynamic>>('streamingData/adaptiveFormats')
+          ?.map((e) => _StreamInfo(e as JsonMap, StreamSource.adaptive, loudnessDb))
           .toList() ??
       const [];
 
   ///
   late final List<StreamInfoProvider> streams = [
-    // ignore muxed streams for now
-    //...muxedStreams,
+    ...muxedStreams,
     ...adaptiveStreams,
   ];
 
   ///
   late final List<ClosedCaptionTrack> closedCaptionTrack = root
-          .get('captions')
-          ?.get('playerCaptionsTracklistRenderer')
-          ?.getList('captionTracks')
-          ?.map((e) => ClosedCaptionTrack(e))
+          .getJson<List<dynamic>>(
+            'captions/playerCaptionsTracklistRenderer/captionTracks',
+          )
+          ?.map((e) => ClosedCaptionTrack(e as JsonMap))
           .cast<ClosedCaptionTrack>()
           .toList() ??
       const [];
 
   ///
   late final String? videoPlayabilityError =
-      root.get('playabilityStatus')?.getT<String>('reason');
+      root.getJson<String>('playabilityStatus/reason');
 
   PlayerResponse(this.root);
 
@@ -166,23 +157,40 @@ class ClosedCaptionTrack {
   final JsonMap root;
 
   ///
-  String get url => root.getT<String>('baseUrl')!;
+  String get url => root.getT<String>('baseUrl') ?? '';
 
   ///
-  String get languageCode => root.getT<String>('languageCode')!;
+  String get languageCode => root.getT<String>('languageCode') ?? '';
 
   ///
-  String? get languageName => root.get('name')!.getT<String>('simpleText');
+  String? get languageName => root.getJson<String>('name/simpleText');
 
   ///
   bool get autoGenerated =>
-      root.getT<String>('vssId')!.toLowerCase().startsWith('a.');
+      root.getT<String>('vssId')?.toLowerCase().startsWith('a.') ?? false;
 
   ///
   ClosedCaptionTrack(this.root);
 }
 
 class _StreamInfo extends StreamInfoProvider {
+  // FORK PATCH (loudnessDb): prefer the per-video value from
+  // playerConfig/audioConfig, falling back to a per-format key if a client
+  // ever supplies one. Null means "unknown", which the app treats as
+  // "do not normalize" rather than as 0 dB.
+  @override
+  late final double? loudnessDb =
+      _videoLoudnessDb ??
+      double.tryParse(root.getT('loudnessDb')?.toString() ?? '');
+
+  final double? _videoLoudnessDb;
+
+  // FORK PATCH (duration): carried into the cached stream JSON as
+  // `approxDurationMs`. Upstream does not expose it.
+  @override
+  late final int? duration =
+      int.tryParse(root.getT<String>('approxDurationMs') ?? '');
+
   static final _contentLenExp = RegExp(r'[\?&]clen=(\d+)');
 
   /// Json parsed map
@@ -215,12 +223,13 @@ class _StreamInfo extends StreamInfoProvider {
       Uri.splitQueryString(root.getT<String>('signatureCipher') ?? '')['sp'];
 
   @override
-  late final int tag = root.getT<int>('itag')!;
+  late final int tag = root.getT<int>('itag') ?? 0;
 
   @override
   late final String url = root.getT<String>('url') ??
       Uri.splitQueryString(root.getT<String>('cipher') ?? '')['url'] ??
-      Uri.splitQueryString(root.getT<String>('signatureCipher') ?? '')['url']!;
+      Uri.splitQueryString(root.getT<String>('signatureCipher') ?? '')['url'] ??
+      '';
 
   @override
   late final String? videoCodec = isAudioOnly
@@ -243,18 +252,24 @@ class _StreamInfo extends StreamInfoProvider {
   late final bool isAudioOnly = codec.type == 'audio';
 
   @override
-  late final MediaType codec = _getMimeType()!;
+  late final MediaType codec =
+      _getMimeType() ?? MediaType('application', 'octet-stream');
 
   @override
   late final AudioTrack? audioTrack = () {
     if (root.containsKey('audioTrack')) {
-      final audioTrack = root.get('audioTrack')!;
-      return AudioTrack(
-        displayName: audioTrack.getT<String>('displayName')!,
-        id: audioTrack.getT<String>('id')!,
-        audioIsDefault: audioTrack.getT<bool>('audioIsDefault')!,
-      );
+      final name = root.getJson<String>('audioTrack/displayName');
+      final id = root.getJson<String>('audioTrack/id');
+      final isDefault = root.getJson<bool>('audioTrack/audioIsDefault');
+      if (name != null && id != null && isDefault != null) {
+        return AudioTrack(
+          displayName: name,
+          id: id,
+          audioIsDefault: isDefault,
+        );
+      }
     }
+    return null;
   }();
 
   MediaType? _getMimeType() {
@@ -282,17 +297,9 @@ class _StreamInfo extends StreamInfoProvider {
   }
 
   @override
-  late final loudnessDb =
-      double.tryParse(root.getT('loudnessDb')?.toString() ?? "");
-
-  @override
-  late final duration =
-      int.tryParse(root.getT<String>('approxDurationMs') ?? "");
-
-  @override
   final StreamSource source;
 
-  _StreamInfo(this.root, this.source);
+  _StreamInfo(this.root, this.source, [this._videoLoudnessDb]);
 }
 
 extension PipeExt<T extends Object?> on T {

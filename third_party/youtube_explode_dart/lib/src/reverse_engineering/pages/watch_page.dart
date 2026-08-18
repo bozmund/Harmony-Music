@@ -38,7 +38,9 @@ class WatchPage extends YoutubePage<WatchPageInitialData> {
         .querySelectorAll('script')
         .map((e) => e.attributes['src'])
         .nonNulls
-        .firstWhereOrNull((e) => e.contains('player_ias') && e.endsWith('.js'));
+        .firstWhereOrNull((e) =>
+            (e.contains('player_ias') || e.contains('player_es6')) &&
+            e.endsWith('.js'));
     if (url == null) {
       return null;
     }
@@ -183,11 +185,11 @@ class WatchPlayerConfig implements PlayerConfigBase {
 
   @override
   late final String sourceUrl =
-      'https://youtube.com${root.get('assets')!.getT<String>('js')}';
+      'https://youtube.com${root.getJson<String>('assets/js')}';
 
   ///
   late final PlayerResponse playerResponse =
-      PlayerResponse.parse(root.get('args')!.getT<String>('playerResponse')!);
+      PlayerResponse.parse(root.getJson<String>('args/playerResponse')!);
 }
 
 class WatchPageInitialData extends InitialData {
@@ -198,39 +200,28 @@ class WatchPageInitialData extends InitialData {
 
   int? _getLikes() {
     if (root['contents'] != null) {
-      final topLevelButtons = root
-          .get('contents')
-          ?.get('twoColumnWatchNextResults')
-          ?.get('results')
-          ?.get('results')
-          ?.getList('contents')
-          ?.firstWhereOrNull((e) => e['videoPrimaryInfoRenderer'] != null)
-          ?.get('videoPrimaryInfoRenderer')
-          ?.get('videoActions')
-          ?.get('menuRenderer')
-          ?.getList('topLevelButtons');
+      final contents = root.getJson<List<dynamic>>(
+        'contents/twoColumnWatchNextResults/results/results/contents',
+      );
+      final primaryInfo = contents?.firstWhereOrNull(
+          (e) => e['videoPrimaryInfoRenderer'] != null) as JsonMap?;
+      final topLevelButtons = primaryInfo?.getJson<List<dynamic>>(
+        'videoPrimaryInfoRenderer/videoActions/menuRenderer/topLevelButtons',
+      );
 
       if (topLevelButtons == null) {
         return null;
       }
 
-      final likes = topLevelButtons
-              .elementAtOrNull(0)
-              ?.get('segmentedLikeDislikeButtonViewModel')
-              ?.get('likeButtonViewModel')
-              ?.get('likeButtonViewModel')
-              ?.get('toggleButtonViewModel')
-              ?.get('toggleButtonViewModel')
-              ?.get('defaultButtonViewModel')
-              ?.get('buttonViewModel')
-              ?.getT<String>('accessibilityText') ??
-          topLevelButtons
-              .firstWhereOrNull((e) => e['toggleButtonRenderer'] != null)
-              ?.get('toggleButtonRenderer')
-              ?.get('defaultText')
-              ?.get('accessibility')
-              ?.get('accessibilityData')
-              ?.getT<String>('label');
+      final likes =
+          (topLevelButtons.elementAtOrNull(0) as JsonMap?)?.getJson<String>(
+                'segmentedLikeDislikeButtonViewModel/likeButtonViewModel/likeButtonViewModel/toggleButtonViewModel/toggleButtonViewModel/defaultButtonViewModel/buttonViewModel/accessibilityText',
+              ) ??
+              (topLevelButtons.firstWhereOrNull(
+                      (e) => e['toggleButtonRenderer'] != null) as JsonMap?)
+                  ?.getJson<String>(
+                'toggleButtonRenderer/defaultText/accessibility/accessibilityData/label',
+              );
 
       return likes.parseInt();
     }
@@ -239,27 +230,50 @@ class WatchPageInitialData extends InitialData {
 
   int? _getDislikes() {
     if (root['contents'] != null) {
-      final likes = root
-          .get('contents')
-          ?.get('twoColumnWatchNextResults')
-          ?.get('results')
-          ?.get('results')
-          ?.getList('contents')
-          ?.firstWhereOrNull((e) => e['videoPrimaryInfoRenderer'] != null)
-          ?.get('videoPrimaryInfoRenderer')
-          ?.get('videoActions')
-          ?.get('menuRenderer')
-          ?.getList('topLevelButtons')
-          ?.where((e) => e['toggleButtonRenderer'] != null)
-          .elementAtSafe(1)
-          ?.get('toggleButtonRenderer')
-          ?.get('defaultText')
-          ?.get('accessibility')
-          ?.get('accessibilityData')
-          ?.getT<String>('label');
+      final contents = root.getJson<List<dynamic>>(
+        'contents/twoColumnWatchNextResults/results/results/contents',
+      );
+      final primaryInfo = contents?.firstWhereOrNull(
+          (e) => e['videoPrimaryInfoRenderer'] != null) as JsonMap?;
+      final topLevelButtons = primaryInfo?.getJson<List<dynamic>>(
+        'videoPrimaryInfoRenderer/videoActions/menuRenderer/topLevelButtons',
+      );
+      final likes = (topLevelButtons
+              ?.where((e) => e['toggleButtonRenderer'] != null)
+              .elementAtSafe(1) as JsonMap?)
+          ?.getJson<String>(
+        'toggleButtonRenderer/defaultText/accessibility/accessibilityData/label',
+      );
 
       return likes.parseInt();
     }
     return null;
+  }
+
+  List<MusicData>? getMusicData() {
+    final panels = root.getJson<List<dynamic>>('engagementPanels');
+    final section = panels?.firstWhereOrNull((e) =>
+        e['engagementPanelSectionListRenderer'] != null &&
+        e['engagementPanelSectionListRenderer']['panelIdentifier'] ==
+            'engagement-panel-structured-description') as JsonMap?;
+    final items = section?.getJson<List<dynamic>>(
+      'engagementPanelSectionListRenderer/content/structuredDescriptionContentRenderer/items',
+    );
+    final cardList =
+        items?.firstWhereOrNull((e) => e['horizontalCardListRenderer'] != null)
+            as JsonMap?;
+    final cards = cardList?.getJson<List<dynamic>>(
+      'horizontalCardListRenderer/cards',
+    );
+    return cards
+        ?.map((e) => (e as JsonMap).getJson<JsonMap>('videoAttributeViewModel'))
+        .nonNulls
+        .map((e) => (
+              song: e.getT<String>('title'),
+              artist: e.getT<String>('subtitle'),
+              album: e.getJson<String>('secondarySubtitle/content'),
+              image: e.getJson<String>('image/sources/0/url')?.toUri()
+            ))
+        .toList();
   }
 }

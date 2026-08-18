@@ -63,7 +63,7 @@ class HomeScreenController extends ChangeNotifier {
 
   Future<void> init() async {
     _listenForAudioEvents();
-    await _settingsScreenController().clearCachedUpdateApks();
+    await _settingsScreenController().clearCachedUpdateInstallers();
     await loadContent();
     // Ask the release's one-time question (e.g. the 6.0.0 channel choice)
     // before checking for updates: the answer decides which channel the
@@ -424,6 +424,9 @@ class HomeScreenController extends ChangeNotifier {
   /// and completes when it is dismissed. If the navigator isn't ready yet
   /// the prompt simply stays unanswered and shows on the next launch.
   Future<void> _maybeShowReleasePrompt() async {
+    // Hosted web builds always follow stable releases and do not support a
+    // user-selectable installer/update channel.
+    if (kIsWeb) return;
     final prompt = currentReleasePrompt;
     if (prompt == null) return;
     if (_settingsRepository.isReleasePromptAnswered(prompt.id)) return;

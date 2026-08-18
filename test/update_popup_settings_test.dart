@@ -73,6 +73,20 @@ void main() {
       expect('downloadAndInstallUpdate'.allMatches(updateDialog).length, 2);
     });
 
+    test('Windows updates download and launch the installer in-app', () {
+      final downloadBlock = _methodBlock(
+        settingsController,
+        'downloadAndInstallUpdate',
+      );
+
+      expect(downloadBlock, contains('RuntimePlatform.isWindows'));
+      expect(downloadBlock, contains('_isWindowsInstallerUrl'));
+      expect(downloadBlock, contains('launchWindowsInstaller'));
+      expect(downloadBlock, contains("customAction('saveSession')"));
+      expect(downloadBlock, contains('restartApp()'));
+      expect(downloadBlock, contains('if (!isWindowsUpdate)'));
+    });
+
     test('dismissing after disabling the popup opens the update section', () {
       // When the user turns off the startup popup and dismisses, they must
       // be shown where updates can still be checked manually, otherwise a

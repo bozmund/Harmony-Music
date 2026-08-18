@@ -73,10 +73,12 @@ Object? _canonical(Object? value) {
 }
 
 String stableFingerprint(String input) {
-  var hash = 0xcbf29ce484222325;
+  var hash = BigInt.parse('14695981039346656037');
+  final prime = BigInt.parse('1099511628211');
+  final mask = BigInt.parse('9223372036854775807');
   for (final unit in input.codeUnits) {
-    hash ^= unit;
-    hash = (hash * 0x100000001b3) & 0x7fffffffffffffff;
+    hash ^= BigInt.from(unit);
+    hash = (hash * prime) & mask;
   }
   return hash.toRadixString(16).padLeft(16, '0');
 }

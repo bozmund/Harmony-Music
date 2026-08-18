@@ -46,8 +46,11 @@ class AudioOnlyStreamInfo with StreamInfo, AudioStreamInfo {
   @override
   final AudioTrack? audioTrack;
 
+  // FORK PATCH (loudnessDb): Harmony normalizes playback volume per track.
   final double loudnessDb;
 
+  // FORK PATCH (duration): carried into the cached stream JSON as
+  // `approxDurationMs`. Upstream does not expose it.
   final int? duration;
 
   AudioOnlyStreamInfo(
@@ -62,8 +65,7 @@ class AudioOnlyStreamInfo with StreamInfo, AudioStreamInfo {
       this.fragments,
       this.codec,
       this.audioTrack,
-      this.loudnessDb,
-      this.duration);
+      [this.loudnessDb = 0.0, this.duration]);
 
   @override
   String toString() =>

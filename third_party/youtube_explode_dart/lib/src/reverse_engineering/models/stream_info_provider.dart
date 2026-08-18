@@ -7,6 +7,14 @@ enum StreamSource { muxed, adaptive, dash, hls }
 
 ///
 abstract class StreamInfoProvider {
+  // FORK PATCH (loudnessDb): Harmony normalizes playback volume per track.
+  // Upstream does not expose it; without it every track plays at its own level.
+  double? get loudnessDb => null;
+
+  // FORK PATCH (duration): carried into the cached stream JSON as
+  // `approxDurationMs`. Upstream does not expose it.
+  int? get duration => null;
+
   ///
   static final RegExp contentLenExp = RegExp(r'clen=(\d+)');
 
@@ -69,8 +77,4 @@ abstract class StreamInfoProvider {
   bool get videoOnly => false;
 
   int? get audioItag => null;
-
-  double? get loudnessDb => null;
-
-  int? get duration => null;
 }

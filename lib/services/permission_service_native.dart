@@ -1,0 +1,33 @@
+import 'package:permission_handler/permission_handler.dart';
+
+import '/native_bindings/andrid_utils.dart';
+import '../utils/platform_utils.dart';
+
+class PermissionService {
+  static Future<bool> getExtStoragePermission() async {
+    if (isDesktopPlatform) {
+      return true;
+    }
+    if (SDKInt.Companion.sDKInt < 30) {
+      var status = await Permission.storage.status;
+      if (status.isDenied) {
+        await [
+          Permission.storage,
+          Permission.accessMediaLocation,
+          Permission.mediaLibrary,
+        ].request();
+      }
+
+      if (await Permission.storage.isPermanentlyDenied) {
+        await openAppSettings();
+      }
+
+      return (await Permission.storage.status).isGranted;
+    }
+    if (!await Permission.manageExternalStorage.isGranted) {
+      final permission = await Permission.manageExternalStorage.request();
+      return permission.isGranted;
+    }
+    return true;
+  }
+}

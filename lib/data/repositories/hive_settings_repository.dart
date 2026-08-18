@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 
 import '../../domain/repositories/settings_repository.dart';
@@ -18,14 +19,16 @@ class HiveSettingsRepository implements SettingsRepository {
       _box.put(PrefKeys.currentAppLanguageCode, value);
 
   @override
-  UpdateChannel getUpdateChannel() =>
-      (_box.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
-      ? UpdateChannel.rolling
-      : UpdateChannel.stable;
+  UpdateChannel getUpdateChannel() {
+    if (kIsWeb) return UpdateChannel.stable;
+    return (_box.get(PrefKeys.updateChannel) ?? 'stable') == 'rolling'
+        ? UpdateChannel.rolling
+        : UpdateChannel.stable;
+  }
 
   @override
   Future<void> setUpdateChannel(UpdateChannel value) =>
-      _box.put(PrefKeys.updateChannel, value.name);
+      _box.put(PrefKeys.updateChannel, kIsWeb ? 'stable' : value.name);
 
   @override
   bool isReleasePromptAnswered(String promptId) {
