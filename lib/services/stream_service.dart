@@ -19,15 +19,19 @@ class StreamProvider {
     final yt = YoutubeExplode();
 
     try {
-      // VISIONOS first, and in practice only. Every other client's URLs are
-      // now proof-of-origin gated: they extract fine, then 403 the moment a
-      // player asks for the whole file. androidSdkless stays as a fallback so
-      // a VISIONOS breakage degrades to the old behaviour rather than to
-      // nothing, and because the manifest dedupes by itag with the first
-      // client winning, its streams never displace working ones.
+      // VISIONOS only. Every other client's URLs are now proof-of-origin
+      // gated: they extract fine, then 403 the moment a player asks for the
+      // whole file.
+      //
+      // Listing a second client as a "fallback" was a mistake — this loop has
+      // no early exit. It runs every client given, each wrapped in a 5-attempt
+      // retry, so a gated client costs a full player-response fetch plus a
+      // 403'd HEAD *and its retries* on every single song, roughly doubling
+      // resolve time. It could not have helped either: the only thing a gated
+      // client can return is URLs that do not play.
       final res = await yt.videos.streamsClient.getManifest(
         videoId,
-        ytClients: [YoutubeApiClient.visionos, YoutubeApiClient.androidSdkless],
+        ytClients: [YoutubeApiClient.visionos],
       );
       final audio = res.audioOnly;
       if (audio.isEmpty) {

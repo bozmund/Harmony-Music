@@ -85,14 +85,18 @@ void _clientSelection() {
     expect(fork, contains("'clientName': 'VISIONOS'"));
     expect(service, contains('YoutubeApiClient.visionos'));
 
-    final visionosAt = service.indexOf('YoutubeApiClient.visionos');
-    final fallbackAt = service.indexOf('YoutubeApiClient.androidSdkless');
-    expect(visionosAt, greaterThan(-1));
+    // Exactly one client. getManifest has no early exit: it runs every client
+    // in the list, each with a 5-attempt retry, so adding a gated one as a
+    // "fallback" just pays for a doomed round trip on every song.
     expect(
-      visionosAt,
-      lessThan(fallbackAt),
-      reason: 'the manifest dedupes by itag with the first client winning, so '
-          'VISIONOS must come first or gated URLs displace working ones',
+      service.contains('YoutubeApiClient.androidSdkless'),
+      isFalse,
+      reason: 'a gated client can only return URLs that do not play',
+    );
+    expect(
+      RegExp(r'YoutubeApiClient\.\w+').allMatches(service).length,
+      1,
+      reason: 'every extra client costs a full resolve per song',
     );
   });
 }
