@@ -46,9 +46,18 @@ jobs:
       - name: Check for unused files and code
         # Blocking: the codebase is clean as of 6.0.0, so any finding is new
         # dead code introduced by the PR. Generated bindings are excluded.
+        #
+        # `*_native.dart` is excluded from the *code* check only. Those files
+        # are the native half of a `export 'x_stub.dart' if (dart.library.io)
+        # 'x_native.dart'` triad, and the linter resolves the default branch —
+        # so it sees the stub's class as used and reports the identically named
+        # native one as dead, on every platform-split service. They stay in the
+        # unused-*files* check, which follows the export and finds them fine.
+        # The cost is that genuinely dead code inside a native half goes
+        # unreported; they are thin platform shims, which makes that acceptable.
         run: |
           dart run dart_code_linter:metrics check-unused-files lib --exclude "lib/native_bindings/**"
-          dart run dart_code_linter:metrics check-unused-code lib --exclude "lib/native_bindings/**"
+          dart run dart_code_linter:metrics check-unused-code lib --exclude "{lib/native_bindings/**,lib/**/*_native.dart}"
 
       - name: Test
         run: flutter test
