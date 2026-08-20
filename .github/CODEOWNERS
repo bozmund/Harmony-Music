@@ -1,0 +1,12 @@
+# Every change needs @bozmund's approval before it can merge.
+#
+# The `Protect main` ruleset already sets `require_code_owner_review: true`,
+# but that rule is inert without this file — with no owners defined there is no
+# code-owner review to require, so any collaborator's approval satisfied it.
+#
+# This is also what makes auto-merge safe to leave enabled repository-wide.
+# GitHub has no per-user auto-merge permission: anyone with write access can
+# turn it on. Auto-merge does not skip reviews though — it waits for them — so
+# gating the review here means nothing reaches main without @bozmund, whoever
+# queued it.
+* @bozmund
