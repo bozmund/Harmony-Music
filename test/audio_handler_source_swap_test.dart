@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _resolutionFailuresAreDiagnosable();
   group('audio handler source swaps', () {
     late String source;
 
@@ -876,4 +877,39 @@ bool _loadsThenClearsLoadingThenEmitsStarted(String block) {
   );
 
   return emitStartedIndex != -1;
+}
+
+/// Resolution failures must name themselves.
+void _resolutionFailuresAreDiagnosable() {
+  final handler = File('lib/services/audio_handler.dart').readAsStringSync();
+
+  test('every resolution failure records its cause', () {
+    // Both race arms and the resolver path report the same opaque
+    // `resolverPlaybackFailed` status, so without this a rate limit, an
+    // unplayable video and a dropped connection are indistinguishable in the
+    // field — which cost a round trip of state dumps to diagnose once.
+    expect(handler, contains('void _recordResolutionFailure('));
+    expect(
+      RegExp(r'_recordResolutionFailure\(').allMatches(handler).length,
+      greaterThanOrEqualTo(4),
+      reason: 'the resolver path and both race arms must all report',
+    );
+    expect(
+      handler,
+      isNot(contains('} catch (_) {\r\n        failed();')),
+      reason: 'a race arm must not swallow its cause',
+    );
+  });
+
+  test('the recorder survives release builds', () {
+    // printERROR returns immediately when kReleaseMode, and release is exactly
+    // where these failures get reported from.
+    final at = handler.indexOf('void _recordResolutionFailure(');
+    final body = handler.substring(at, at + 700);
+    expect(
+      body,
+      contains('CrashDiagnosticsService.instance.recordLog'),
+      reason: 'printERROR alone is a no-op in release',
+    );
+  });
 }

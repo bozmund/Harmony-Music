@@ -2727,6 +2727,36 @@ class MyAudioHandler extends BaseAudioHandler {
     _resolverSources.clear();
   }
 
+  /// Records *why* a resolution attempt failed.
+  ///
+  /// Both branches of the race report failure through the same opaque
+  /// `resolverPlaybackFailed` status, so by the time anything is user-visible
+  /// a rate limit, an unplayable video, a dropped connection and a 403 are
+  /// indistinguishable. Working out that YouTube was merely rate limiting the
+  /// device took a round trip of state dumps that this line would have
+  /// answered on its own.
+  ///
+  /// Deliberately goes through `recordLog` rather than only `printERROR`:
+  /// `printERROR` returns immediately in release builds, which is exactly
+  /// where these failures are reported from.
+  void _recordResolutionFailure(
+    String songId,
+    String branch,
+    Object? cause,
+    StackTrace? stackTrace,
+  ) {
+    final message = '$branch resolution failed for $songId: $cause';
+    CrashDiagnosticsService.instance.recordLog(
+      'error',
+      LogTags.audioHandler,
+      message,
+    );
+    printERROR(message, tag: LogTags.audioHandler);
+    if (stackTrace != null) {
+      printWarning(stackTrace.toString(), tag: LogTags.audioHandler);
+    }
+  }
+
   Future<HMStreamingData> _resolveWithResolver(String songId) async {
     await _resetResolverSources();
     final cancellation = ResolverOpenCancellation();
@@ -2741,7 +2771,13 @@ class MyAudioHandler extends BaseAudioHandler {
         );
       }
       return _resolverStreamInfo(songId, source);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      // Every distinct cause — rate limiting, an unplayable video, a network
+      // drop, a 403 — collapses into one opaque status by the time it reaches
+      // the UI. Without this line a failure is indistinguishable from any
+      // other, which has already cost a round trip of state dumps to work out
+      // that YouTube was simply rate limiting the device.
+      _recordResolutionFailure(songId, 'resolver', error, stackTrace);
       return HMStreamingData(
         playable: false,
         statusMSG: 'resolverPlaybackFailed',
@@ -2820,9 +2856,11 @@ class MyAudioHandler extends BaseAudioHandler {
           }
           completer.complete(result);
         } else if (!result.playable) {
+          _recordResolutionFailure(songId, 'local', result.statusMSG, null);
           failed();
         }
-      } catch (_) {
+      } catch (error, stackTrace) {
+        _recordResolutionFailure(songId, 'local', error, stackTrace);
         failed();
       }
     }());
@@ -2844,7 +2882,8 @@ class MyAudioHandler extends BaseAudioHandler {
           _activeResolverCancellation = null;
         }
         completer.complete(_resolverStreamInfo(songId, source));
-      } catch (_) {
+      } catch (error, stackTrace) {
+        _recordResolutionFailure(songId, 'resolver', error, stackTrace);
         if (identical(_activeResolverCancellation, cancellation)) {
           _activeResolverCancellation = null;
         }
