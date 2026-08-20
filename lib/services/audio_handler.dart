@@ -1501,18 +1501,23 @@ class MyAudioHandler extends BaseAudioHandler {
         _activePlaybackTrace?.firstEncodedByte(source: _currentPlaybackSource);
         return source.withTag(mediaItem);
       }
-      // Falling through would hand just_audio `resolver:///<id>` verbatim —
-      // a scheme no platform player understands, surfacing as an opaque
-      // source error. A miss is reachable: _resetResolverSources() clears the
-      // whole map and runs at the top of both resolver entry points,
-      // including from the preload path, so preparing the next song can drop
-      // a source this one has not consumed yet.
+      // A miss is reachable: _resetResolverSources() clears the whole map and
+      // runs at the top of both resolver entry points, including from the
+      // preload path, so preparing the next song can drop a source this one
+      // has not consumed yet.
+      //
+      // Deliberately falls through rather than throwing. This method is
+      // synchronous, so it cannot re-resolve here, and it is called *outside*
+      // the try that wraps _loadCurrentSourceFromStartAndPlay — the one whose
+      // catch fetches a fresh URL. Throwing therefore skips the recovery and
+      // lands in the outer handler, stopping the player outright. Falling
+      // through lets the load fail where the retry can see it, which recovers
+      // and plays. Logged because the miss itself is worth knowing about.
       printWarning(
         'Resolver source for ${mediaItem.id} was gone before playback; '
-        're-resolving instead of handing the player a resolver:// URI',
+        'falling through so the load retry can re-resolve it',
         tag: LogTags.audioHandler,
       );
-      throw StateError('resolver source unavailable for ${mediaItem.id}');
     }
     final cacheSongsEnabled = _settingsRepository.getCacheSongs();
     final trace = _activePlaybackTrace;

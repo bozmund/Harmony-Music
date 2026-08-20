@@ -7,9 +7,24 @@ import '../../utils/helper.dart';
 import 'common_dialog_widget.dart';
 
 class NewVersionDialog extends ConsumerWidget {
-  const NewVersionDialog({super.key, required this.updateInfo});
+  const NewVersionDialog({
+    super.key,
+    required this.updateInfo,
+    this.fromStartupCheck = true,
+  });
 
   final UpdateInfo updateInfo;
+
+  /// Whether this dialog appeared on its own at launch, rather than because
+  /// the user asked for it in Settings.
+  ///
+  /// The "don't show this again" checkbox governs the *startup* popup only.
+  /// Showing it on a dialog the user deliberately opened is misleading twice
+  /// over: it reads as "don't show this dialog", and it renders pre-ticked for
+  /// anyone who has already turned the startup popup off — which looks like the
+  /// dialog silently opting itself out. Same for the dismiss handler's jump to
+  /// Settings, which is pointless when the user is already there.
+  final bool fromStartupCheck;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -76,24 +91,25 @@ class NewVersionDialog extends ConsumerWidget {
                 );
               },
             ),
-            Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedBuilder(
-                    animation: homeController,
-                    builder: (context, _) => Checkbox(
-                      value: !homeController.showVersionDialog,
-                      onChanged: (val) {
-                        homeController.onChangeVersionVisibility(val ?? false);
-                      },
-                      shape: const CircleBorder(),
+            if (fromStartupCheck)
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedBuilder(
+                      animation: homeController,
+                      builder: (context, _) => Checkbox(
+                        value: !homeController.showVersionDialog,
+                        onChanged: (val) {
+                          homeController.onChangeVersionVisibility(val ?? false);
+                        },
+                        shape: const CircleBorder(),
+                      ),
                     ),
-                  ),
-                  Flexible(child: Text(context.l10n.dontShowInfoAgain)),
-                ],
+                    Flexible(child: Text(context.l10n.dontShowInfoAgain)),
+                  ],
+                ),
               ),
-            ),
             Padding(
               padding: const EdgeInsets.only(bottom: 20, top: 6),
               child: AnimatedBuilder(
@@ -122,6 +138,7 @@ class NewVersionDialog extends ConsumerWidget {
                         // unnoticed. The checkbox reflects showVersionDialog,
                         // so a false value means the popup was disabled.
                         final disabledStartupPopup =
+                            fromStartupCheck &&
                             !homeController.showVersionDialog;
                         Navigator.of(context).pop();
                         if (disabledStartupPopup) {

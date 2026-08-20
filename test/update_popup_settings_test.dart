@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _startupOnlyCheckbox();
   group('settings update popup behavior', () {
     late String homeController;
     late String settingsController;
@@ -176,4 +177,35 @@ int _methodBodyStart(String source, int methodStart) {
     }
   }
   return -1;
+}
+
+/// The "don't show again" checkbox governs the startup popup only.
+void _startupOnlyCheckbox() {
+  final dialog = File('lib/ui/widgets/new_version_dialog.dart').readAsStringSync();
+  final settings = File(
+    'lib/ui/screens/Settings/settings_screen_controller.dart',
+  ).readAsStringSync();
+
+  test('the startup-popup checkbox is hidden on a manual update check', () {
+    // Opened from Settings it reads as "don't show this dialog", and it renders
+    // pre-ticked for anyone who already turned the startup popup off — which
+    // looks like the dialog opting itself out.
+    expect(dialog, contains('this.fromStartupCheck = true'));
+    expect(
+      dialog,
+      contains('if (fromStartupCheck)'),
+      reason: 'the checkbox must be conditional, not always rendered',
+    );
+  });
+
+  test('Settings opens the dialog as a manual check', () {
+    expect(settings, contains('fromStartupCheck: false'));
+  });
+
+  test('dismiss only redirects to Settings from the startup popup', () {
+    // Sending the user to Settings is pointless when they opened this there.
+    final at = dialog.indexOf('final disabledStartupPopup');
+    expect(at, greaterThan(-1));
+    expect(dialog.substring(at, at + 160), contains('fromStartupCheck &&'));
+  });
 }

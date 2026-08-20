@@ -455,7 +455,8 @@ class SettingsScreenController extends ChangeNotifier
       if (!context.mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (context) => NewVersionDialog(updateInfo: info),
+        builder: (context) =>
+            NewVersionDialog(updateInfo: info, fromStartupCheck: false),
       );
     } else {
       if (!context.mounted) return;
