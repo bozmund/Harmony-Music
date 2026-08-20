@@ -186,14 +186,26 @@ void _playbackCorrectness() {
     expect(fork, contains('playerConfig/audioConfig/loudnessDb'));
   });
 
-  test('a missing resolver source never reaches the player as a URI', () {
-    // Falling through handed just_audio `resolver:///<id>`, a scheme no
-    // platform player understands.
+  test('a missing resolver source stays recoverable', () {
+    // This block must NOT throw. _createAudioSource runs outside the try that
+    // wraps _loadCurrentSourceFromStartAndPlay — the catch that fetches a
+    // fresh URL — so throwing here skips the retry entirely and stops the
+    // player instead of recovering. Falling through lets the load fail where
+    // the retry can see it.
     final block = handler.substring(
       handler.indexOf("if (url.startsWith('resolver://'))"),
       handler.indexOf('final cacheSongsEnabled ='),
     );
-    expect(block, contains('throw StateError'));
+    expect(
+      block,
+      isNot(contains('throw ')),
+      reason: 'throwing here bypasses the fresh-URL retry',
+    );
+    expect(
+      block,
+      contains('printWarning'),
+      reason: 'a dropped resolver source should still be visible in logs',
+    );
   });
 
   test('an empty format list is not reported as playable', () {
