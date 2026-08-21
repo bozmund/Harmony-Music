@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _resolverGetsAHeadStart();
   _resolutionFailuresAreDiagnosable();
   group('audio handler source swaps', () {
     late String source;
@@ -911,5 +912,44 @@ void _resolutionFailuresAreDiagnosable() {
       contains('CrashDiagnosticsService.instance.recordLog'),
       reason: 'printERROR alone is a no-op in release',
     );
+  });
+}
+
+/// The Resolver is asked first; local extraction is the fallback.
+void _resolverGetsAHeadStart() {
+  final handler = File('lib/services/audio_handler.dart').readAsStringSync();
+  final race = handler.substring(
+    handler.indexOf('Future<HMStreamingData> _raceOnlineResolvers('),
+    handler.indexOf('Future<HMStreamingData> _resolveLocalOnline('),
+  );
+
+  test('local extraction does not start until the head start elapses', () {
+    // Racing both unconditionally cost a watch-page fetch and a player-API
+    // call against YouTube for every online song, including tracks the
+    // Resolver already held and could serve without touching YouTube — double
+    // the request volume, and volume is what gets an IP rate limited.
+    expect(handler, contains('_resolverHeadStart = Duration('));
+    expect(race, contains('await Future<void>.delayed(_resolverHeadStart)'));
+    expect(
+      race,
+      isNot(contains('final local = _resolveLocalOnline(songId);')),
+      reason: 'starting it eagerly is the thing being fixed',
+    );
+  });
+
+  test('a resolver failure starts local extraction immediately', () {
+    // The head start spares a *working* Resolver a duplicate request. When it
+    // fails there is nothing to spare, and `failed()` cannot reach two until
+    // local extraction has had its turn — so waiting it out would stall.
+    expect(
+      RegExp(r'unawaited\(runLocalExtraction\(\)\);').allMatches(race).length,
+      2,
+      reason: 'both resolver failure paths must hand over',
+    );
+  });
+
+  test('local extraction runs at most once', () {
+    // Two failure paths and the head start can all reach for it.
+    expect(race, contains('if (localStarted || completer.isCompleted) return;'));
   });
 }

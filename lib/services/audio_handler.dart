@@ -2843,12 +2843,29 @@ class MyAudioHandler extends BaseAudioHandler {
       }
     }
 
-    final local = _resolveLocalOnline(songId);
     final resolver = _openResolver(songId, cancellation);
 
-    unawaited(() async {
+    // Local extraction is the fallback, not a co-equal racer.
+    //
+    // Starting it unconditionally meant every online song cost a watch-page
+    // fetch and a player-API call against YouTube from this device — even for
+    // tracks the Resolver already held and could serve from its own storage
+    // without touching YouTube at all. Roughly double the request volume for
+    // no benefit, and request volume is what gets an IP rate limited, which is
+    // exactly what took playback down.
+    //
+    // So the Resolver gets a head start. A track it already holds comes back
+    // well inside it and local extraction never runs. Only a Resolver that is
+    // slow (a cold ingestion) or failing pays for the fallback — precisely
+    // when the fallback is worth having.
+    var localStarted = false;
+    Future<void> runLocalExtraction() async {
+      // Guarded rather than scheduled once: the head start and the resolver's
+      // failure paths can both reach for this, and it must run at most once.
+      if (localStarted || completer.isCompleted) return;
+      localStarted = true;
       try {
-        final result = await local;
+        final result = await _resolveLocalOnline(songId);
         if (result.playable && !completer.isCompleted) {
           cancellation.cancel();
           if (identical(_activeResolverCancellation, cancellation)) {
@@ -2863,6 +2880,11 @@ class MyAudioHandler extends BaseAudioHandler {
         _recordResolutionFailure(songId, 'local', error, stackTrace);
         failed();
       }
+    }
+
+    unawaited(() async {
+      await Future<void>.delayed(_resolverHeadStart);
+      await runLocalExtraction();
     }());
     unawaited(() async {
       try {
@@ -2871,6 +2893,10 @@ class MyAudioHandler extends BaseAudioHandler {
           if (identical(_activeResolverCancellation, cancellation)) {
             _activeResolverCancellation = null;
           }
+          // Do not sit out the rest of the head start. It exists to spare a
+          // *working* Resolver the duplicate request, and `failed()` cannot
+          // reach two until local extraction has had its turn.
+          unawaited(runLocalExtraction());
           failed();
           return;
         }
@@ -2887,6 +2913,7 @@ class MyAudioHandler extends BaseAudioHandler {
         if (identical(_activeResolverCancellation, cancellation)) {
           _activeResolverCancellation = null;
         }
+        unawaited(runLocalExtraction());
         failed();
       }
     }());
@@ -2916,6 +2943,15 @@ class MyAudioHandler extends BaseAudioHandler {
   /// The point at which a race in which neither branch reported back is given
   /// up on. Above the resolver's own 30s ingestion poll, so a cold track it is
   /// still fetching is never cut off by this.
+  /// How long the Resolver gets before local extraction joins in.
+  ///
+  /// Long enough that a track the Resolver already holds is served without
+  /// this device touching YouTube at all, short enough that a cold ingestion
+  /// still falls back quickly. A cached Resolver hit returns well under a
+  /// second; local extraction alone measured 2.5-3s, so waiting this long
+  /// costs a stalled Resolver very little.
+  static const _resolverHeadStart = Duration(seconds: 2);
+
   static const _onlineResolveTimeout = Duration(seconds: 45);
 
   /// How long the app's own extraction may take before it forfeits the race.

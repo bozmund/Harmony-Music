@@ -12,20 +12,20 @@ void main() {
   late String fullPlayer;
 
   setUpAll(() {
-    player = File('lib/ui/player/player_controller.dart').readAsStringSync();
+    player = File('lib/ui/player/player_controller.dart').readAsStringSync().withUnixNewlines;
     receiver = File(
       'lib/services/cloud/cloud_playback_receiver.dart',
-    ).readAsStringSync();
-    audioHandler = File('lib/services/audio_handler.dart').readAsStringSync();
+    ).readAsStringSync().withUnixNewlines;
+    audioHandler = File('lib/services/audio_handler.dart').readAsStringSync().withUnixNewlines;
     playbackCommands = File(
       'lib/services/playback_command_service.dart',
-    ).readAsStringSync();
+    ).readAsStringSync().withUnixNewlines;
     miniPlayer = File(
       'lib/ui/player/components/mini_player.dart',
-    ).readAsStringSync();
+    ).readAsStringSync().withUnixNewlines;
     fullPlayer = File(
       'lib/ui/player/components/player_control.dart',
-    ).readAsStringSync();
+    ).readAsStringSync().withUnixNewlines;
   });
 
   test('remote selections enter loading before their network command', () {
@@ -344,8 +344,8 @@ void main() {
     final start = _methodBlock(receiver, '_startPlayback');
     final metadata = File(
       'lib/services/metadata/song_metadata_service.dart',
-    ).readAsStringSync();
-    final music = File('lib/services/music_service.dart').readAsStringSync();
+    ).readAsStringSync().withUnixNewlines;
+    final music = File('lib/services/music_service.dart').readAsStringSync().withUnixNewlines;
 
     // Everything the user can see on the audio target clears in _startPlayback's
     // `finally`, so every await inside it has to be bounded or the device sits
@@ -396,7 +396,7 @@ void main() {
   test('resolved metadata replaces a placeholder for the same song id', () {
     final observable = File(
       'lib/utils/observable_state.dart',
-    ).readAsStringSync();
+    ).readAsStringSync().withUnixNewlines;
     final assign = _methodBlock(player, '_setCurrentSongAndRefreshFavorite');
     final duration = _methodBlock(player, '_listenForChangesInDuration');
 
@@ -679,4 +679,12 @@ int _methodBodyStart(String source, int methodStart) {
     }
   }
   return -1;
+}
+
+/// Source assertions in this file match on LF. Git checks these files out with
+/// CRLF on Windows (`core.autocrlf=true`), so a literal read makes every
+/// multi-line needle miss — the assertion then fails on the developer's machine
+/// and passes in CI, which is the worst way for a test to be wrong.
+extension _UnixNewlines on String {
+  String get withUnixNewlines => replaceAll('\r\n', '\n');
 }
