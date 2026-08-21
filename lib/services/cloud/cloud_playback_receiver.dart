@@ -953,7 +953,55 @@ class CloudPlaybackReceiver {
     // selection's debounced session update reaches the server.
   }
 
+  /// Guards against a burst of song changes firing overlapping claims.
+  bool _claimInFlight = false;
+
+  /// Advertises this device as the audio target for what it is already
+  /// playing, so another device can subscribe to it as a remote.
+  ///
+  /// Without this a device playing on its own publishes nothing: every publish
+  /// path is gated on being the target, and the only way to become the target
+  /// used to be accepting a handoff. So there was never a session to join.
+  Future<void> _claimSessionForLocalPlayback() async {
+    if (_isEngaged || _claimInFlight) return;
+    if (!_cloud.shareNowPlaying) return;
+    final queue = _local.queue;
+    if (queue.isEmpty) return;
+    _claimInFlight = true;
+    try {
+      // The index the queue is actually sitting on. Deriving it from the
+      // current song rather than tracking a separate counter keeps this
+      // correct across shuffle, which reorders the queue underneath.
+      final current = _local.currentSong;
+      final index = current == null
+          ? 0
+          : queue.indexWhere((item) => item.id == current.id).clamp(0, queue.length - 1);
+      final sessionId = await _cloud.claimPlaybackSession(
+        state: _commands.sessionState(queue: queue, index: index),
+      );
+      // Null is a refusal, not an error: another device legitimately owns the
+      // session, or the server predates the endpoint. Either way this device
+      // keeps playing, just without advertising.
+      if (sessionId == null) return;
+      _isAudioTarget = true;
+      _startProgressPublishing();
+      _scheduleStatePublish();
+    } catch (error, stackTrace) {
+      CrashDiagnosticsService.instance.record(
+        'cloud-playback',
+        'claiming a session for local playback failed: $error',
+        stackTrace: stackTrace,
+      );
+    } finally {
+      _claimInFlight = false;
+    }
+  }
+
   void _onLocalSongChanged(MediaItem? item) {
+    // A song starting here is the moment there is something worth advertising.
+    if (!_isAudioTarget && item != null) {
+      unawaited(_claimSessionForLocalPlayback());
+    }
     if (_isAudioTarget && item != null) {
       final pendingSongId = _targetSongIdOverride;
       // A song tapped directly on the target supersedes any handoff placeholder

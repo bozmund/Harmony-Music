@@ -1367,4 +1367,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get findingSimilarSongs => 'Finding similar songs…';
+
+  @override
+  String get shareNowPlaying => 'Share what I’m playing';
+
+  @override
+  String get shareNowPlayingDescription =>
+      'Let your other devices see this device’s playback and control it.';
+
+  @override
+  String get controlThisDevice => 'Control this device';
+
+  @override
+  String get nothingPlayingThere => 'Nothing is playing there';
+
+  @override
+  String get playingHere => 'Playing here';
+
+  @override
+  String nowControllingDevice(String deviceName) {
+    return 'Now controlling $deviceName';
+  }
 }

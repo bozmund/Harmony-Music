@@ -214,6 +214,22 @@ class SettingsScreen extends ConsumerWidget {
                           title: Text(context.l10n.deviceControl),
                           subtitle: Text(context.l10n.deviceControlDescription),
                         ),
+                      if (authController.isAuthenticated)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          leading: const Icon(Icons.podcasts_outlined),
+                          title: Text(context.l10n.shareNowPlaying),
+                          subtitle: Text(
+                            context.l10n.shareNowPlayingDescription,
+                          ),
+                          trailing: CustomSwitch(
+                            value: authController.shareNowPlaying,
+                            onChanged: authController.setShareNowPlaying,
+                          ),
+                        ),
                     ],
                   ),
                   if (settingsController.developerSettingsEnabled.value)

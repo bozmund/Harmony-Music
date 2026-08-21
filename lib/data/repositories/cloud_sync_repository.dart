@@ -114,10 +114,22 @@ class CloudSyncRepository {
     PrefKeys.songsShowUnlikedDownloads,
     PrefKeys.songsIncludeCached,
     PrefKeys.unlikedDownloadNoticeDismissed,
+    // Whether a device advertises what it is playing is that device's own
+    // disclosure to make. Syncing it would let switching it on here switch it
+    // on everywhere, opting other devices into broadcasting without anyone
+    // agreeing to it there.
+    PrefKeys.shareNowPlaying,
   };
 
   bool get enabled => _prefs.get(PrefKeys.cloudSyncEnabled) == true;
   bool get optInAnswered => _prefs.get(PrefKeys.cloudOptInAnswered) == true;
+
+  /// Off by default: advertising what you are playing is a disclosure, so it
+  /// is opted into rather than out of.
+  bool get shareNowPlaying => _prefs.get(PrefKeys.shareNowPlaying) == true;
+
+  Future<void> setShareNowPlaying(bool value) =>
+      _prefs.put(PrefKeys.shareNowPlaying, value);
   String get deviceId {
     final current = _prefs.get(PrefKeys.cloudDeviceId)?.toString();
     if (current != null && current.isNotEmpty) return current;

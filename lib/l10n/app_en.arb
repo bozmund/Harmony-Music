@@ -439,4 +439,11 @@
   ,"sessionExpiredMessage": "You have been signed out. Sync is paused until you sign back in."
   ,"dismiss": "Dismiss"
   ,"findingSimilarSongs": "Finding similar songs…"
+  ,"shareNowPlaying": "Share what I’m playing"
+  ,"shareNowPlayingDescription": "Let your other devices see this device’s playback and control it."
+  ,"controlThisDevice": "Control this device"
+  ,"nothingPlayingThere": "Nothing is playing there"
+  ,"playingHere": "Playing here"
+  ,"nowControllingDevice": "Now controlling {deviceName}"
+  ,"@nowControllingDevice": {"placeholders": {"deviceName": {"type": "String"}}}
 }
