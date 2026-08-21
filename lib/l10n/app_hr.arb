@@ -439,4 +439,11 @@
   ,"sessionExpiredMessage": "Odjavljen si. Sinkronizacija je pauzirana dok se ponovno ne prijaviš."
   ,"dismiss": "Odbaci"
   ,"findingSimilarSongs": "Tražim slične pjesme…"
+  ,"shareNowPlaying": "Dijeli što sluhšam"
+  ,"shareNowPlayingDescription": "Dopusti drugim uređajima da vide reprodukciju na ovom uređaju i upravljaju njome."
+  ,"controlThisDevice": "Upravljaj ovim uređajem"
+  ,"nothingPlayingThere": "Ondje se ništa ne reproducira"
+  ,"playingHere": "Reproducira se ovdje"
+  ,"nowControllingDevice": "Upravljate uređajem {deviceName}"
+  ,"@nowControllingDevice": {"placeholders": {"deviceName": {"type": "String"}}}
 }

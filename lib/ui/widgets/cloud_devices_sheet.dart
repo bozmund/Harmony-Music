@@ -8,6 +8,7 @@ import '../../app/providers/controller_providers.dart';
 import '../../l10n/l10n.dart';
 import '../../app/providers/service_providers.dart';
 import '../../services/cloud/harmony_cloud_client.dart';
+import 'snackbar.dart';
 import '../player/player_controller.dart';
 import 'awaitable_button.dart';
 
@@ -130,7 +131,7 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                         // The exit affordance: your own row, while synced.
                         ? context.l10n.tapToLeaveSync
                         : device.isAudioTarget
-                        ? 'Playing here'
+                        ? context.l10n.playingHere
                         : _presenceLabel(context, device.presence),
                   ),
                   // A handoff is not instant: the target has to resolve the
@@ -143,14 +144,38 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : !device.isCurrentDevice
-                      ? AwaitableIconButton(
-                          key: ValueKey('remove-device-${device.deviceId}'),
-                          tooltip: context.l10n.removeDevice,
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed:
-                              _handingOffTo == null && _removingDeviceId == null
-                              ? () => _removeDevice(context, device)
-                              : null,
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Tapping the row sends this device's queue there.
+                            // This does the opposite: subscribe to what that
+                            // device is already playing and control it, with
+                            // the audio staying put. Only offered when there is
+                            // something to subscribe to, and only while this
+                            // device is idle — joining must never interrupt
+                            // music already playing here.
+                            if (device.isAudioTarget && _canReceive(ref))
+                              AwaitableIconButton(
+                                key: ValueKey('receive-${device.deviceId}'),
+                                tooltip: context.l10n.controlThisDevice,
+                                icon: const Icon(Icons.settings_remote_outlined),
+                                onPressed:
+                                    _handingOffTo == null &&
+                                        _removingDeviceId == null
+                                    ? () => _receive(context, device)
+                                    : null,
+                              ),
+                            AwaitableIconButton(
+                              key: ValueKey('remove-device-${device.deviceId}'),
+                              tooltip: context.l10n.removeDevice,
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed:
+                                  _handingOffTo == null &&
+                                      _removingDeviceId == null
+                                  ? () => _removeDevice(context, device)
+                                  : null,
+                            ),
+                          ],
                         )
                       : null,
                   enabled:
@@ -170,6 +195,38 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
       ),
     ),
   );
+
+  /// Whether this device can subscribe to another device's playback.
+  ///
+  /// Only while nothing is playing here. Joining parks this device's own
+  /// handler and drives every observable from the wire, so offering it
+  /// mid-song would mean the button silently stops your music.
+  bool _canReceive(WidgetRef ref) =>
+      ref.read(playerControllerProvider).currentSong.value == null;
+
+  /// Subscribe to what another device is playing and control it from here.
+  ///
+  /// The mirror image of [_handoff]: nothing is sent, nothing changes on the
+  /// other device, and the audio stays there. Engaging is all that is needed —
+  /// the snapshot and progress frames are already arriving and were being
+  /// discarded only because this device had neither accepted nor initiated a
+  /// handoff.
+  Future<void> _receive(BuildContext context, CloudPlaybackDevice device) async {
+    final commands = ref.read(playbackCommandServiceProvider);
+    final receiver = ref.read(cloudPlaybackReceiverProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    final joined = context.l10n.nowControllingDevice(device.name);
+    commands.startRemoteControl(device.deviceId);
+    // Pull the current session rather than waiting for the target's next
+    // change: a device that has been playing steadily may not emit a snapshot
+    // for a while, and the player would sit empty until it did.
+    await receiver.refreshSession();
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+    messenger.showSnackBar(
+      snackbar(context, joined, size: SanckBarSize.MEDIUM),
+    );
+  }
 
   /// Tapping your own device row ends the shared session for every participant.
   /// Playback is paused on both devices before their roles are cleared.

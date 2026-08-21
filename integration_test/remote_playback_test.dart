@@ -933,6 +933,57 @@ void main() {
       reason: 'late work from the older command must not replace the queue',
     );
   });
+
+  testWidgets('a device playing on its own advertises itself as the target', (
+    _,
+  ) async {
+    // Without this there is nothing to join: publishing is gated on being the
+    // audio target, and the only way to become one used to be accepting a
+    // handoff, so a device playing alone was invisible to the account.
+    bridge.gateway('windows').shareNowPlaying = true;
+    await windowsAudio.updateQueue(_songs);
+    windowsAudio.mediaItem.add(_songs[1]);
+
+    await _waitUntil(
+      () => bridge.targetDeviceId == 'windows',
+      reason: 'playing locally should claim the session',
+    );
+    expect(
+      (bridge.sessionState?['queueIds'] as List?)?.length,
+      _songs.length,
+      reason: 'the queue has to travel or a subscriber has nothing to show',
+    );
+    expect(bridge.sessionState?['currentSongId'], _songs[1].id);
+  });
+
+  testWidgets('a device does not advertise while sharing is off', (_) async {
+    // Advertising what you are playing is a disclosure, so it is opted into.
+    expect(bridge.gateway('windows').shareNowPlaying, isFalse);
+    await windowsAudio.updateQueue(_songs);
+    windowsAudio.mediaItem.add(_songs.first);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    expect(bridge.targetDeviceId, isNull);
+    expect(bridge.sessionState, isNull);
+  });
+
+  testWidgets('a claim never takes the session from another device', (_) async {
+    // A device that merely started playing has no mandate to stop audio
+    // elsewhere, which is what silently retargeting would do.
+    bridge.sessionState = <String, dynamic>{'queueIds': <String>[]};
+    bridge.targetDeviceId = 'android';
+    bridge.gateway('windows').shareNowPlaying = true;
+
+    await windowsAudio.updateQueue(_songs);
+    windowsAudio.mediaItem.add(_songs.first);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    expect(
+      bridge.targetDeviceId,
+      'android',
+      reason: 'the device already producing audio keeps the session',
+    );
+  });
 }
 
 const _songs = [
@@ -1019,8 +1070,13 @@ class _PlaybackBridge {
   String? targetDeviceId;
   var _commandSequence = 0;
 
-  CloudPlaybackGateway gateway(String deviceId) =>
-      _BridgeGateway(this, deviceId);
+  final Map<String, _BridgeGateway> _gateways = {};
+
+  /// One gateway per device, memoized. A fresh instance per call would mean
+  /// per-device state — `shareNowPlaying` — set in a test never reaching the
+  /// receiver holding its own copy.
+  _BridgeGateway gateway(String deviceId) =>
+      _gateways.putIfAbsent(deviceId, () => _BridgeGateway(this, deviceId));
 
   PlaybackSocketTransport socket(String deviceId) {
     return _sockets.putIfAbsent(deviceId, () => _BridgeSocket(this, deviceId));
@@ -1031,6 +1087,28 @@ class _PlaybackBridge {
       if (frame['_sourceDeviceId'] == deviceId) return frame;
     }
     return null;
+  }
+
+  /// What the server does after a claim or a state write: tell every *other*
+  /// device a session exists and who owns the audio. This is the frame a
+  /// device subscribes to when it joins playback already in progress.
+  void broadcastSessionSnapshot({required String exceptDeviceId}) {
+    final state = sessionState;
+    final target = targetDeviceId;
+    if (state == null || target == null) return;
+    for (final entry in _sockets.entries) {
+      if (entry.key == exceptDeviceId) continue;
+      entry.value.addFrame({
+        'type': 'sessionSnapshot',
+        'sessionId': 'session-$target',
+        'targetDeviceId': target,
+        'sequence': 1,
+        'state': Map<String, Object?>.from(state),
+        'positionMs': state['positionMs'] ?? 0,
+        'playing': state['playing'] ?? false,
+        'currentSongId': state['currentSongId'],
+      });
+    }
   }
 
   void _sendCommand(
@@ -1075,6 +1153,27 @@ class _BridgeGateway implements CloudPlaybackGateway {
 
   @override
   final String deviceId;
+
+  /// Whether this fake device advertises what it is playing. Off by default,
+  /// matching the real preference, so existing scenarios are unaffected.
+  @override
+  bool shareNowPlaying = false;
+
+  @override
+  Future<String?> claimPlaybackSession({
+    required Map<String, Object?> state,
+  }) async {
+    // Mirrors the server: a claim never takes a session owned by someone else.
+    if (bridge.targetDeviceId != null && bridge.targetDeviceId != deviceId) {
+      return null;
+    }
+    bridge.sessionState = state;
+    bridge.targetDeviceId = deviceId;
+    // The broadcast is the point — it is what lets another device notice a
+    // session exists and subscribe to it.
+    bridge.broadcastSessionSnapshot(exceptDeviceId: deviceId);
+    return 'claimed-$deviceId';
+  }
 
   @override
   Future<void> acknowledgePlaybackCommand({

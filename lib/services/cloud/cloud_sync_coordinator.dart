@@ -43,6 +43,11 @@ class CloudSyncCoordinator implements CloudPlaybackGateway {
 
   bool get enabled => _repository.enabled;
   String get deviceId => _repository.deviceId;
+
+  bool get shareNowPlaying => _repository.shareNowPlaying;
+
+  Future<void> setShareNowPlaying(bool value) =>
+      _repository.setShareNowPlaying(value);
   bool get needsOptIn => !_repository.optInAnswered;
 
   /// Persists the opt-in and mirrors it to the server's per-device pause flag.
@@ -190,6 +195,13 @@ class CloudSyncCoordinator implements CloudPlaybackGateway {
   }) => _client.startPlaybackSession(
     sourceDeviceId: _repository.deviceId,
     targetDeviceId: targetDeviceId,
+    state: state,
+  );
+
+  Future<String?> claimPlaybackSession({
+    required Map<String, Object?> state,
+  }) => _client.claimPlaybackSession(
+    deviceId: _repository.deviceId,
     state: state,
   );
 

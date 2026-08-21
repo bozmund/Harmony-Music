@@ -122,6 +122,10 @@ class AuthController extends ChangeNotifier {
   bool get isAvailable => _service.isAvailable;
   bool get isAuthenticated => userProfile != null;
   bool get cloudSyncEnabled => _cloud.enabled;
+
+  /// Whether this device advertises what it is playing, so another device can
+  /// subscribe to it as a remote.
+  bool get shareNowPlaying => _cloud.shareNowPlaying;
   bool get needsCloudOptIn => isAuthenticated && _cloud.needsOptIn;
 
   /// The account this device's library belongs to, even while signed out.
@@ -251,6 +255,11 @@ class AuthController extends ChangeNotifier {
     // dismissal earlier in this run answered a different sign-out.
     sessionExpiredNoticeDismissed = false;
   });
+
+  Future<void> setShareNowPlaying(bool value) async {
+    await _cloud.setShareNowPlaying(value);
+    notifyListeners();
+  }
 
   Future<void> setCloudSyncEnabled(bool value) async {
     await _cloud.setEnabled(value);

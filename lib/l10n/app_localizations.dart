@@ -2659,6 +2659,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Finding similar songs…'**
   String get findingSimilarSongs;
+
+  /// No description provided for @shareNowPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Share what I’m playing'**
+  String get shareNowPlaying;
+
+  /// No description provided for @shareNowPlayingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Let your other devices see this device’s playback and control it.'**
+  String get shareNowPlayingDescription;
+
+  /// No description provided for @controlThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Control this device'**
+  String get controlThisDevice;
+
+  /// No description provided for @nothingPlayingThere.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing is playing there'**
+  String get nothingPlayingThere;
+
+  /// No description provided for @playingHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing here'**
+  String get playingHere;
+
+  /// No description provided for @nowControllingDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Now controlling {deviceName}'**
+  String nowControllingDevice(String deviceName);
 }
 
 class _AppLocalizationsDelegate

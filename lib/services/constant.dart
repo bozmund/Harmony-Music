@@ -93,6 +93,11 @@ class PrefKeys {
   static const String cloudSyncEnabled = 'cloudSyncEnabled';
   static const String cloudOptInAnswered = 'cloudOptInAnswered';
   static const String cloudDeviceId = 'cloudDeviceId';
+  /// Whether this device advertises what it is playing to the account, so
+  /// another device can subscribe to it as a remote. Named for the broader
+  /// purpose on purpose — a future "share with friends" feature reads the same
+  /// preference rather than adding a second, near-identical toggle.
+  static const String shareNowPlaying = 'shareNowPlaying';
   static const String cloudCheckpoint = 'cloudCheckpoint';
   static const String cloudDeviceSequence = 'cloudDeviceSequence';
   static const String cloudSyncSchemaVersion = 'cloudSyncSchemaVersion';
