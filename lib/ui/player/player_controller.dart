@@ -1217,9 +1217,18 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// when something actually changes.
   void _logSurface(String reason) {
     final song = currentSong.value;
+    // The handler's own view, not the controller's. Reading a spinner that
+    // vanishes early means asking which position tick cleared the pending
+    // start and what the player claimed at that moment — none of which was
+    // recorded, so a report of "loading is wrong" could not be answered
+    // without a second reproduction.
+    final playback = _audioHandler.playbackState.value;
     final line =
         'surface[$reason] loading=$isCurrentSongLoading '
         'button=${buttonState.value.name} '
+        'procState=${playback.processingState.name} '
+        'playerPlaying=${playback.playing} '
+        'updatePos=${playback.updatePosition.inMilliseconds} '
         'song=${song?.id} title="${song?.title}" artist="${song?.artist}" '
         'resolvingItem=${song == null ? null : MediaItemBuilder.isResolving(song)} '
         'resolvingFlag=$_currentSongResolving '
@@ -1280,6 +1289,22 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
             !_hasSourcePlaybackProgress(position)) {
           return;
         }
+        // This is where the spinner ends. Its three conditions are loose for a
+        // fresh tap — the expected start is zero, so any tick under ten seconds
+        // satisfies the position checks, and `transitionSeen` is set by *any*
+        // non-ready state including the `idle` left by tearing down the
+        // previous source. A tick belonging to the old source can therefore end
+        // the spinner while the new song is still resolving. Recording the tick
+        // that did it is what tells the two cases apart.
+        printINFO(
+          'sourceStart cleared by tick pos=${position.inMilliseconds} '
+          'expected=${_pendingPlaybackStartPosition.inMilliseconds} '
+          'procState=${playbackState.processingState.name} '
+          'playerPlaying=${playbackState.playing} '
+          'updatePos=${playbackState.updatePosition.inMilliseconds} '
+          'song=${currentSong.value?.id}',
+          tag: LogTags.cloudPlayback,
+        );
         _clearPendingSourceStart();
         _setButtonState(PlayButtonState.playing);
       }
