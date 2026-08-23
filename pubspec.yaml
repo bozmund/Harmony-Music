@@ -2,7 +2,7 @@ name: harmonymusic
 description: A cross platform app for music streaming.
 publish_to: "none"
 
-version: 6.2.4+37
+version: 6.3.0+38
 
 environment:
   sdk: ">=3.10.3 <4.0.0"
