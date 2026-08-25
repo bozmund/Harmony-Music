@@ -1,5 +1,7 @@
 # Phone joins playback already running on Windows
 
+**Devices:** Windows + Android
+
 ## Context
 
 Cross-device playback today only ever *pushes*. You open "Play on a device", tap another
