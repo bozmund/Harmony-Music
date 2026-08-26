@@ -716,7 +716,7 @@ class MyAudioHandler extends BaseAudioHandler {
     _remoteNotificationMirrorActive = false;
     _mediaItemBeforeRemoteNotification = null;
     _playbackStateBeforeRemoteNotification = null;
-    mediaItem.add(localItem);
+    if (localItem != null) mediaItem.add(localItem);
     if (localState != null) playbackState.add(localState);
   }
 

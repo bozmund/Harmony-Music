@@ -131,7 +131,10 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                         // The exit affordance: your own row, while synced.
                         ? context.l10n.tapToLeaveSync
                         : device.isAudioTarget
-                        ? context.l10n.playingHere
+                        // Tapping this row syncs with it instead of handing
+                        // over, so the row has to say which of the two it is.
+                        ? '${context.l10n.playingHere} - '
+                              '${context.l10n.controlThisDevice}'
                         : _presenceLabel(context, device.presence),
                   ),
                   // A handoff is not instant: the target has to resolve the
@@ -144,38 +147,14 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : !device.isCurrentDevice
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Tapping the row sends this device's queue there.
-                            // This does the opposite: subscribe to what that
-                            // device is already playing and control it, with
-                            // the audio staying put. Only offered when there is
-                            // something to subscribe to, and only while this
-                            // device is idle — joining must never interrupt
-                            // music already playing here.
-                            if (device.isAudioTarget && _canReceive(ref))
-                              AwaitableIconButton(
-                                key: ValueKey('receive-${device.deviceId}'),
-                                tooltip: context.l10n.controlThisDevice,
-                                icon: const Icon(Icons.settings_remote_outlined),
-                                onPressed:
-                                    _handingOffTo == null &&
-                                        _removingDeviceId == null
-                                    ? () => _receive(context, device)
-                                    : null,
-                              ),
-                            AwaitableIconButton(
-                              key: ValueKey('remove-device-${device.deviceId}'),
-                              tooltip: context.l10n.removeDevice,
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed:
-                                  _handingOffTo == null &&
-                                      _removingDeviceId == null
-                                  ? () => _removeDevice(context, device)
-                                  : null,
-                            ),
-                          ],
+                      ? AwaitableIconButton(
+                          key: ValueKey('remove-device-${device.deviceId}'),
+                          tooltip: context.l10n.removeDevice,
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed:
+                              _handingOffTo == null && _removingDeviceId == null
+                              ? () => _removeDevice(context, device)
+                              : null,
                         )
                       : null,
                   enabled:
@@ -187,6 +166,13 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                       ? null
                       : device.isCurrentDevice
                       ? () => _leaveSync(context)
+                      // One gesture, two meanings, decided by the other end: a
+                      // device already playing is joined, a device that is not
+                      // is handed to. Both park playback here and leave this
+                      // device driving the target as a remote; the only
+                      // difference is whether a queue travels.
+                      : device.isAudioTarget
+                      ? () => _join(context, device)
                       : () => _handoff(context, device),
                 ),
             ],
@@ -196,33 +182,37 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
     ),
   );
 
-  /// Whether this device can subscribe to another device's playback.
+  /// Sync with what another device is already playing, and drive it from here.
   ///
-  /// Only while nothing is playing here. Joining parks this device's own
-  /// handler and drives every observable from the wire, so offering it
-  /// mid-song would mean the button silently stops your music.
-  bool _canReceive(WidgetRef ref) =>
-      ref.read(playerControllerProvider).currentSong.value == null;
-
-  /// Subscribe to what another device is playing and control it from here.
+  /// The same gesture and the same outcome as [_handoff] - playback parks here
+  /// and this device becomes the remote - minus the transfer. Nothing is sent
+  /// and the other device carries on untouched.
   ///
-  /// The mirror image of [_handoff]: nothing is sent, nothing changes on the
-  /// other device, and the audio stays there. Engaging is all that is needed —
-  /// the snapshot and progress frames are already arriving and were being
-  /// discarded only because this device had neither accepted nor initiated a
-  /// handoff.
-  Future<void> _receive(BuildContext context, CloudPlaybackDevice device) async {
+  /// Engaging is all it takes: the snapshot and progress frames are already
+  /// arriving and were being discarded only because this device had neither
+  /// accepted nor initiated a handoff.
+  Future<void> _join(BuildContext context, CloudPlaybackDevice device) async {
+    final player = ref.read(playerControllerProvider);
     final commands = ref.read(playbackCommandServiceProvider);
     final receiver = ref.read(cloudPlaybackReceiverProvider);
     final messenger = ScaffoldMessenger.of(context);
     final joined = context.l10n.nowControllingDevice(device.name);
+    setState(() => _handingOffTo = device.deviceId);
+    // Whatever is loaded here is about to be driven from the wire, so stop it
+    // first. Without this the two devices play over each other.
+    await player.pause();
     commands.startRemoteControl(device.deviceId);
     // Pull the current session rather than waiting for the target's next
     // change: a device that has been playing steadily may not emit a snapshot
     // for a while, and the player would sit empty until it did.
     await receiver.refreshSession();
+    if (mounted) setState(() => _handingOffTo = null);
     if (!context.mounted) return;
-    Navigator.of(context).pop();
+    // Only dismiss while this sheet is still the top route - same reasoning as
+    // the handoff path, where popping blind blacked out the app.
+    if (ModalRoute.of(context)?.isCurrent ?? false) {
+      Navigator.of(context).pop();
+    }
     messenger.showSnackBar(
       snackbar(context, joined, size: SanckBarSize.MEDIUM),
     );

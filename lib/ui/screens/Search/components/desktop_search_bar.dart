@@ -71,55 +71,59 @@ class DesktopSearchBar extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.only(top: 10.0),
-          child: Container(
-            decoration: BoxDecoration(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 0, maxHeight: 300),
+            // Material rather than a bare decoration: ListTile paints its
+            // background and ink splashes onto the nearest Material ancestor,
+            // so a DecoratedBox here would hide the suggestion row splashes.
+            child: Material(
               color: Theme.of(context).colorScheme.secondary,
               borderRadius: BorderRadius.circular(20),
-            ),
-            constraints: const BoxConstraints(minHeight: 0, maxHeight: 300),
-            child: Builder(
-              builder: (context) {
-                final isHistoryString =
-                    searchScreenController.textInputController.text.isEmpty &&
-                    searchScreenController.suggestionList.isEmpty;
-                final listToShow = isHistoryString
-                    ? searchScreenController.historyQueryList
-                    : searchScreenController.suggestionList;
-                return searchScreenController.urlPasted
-                    ? InkWell(
-                        onTap: () async {
-                          await searchScreenController.filterLinks(
-                            Uri.parse(
-                              searchScreenController.textInputController.text,
-                            ),
-                          );
-                          searchScreenController.reset();
-                        },
-                        child: SizedBox(
-                          width: double.maxFinite,
-                          height: 50,
-                          child: Center(
-                            child: Text(
-                              context.l10n.urlSearchDes,
-                              style: Theme.of(context).textTheme.titleMedium,
+              clipBehavior: Clip.antiAlias,
+              child: Builder(
+                builder: (context) {
+                  final isHistoryString =
+                      searchScreenController.textInputController.text.isEmpty &&
+                      searchScreenController.suggestionList.isEmpty;
+                  final listToShow = isHistoryString
+                      ? searchScreenController.historyQueryList
+                      : searchScreenController.suggestionList;
+                  return searchScreenController.urlPasted
+                      ? InkWell(
+                          onTap: () async {
+                            await searchScreenController.filterLinks(
+                              Uri.parse(
+                                searchScreenController.textInputController.text,
+                              ),
+                            );
+                            searchScreenController.reset();
+                          },
+                          child: SizedBox(
+                            width: double.maxFinite,
+                            height: 50,
+                            child: Center(
+                              child: Text(
+                                context.l10n.urlSearchDes,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
                             ),
                           ),
-                        ),
-                      )
-                    : searchScreenController.isSearchBarInFocus &&
-                          listToShow.isNotEmpty
-                    ? ListView(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.all(5.0),
-                        children: listToShow.map((item) {
-                          return SearchItem(
-                            queryString: item,
-                            isHistoryString: isHistoryString,
-                          );
-                        }).toList(),
-                      )
-                    : const SizedBox.shrink();
-              },
+                        )
+                      : searchScreenController.isSearchBarInFocus &&
+                            listToShow.isNotEmpty
+                      ? ListView(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.all(5.0),
+                          children: listToShow.map((item) {
+                            return SearchItem(
+                              queryString: item,
+                              isHistoryString: isHistoryString,
+                            );
+                          }).toList(),
+                        )
+                      : const SizedBox.shrink();
+                },
+              ),
             ),
           ),
         ),

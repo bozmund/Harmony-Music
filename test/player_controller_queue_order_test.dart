@@ -293,7 +293,8 @@ void main() {
         playerStateBlock,
         contains('_setButtonState(PlayButtonState.loading)'),
       );
-      expect(durationBlock, contains('_beginPendingSourceStart(mediaItem.id)'));
+      expect(durationBlock, contains('_beginPendingSourceStart('));
+      expect(durationBlock, contains('outgoingPosition: outgoingPosition'));
       expect(
         positionBlock,
         contains('_setButtonState(PlayButtonState.playing)'),
@@ -324,6 +325,51 @@ void main() {
       expect(restoredReadyBlock, isNot(contains('_isSourceStartPosition')));
     });
 
+    test('a ready-paused report at the outgoing position is not a start', () {
+      final restoredReadyBlock = _methodBlock(
+        source,
+        '_isReadyPausedPendingSource',
+      );
+      final outgoingBlock = _methodBlock(source, '_isOutgoingSourcePosition');
+      final beginBlock = _methodBlock(source, '_beginPendingSourceStart');
+      final durationBlock = _methodBlock(source, '_listenForChangesInDuration');
+      final clearBlock = _methodBlock(source, '_clearPendingSourceStart');
+
+      // Tapping a song while another is paused leaves the old source loaded
+      // and still reporting ready-paused at its own position, seconds before
+      // the new one is installed. Clearing on that drops the button to paused
+      // for the whole resolve.
+      expect(
+        restoredReadyBlock,
+        contains('!_isOutgoingSourcePosition(playbackState.updatePosition)'),
+      );
+
+      // Zero stays exempt, or a restore that prepares at zero would never
+      // clear and would pin the button on loading instead.
+      expect(
+        outgoingBlock,
+        contains(
+          'if (_pendingSourceOutgoingPosition <= Duration.zero) return false;',
+        ),
+      );
+      expect(outgoingBlock, contains('_outgoingSourcePositionTolerance'));
+
+      // The outgoing position must be read before the new media item
+      // overwrites it.
+      expect(
+        durationBlock,
+        contains('final outgoingPosition = progressBarStatus.value.current;'),
+      );
+      expect(
+        beginBlock,
+        contains('_pendingSourceOutgoingPosition = outgoingPosition;'),
+      );
+      expect(
+        clearBlock,
+        contains('_pendingSourceOutgoingPosition = Duration.zero;'),
+      );
+    });
+
     test('media item listener only clears lyrics when song changes', () {
       final block = _methodBlock(source, '_listenForChangesInDuration');
 
@@ -342,7 +388,7 @@ void main() {
         final block = _methodBlock(source, '_listenForChangesInDuration');
 
         expect(source, contains('String? _pendingPlaybackStartSongId;'));
-        expect(block, contains('_beginPendingSourceStart(mediaItem.id);'));
+        expect(block, contains('_beginPendingSourceStart('));
         expect(block, contains('val.current = isSameSong'));
         expect(block, contains(': Duration.zero;'));
         expect(

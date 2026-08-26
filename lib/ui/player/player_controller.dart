@@ -840,7 +840,9 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   var _disposed = false;
   var _playerChangeNotificationScheduled = false;
   static const _sourceStartProgressWindow = Duration(seconds: 10);
+  static const _outgoingSourcePositionTolerance = Duration(milliseconds: 500);
   Duration _pendingPlaybackStartPosition = Duration.zero;
+  Duration _pendingSourceOutgoingPosition = Duration.zero;
   String? _pendingPlaybackStartSongId;
   bool _pendingSourceTransitionObserved = false;
   final List<StreamSubscription<dynamic>> _observableSubscriptions = [];
@@ -1389,6 +1391,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
       final previousSongId = currentSong.value?.id;
       final isSameSong = previousSongId == mediaItem.id;
+      // Where the source being replaced stopped. Captured before the new
+      // item lands, because the old source keeps reporting this position
+      // until the new one is actually installed.
+      final outgoingPosition = progressBarStatus.value.current;
       printINFO(mediaItem.title, tag: LogTags.player);
       _newSongFlag = true;
       isCurrentSongBuffered.value = false;
@@ -1401,7 +1407,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         (element) => element.id == currentSong.value!.id,
       );
       if (!isSameSong) {
-        _beginPendingSourceStart(mediaItem.id);
+        _beginPendingSourceStart(
+          mediaItem.id,
+          outgoingPosition: outgoingPosition,
+        );
       }
       final nextTotal = mediaItem.duration ?? Duration.zero;
       progressBarStatus.update((val) {
@@ -1482,12 +1491,34 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   bool _isReadyPausedPendingSource(PlaybackState playbackState) {
     return _pendingSourceTransitionObserved &&
         playbackState.processingState == AudioProcessingState.ready &&
-        !playbackState.playing;
+        !playbackState.playing &&
+        !_isOutgoingSourcePosition(playbackState.updatePosition);
   }
 
-  void _beginPendingSourceStart(String songId) {
+  /// Whether a ready-paused report still belongs to the source being
+  /// replaced rather than to the pending one.
+  ///
+  /// Tapping a song while another is paused leaves the old source loaded and
+  /// still reporting ready-paused at its own position, seconds before the new
+  /// source is installed. Treating that as the pending source having landed
+  /// clears the pending start and drops the button to paused for the whole
+  /// resolve - the "player stopped" seen while a song is plainly loading.
+  ///
+  /// Zero is exempt: a restore that legitimately prepares at zero would
+  /// otherwise never clear and would pin the button on loading instead.
+  bool _isOutgoingSourcePosition(Duration position) {
+    if (_pendingSourceOutgoingPosition <= Duration.zero) return false;
+    return (position - _pendingSourceOutgoingPosition).abs() <=
+        _outgoingSourcePositionTolerance;
+  }
+
+  void _beginPendingSourceStart(
+    String songId, {
+    Duration outgoingPosition = Duration.zero,
+  }) {
     _pendingPlaybackStartSongId = songId;
     _pendingSourceTransitionObserved = false;
+    _pendingSourceOutgoingPosition = outgoingPosition;
     // Zero unless something told us this source resumes elsewhere.
     _pendingPlaybackStartPosition =
         _expectedSourceStartPosition ?? Duration.zero;
@@ -1546,6 +1577,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     _pendingPlaybackStartSongId = null;
     _pendingSourceTransitionObserved = false;
     _pendingPlaybackStartPosition = Duration.zero;
+    _pendingSourceOutgoingPosition = Duration.zero;
     _expectedSourceStartPosition = null;
   }
 
