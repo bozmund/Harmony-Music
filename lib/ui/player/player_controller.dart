@@ -1289,6 +1289,31 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         if (!_isReadySourceStart(playbackState) ||
             !_isSourceStartPosition(position) ||
             !_hasSourcePlaybackProgress(position)) {
+          // A tick arrived and was refused. Counting them separates a spinner
+          // stuck because no position ever ticked from one stuck because every
+          // tick failed a condition - identical from the outside, opposite
+          // causes. Logged once per second so a pinned spinner is explained
+          // without drowning the log at tick rate.
+          _sourceStartTicksSeen++;
+          _sourceStartLastRejectedPosition = position;
+          final now = DateTime.now();
+          final last = _sourceStartLastRejectionLoggedAt;
+          if (last == null ||
+              now.difference(last) >= const Duration(seconds: 1)) {
+            _sourceStartLastRejectionLoggedAt = now;
+            printINFO(
+              'sourceStart tick rejected pos=${position.inMilliseconds} '
+              'expected=${_pendingPlaybackStartPosition.inMilliseconds} '
+              'ready=${_isReadySourceStart(playbackState)} '
+              'inWindow=${_isSourceStartPosition(position)} '
+              'advanced=${_hasSourcePlaybackProgress(position)} '
+              'procState=${playbackState.processingState.name} '
+              'playerPlaying=${playbackState.playing} '
+              'updatePos=${playbackState.updatePosition.inMilliseconds} '
+              'ticks=$_sourceStartTicksSeen song=${currentSong.value?.id}',
+              tag: LogTags.cloudPlayback,
+            );
+          }
           return;
         }
         // This is where the spinner ends. Its three conditions are loose for a
@@ -1519,6 +1544,9 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     _pendingPlaybackStartSongId = songId;
     _pendingSourceTransitionObserved = false;
     _pendingSourceOutgoingPosition = outgoingPosition;
+    _sourceStartTicksSeen = 0;
+    _sourceStartLastRejectedPosition = null;
+    _sourceStartLastRejectionLoggedAt = null;
     // Zero unless something told us this source resumes elsewhere.
     _pendingPlaybackStartPosition =
         _expectedSourceStartPosition ?? Duration.zero;
@@ -1573,7 +1601,14 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     _sourceStartGuardPosition = position;
   }
 
+  int _sourceStartTicksSeen = 0;
+  Duration? _sourceStartLastRejectedPosition;
+  DateTime? _sourceStartLastRejectionLoggedAt;
+
   void _clearPendingSourceStart() {
+    _sourceStartTicksSeen = 0;
+    _sourceStartLastRejectedPosition = null;
+    _sourceStartLastRejectionLoggedAt = null;
     _pendingPlaybackStartSongId = null;
     _pendingSourceTransitionObserved = false;
     _pendingPlaybackStartPosition = Duration.zero;
@@ -1904,7 +1939,9 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// complete. Everything else means the document arrived and the parser choked
   /// on it, which no amount of retrying changes.
   static bool _isTransientLookupFailure(Object error) =>
-      error is DioException || error is SocketException || error is TimeoutException;
+      error is DioException ||
+      error is SocketException ||
+      error is TimeoutException;
 
   /// Fetches the watch playlist that turns a single tap into a real queue,
   /// retrying with backoff instead of surrendering on the first failure.
@@ -2755,6 +2792,18 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         'isWaitingForCurrentSourceStart': _isWaitingForCurrentSourceStart,
         'sourceStartProgressWindowMs':
             _sourceStartProgressWindow.inMilliseconds,
+        // What the start conditions are measured against. Without these a
+        // stuck spinner is indistinguishable from a position stream that
+        // never ticked.
+        'pendingPlaybackStartPositionMs':
+            _pendingPlaybackStartPosition.inMilliseconds,
+        'expectedSourceStartPositionMs':
+            _expectedSourceStartPosition?.inMilliseconds,
+        'pendingSourceOutgoingPositionMs':
+            _pendingSourceOutgoingPosition.inMilliseconds,
+        'sourceStartTicksSeen': _sourceStartTicksSeen,
+        'sourceStartLastRejectedPositionMs':
+            _sourceStartLastRejectedPosition?.inMilliseconds,
         'playerPanelMinHeight': playerPanelMinHeight.value,
         'playerPanelTopVisible': playerPanelTopVisible.value,
         'isPanelGTHOpened': playerPanelOpen.value,
