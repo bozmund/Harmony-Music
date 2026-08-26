@@ -40,6 +40,7 @@ final ChangeNotifierProvider<PlayerController> playerControllerProvider =
         playbackSessionRepository: ref.read(playbackSessionRepositoryProvider),
         musicService: ref.read(musicServiceContractProvider),
         playbackCommands: ref.read(playbackCommandServiceProvider),
+        heosCastController: ref.read(heosCastControllerProvider),
       );
       PlayerControllerRegistry.register(controller);
       unawaited(controller.init());

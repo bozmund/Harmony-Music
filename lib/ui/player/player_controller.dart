@@ -23,6 +23,8 @@ import '../../services/listen_together/session_message.dart';
 import '../../services/listen_together/session_payload.dart';
 import '../../services/cloud/playback_socket_client.dart';
 import '../../services/cloud/playback_modes.dart';
+import '../../services/heos/heos_cast_controller.dart';
+import '../../services/heos/heos_models.dart';
 import '../../services/playback_command_service.dart';
 import '../../services/previous_track_policy.dart';
 import '../../utils/runtime_platform.dart';
@@ -55,6 +57,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     required PlaybackSessionRepository playbackSessionRepository,
     required MusicServiceContract musicService,
     required PlaybackCommandService playbackCommands,
+    required HeosCastController heosCastController,
   }) : _audioHandler = audioHandler,
        _settingsController = settingsController,
        _homeScreenController = homeScreenController,
@@ -64,7 +67,8 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
        _lyricsRepository = lyricsRepository,
        _playbackSessionRepository = playbackSessionRepository,
        _musicServices = musicService,
-       _playbackCommands = playbackCommands;
+       _playbackCommands = playbackCommands,
+       heosCastController = heosCastController;
 
   final SettingsRepository _settingsRepository;
   final LibraryRepository _libraryRepository;
@@ -82,6 +86,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// instead of being executed locally. Null when no session is active.
   ListenTogetherGate? listenTogetherGate;
 
+  final HeosCastController heosCastController;
   final currentQueue = ObservableList<MediaItem>();
 
   final playerPaneOpacity = ObservableValue(1.0);
@@ -846,6 +851,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   String? _pendingPlaybackStartSongId;
   bool _pendingSourceTransitionObserved = false;
   final List<StreamSubscription<dynamic>> _observableSubscriptions = [];
+  VoidCallback? _heosListener;
 
   List<MediaItem> get displayQueue =>
       displayQueueFor(currentQueue, currentSongIndex.value);
@@ -986,6 +992,8 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     watchMap(lyrics);
     watchValue(buttonState);
     watchValue(isCurrentSongBuffered);
+    _heosListener = _handleHeosStateChanged;
+    heosCastController.addListener(_heosListener!);
   }
 
   void _notifyPlayerChanged() {
@@ -1127,6 +1135,14 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         } else {
           _setButtonState(PlayButtonState.playing);
         }
+      }
+
+      if (heosCastController.isConnected) {
+        _setButtonState(
+          heosCastController.isPlaying
+              ? PlayButtonState.playing
+              : PlayButtonState.paused,
+        );
       }
 
       // Keep the screen awake whenever playback is active and the setting is enabled.
@@ -1854,7 +1870,12 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     );
     try {
       unawaited(_playerPanelCheck());
-      await _playbackCommands.setSourceAndPlay(mediaItem);
+      if (heosCastController.isConnected) {
+        await _playbackCommands.updateQueue([mediaItem]);
+        await _playQueueIndex(0);
+      } else {
+        await _playbackCommands.setSourceAndPlay(mediaItem);
+      }
     } catch (_) {
       failRemoteSongTransition(remoteTransition);
       rethrow;
@@ -1915,14 +1936,78 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       await _playbackCommands.updateQueue(mediaItems);
       if (isShuffleModeEnabled.value) {
         await _playbackCommands.shuffleFromIndex(index);
-        await _playbackCommands.playByIndex(0);
+        await _playQueueIndex(0);
         return;
       }
-      await _playbackCommands.playByIndex(index);
+      await _playQueueIndex(index);
     } catch (_) {
       failRemoteSongTransition(remoteTransition);
       rethrow;
     }
+  }
+
+  Future<void> _playQueueIndex(int index) async {
+    if (!heosCastController.isConnected) {
+      await _playbackCommands.playByIndex(index);
+      return;
+    }
+    await _castQueueIndex(index);
+  }
+
+  Future<void> _castQueueIndex(int index) async {
+    if (currentQueue.isEmpty || index < 0 || index >= currentQueue.length) {
+      return;
+    }
+    final song = currentQueue[index];
+    currentSong.value = song;
+    currentSongIndex.value = index;
+    await _audioHandler.customAction("updateMediaItemInAudioService", {
+      "index": index,
+    });
+    await heosCastController.cast(song);
+    _markHeosPlaybackStarted(song);
+  }
+
+  void _markHeosPlaybackStarted(MediaItem song) {
+    _clearPendingSourceStart();
+    currentSong.value = song;
+    currentSongIndex.value = currentQueue.indexWhere(
+      (element) => element.id == song.id,
+    );
+    progressBarStatus.update((value) {
+      value.current = Duration.zero;
+      value.buffered = Duration.zero;
+      value.total = song.duration ?? value.total;
+    });
+    _setButtonState(PlayButtonState.playing);
+    unawaited(_updateCurrentSongSideEffects(song));
+  }
+
+  void _handleHeosStateChanged() {
+    if (heosCastController.isConnected) {
+      _setButtonState(
+        heosCastController.isPlaying
+            ? PlayButtonState.playing
+            : PlayButtonState.paused,
+      );
+    }
+    _notifyPlayerChanged();
+  }
+
+  int _nextQueueIndexForHeos() {
+    if (currentQueue.isEmpty) return currentSongIndex.value;
+    final currentIndex = currentSongIndex.value;
+    if (currentIndex < currentQueue.length - 1) return currentIndex + 1;
+    return isQueueLoopModeEnabled.value ? 0 : currentIndex;
+  }
+
+  int _previousQueueIndexForHeos() {
+    if (currentQueue.isEmpty) return currentSongIndex.value;
+    final currentIndex = currentSongIndex.value;
+    if (currentIndex > 0) return currentIndex - 1;
+    return isQueueLoopModeEnabled.value
+        ? currentQueue.length - 1
+        : currentIndex;
   }
 
   Future<void> startRadio(MediaItem? mediaItem, {String? playlistId}) async {
@@ -2237,6 +2322,20 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> play() async {
     if (_routeToHost(SessionCommand.play())) return;
+    if (heosCastController.isConnected) {
+      if (heosCastController.isPlaying) return;
+      final song = currentSong.value;
+      if (song == null) return;
+      if (heosCastController.status == HeosCastStatus.connected ||
+          heosCastController.status == HeosCastStatus.error) {
+        await heosCastController.cast(song);
+        _markHeosPlaybackStarted(song);
+        return;
+      }
+      await heosCastController.play();
+      _setButtonState(PlayButtonState.playing);
+      return;
+    }
     await _playbackCommands.play();
   }
 
@@ -2246,6 +2345,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> pause() async {
     if (_routeToHost(SessionCommand.pause())) return;
+    if (heosCastController.isConnected) {
+      await heosCastController.pause();
+      _setButtonState(PlayButtonState.paused);
+      return;
+    }
     _clearPendingSourceStart();
     await _playbackCommands.pause();
   }
@@ -2275,6 +2379,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> prev() async {
     if (_routeToHost(SessionCommand.prev())) return;
+    if (heosCastController.isConnected) {
+      await _castQueueIndex(_previousQueueIndexForHeos());
+      return;
+    }
     int? remoteTransition;
     PreviousTrackIntent? remoteIntent;
     String? desiredVideoId;
@@ -2336,6 +2444,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> next() async {
     if (_routeToHost(SessionCommand.next())) return;
+    if (heosCastController.isConnected) {
+      await _castQueueIndex(_nextQueueIndexForHeos());
+      return;
+    }
     int? remoteTransition;
     String? desiredVideoId;
     if (_cloudRemoteStateActive && currentQueue.isNotEmpty) {
@@ -2380,7 +2492,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       return;
     }
     if (_routeToHost(SessionCommand.playByIndex(index))) return;
-    await _playbackCommands.playByIndex(index);
+    await _playQueueIndex(index);
   }
 
   void requestSeekByIndex(int index) {
@@ -2456,6 +2568,12 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> setVolume(int value) async {
     final normalizedValue = value.clamp(0, 100);
+    if (heosCastController.isConnected) {
+      await heosCastController.setVolume(normalizedValue);
+      volume.value = normalizedValue;
+      await _settingsRepository.setVolume(normalizedValue);
+      return;
+    }
     // Keep the slider and percentage responsive while the platform call and
     // persisted preference complete in the background.
     volume.value = normalizedValue;
@@ -2474,7 +2592,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         await _settingsRepository.setVolume(vol);
       }
     }
-    await _playbackCommands.setVolume(vol);
+    if (heosCastController.isConnected) {
+      await heosCastController.setVolume(vol);
+    } else {
+      await _playbackCommands.setVolume(vol);
+    }
     volume.value = vol;
   }
 
@@ -2916,6 +3038,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     if (RuntimePlatform.isWindows) {
       _windowsAudioService?.dispose();
       _windowsAudioService = null;
+    }
+    final heosListener = _heosListener;
+    if (heosListener != null) {
+      heosCastController.removeListener(heosListener);
+      _heosListener = null;
     }
     // ensure wakelock disabled when player controller disposed
     try {

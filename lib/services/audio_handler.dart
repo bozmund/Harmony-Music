@@ -42,7 +42,6 @@ import '/models/media_Item_builder.dart';
 import '/services/utils.dart';
 import '../ui/screens/Library/library_controller.dart';
 
-
 const _androidNotificationArtSize = 256;
 const _fallbackCompletionGrace = Duration(milliseconds: 1250);
 // How long playback may sit in ProcessingState.buffering without the position
@@ -1836,6 +1835,23 @@ class MyAudioHandler extends BaseAudioHandler {
       case 'clearRemoteNotificationMirror':
         _clearRemoteNotificationMirror();
         break;
+      case 'resolveHeosStreamUrl':
+        final song = extras!['mediaItem'] as MediaItem;
+        final generateNewUrl = extras['newUrl'] == true;
+        final streamInfo = await checkNGetUrl(
+          song.id,
+          generateNewUrl: generateNewUrl,
+        );
+        if (!streamInfo.playable) {
+          return {'playable': false, 'statusMSG': streamInfo.statusMSG};
+        }
+        final audio = _heosCompatibleAudio(streamInfo);
+        return {
+          'playable': audio != null,
+          'statusMSG': audio == null ? 'No HEOS-compatible stream' : 'OK',
+          'url': audio?.url,
+          'audioCodec': audio?.audioCodec.name,
+        };
 
       case 'dispose':
         _activeResolverCancellation?.cancel();
@@ -1901,7 +1917,9 @@ class MyAudioHandler extends BaseAudioHandler {
             await _clearCurrentSourceForReplacement();
           }
 
-          var streamInfo = await futureStreamInfo.timeout(_sourceResolveTimeout);
+          var streamInfo = await futureStreamInfo.timeout(
+            _sourceResolveTimeout,
+          );
           if (requestGeneration != _playbackGeneration ||
               songIndex != currentIndex) {
             isSongLoading = false;
@@ -2101,7 +2119,9 @@ class MyAudioHandler extends BaseAudioHandler {
           );
           final futureStreamInfo = _sourceInfoForPlayback(currMed);
           await _clearCurrentSourceForReplacement();
-          var streamInfo = await futureStreamInfo.timeout(_sourceResolveTimeout);
+          var streamInfo = await futureStreamInfo.timeout(
+            _sourceResolveTimeout,
+          );
           if (requestGeneration != _playbackGeneration) {
             isSongLoading = false;
             _endSourceSwitch();
@@ -2340,6 +2360,18 @@ class MyAudioHandler extends BaseAudioHandler {
       default:
         break;
     }
+  }
+
+  Audio? _heosCompatibleAudio(HMStreamingData streamInfo) {
+    final candidates = [
+      streamInfo.highQualityAudio,
+      streamInfo.lowQualityAudio,
+      streamInfo.audio,
+    ];
+    for (final audio in candidates) {
+      if (audio?.audioCodec == Codec.mp4a) return audio;
+    }
+    return streamInfo.audio;
   }
 
   void _shuffleVisibleQueueFromIndex(int index) {
@@ -2936,7 +2968,10 @@ class MyAudioHandler extends BaseAudioHandler {
         '${_onlineResolveTimeout.inSeconds}s with no branch reporting back',
         tag: LogTags.audioHandler,
       );
-      return HMStreamingData(playable: false, statusMSG: 'resolverPlaybackFailed');
+      return HMStreamingData(
+        playable: false,
+        statusMSG: 'resolverPlaybackFailed',
+      );
     }
   }
 

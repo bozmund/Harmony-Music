@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../services/app_contracts.dart';
 import '../../services/app_platform_service.dart';
 import '../../services/downloader.dart';
 import '../../services/file_picker_service.dart';
+import '../../services/heos/heos_cast_controller.dart';
 import '../../services/metadata/song_metadata_service.dart';
 import '../../services/music_service.dart';
 import '../../services/piped_service.dart';
@@ -75,3 +79,16 @@ final playbackCommandServiceProvider = Provider<PlaybackCommandService>(
     cloudSync: ref.read(cloudSyncCoordinatorProvider),
   ),
 );
+
+final heosCastControllerProvider = ChangeNotifierProvider<HeosCastController>((
+  ref,
+) {
+  final controller = HeosCastController(
+    audioHandler: ref.read(audioHandlerProvider),
+    settingsRepository: ref.read(settingsRepositoryProvider),
+    playbackCommands: ref.read(playbackCommandServiceProvider),
+  );
+  unawaited(controller.init());
+  ref.onDispose(controller.dispose);
+  return controller;
+});

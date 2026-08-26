@@ -126,7 +126,10 @@ void main() {
       final shuffleIndex = block.indexOf(
         'await _playbackCommands.shuffleFromIndex',
       );
-      final playByIndexIndex = block.indexOf('_playbackCommands.playByIndex');
+      // Playback starts through _playQueueIndex so a connected HEOS speaker
+      // gets the track instead of the local handler. The ordering guarantee is
+      // unchanged: the queue must be in place before playback starts.
+      final playByIndexIndex = block.indexOf('_playQueueIndex(');
 
       expect(panelIndex, isNot(-1));
       expect(updateQueueIndex, isNot(-1));
@@ -135,6 +138,14 @@ void main() {
       expect(panelIndex, lessThan(updateQueueIndex));
       expect(updateQueueIndex, lessThan(playByIndexIndex));
       expect(shuffleIndex, lessThan(playByIndexIndex));
+
+      // ...and with no speaker connected it is still the local handler.
+      final queueIndexBlock = _methodBlock(source, '_playQueueIndex');
+      expect(queueIndexBlock, contains('if (!heosCastController.isConnected)'));
+      expect(
+        queueIndexBlock,
+        contains('await _playbackCommands.playByIndex(index);'),
+      );
     });
 
     test('enqueue into an empty queue starts playback', () {
@@ -671,9 +682,10 @@ String _methodBlock(String source, String methodName) {
     // Any other return type, including generics like
     // `Future<Map<String, dynamic>?>`. Anchored on the declaration's leading
     // indentation so a call site cannot match instead.
-    methodStart = RegExp(
-      r'\n  [\w<>,?\s]+ ' + RegExp.escape(methodName) + r'\(',
-    ).firstMatch(source)?.start ??
+    methodStart =
+        RegExp(
+          r'\n  [\w<>,?\s]+ ' + RegExp.escape(methodName) + r'\(',
+        ).firstMatch(source)?.start ??
         -1;
   }
   expect(methodStart, isNot(-1), reason: 'Missing $methodName');
