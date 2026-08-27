@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/constant.dart';
 import '../services/utils.dart';
 import 'helper.dart';
+import 'song_cache_storage.dart';
 
 Future<void> startHouseKeeping({
   required SongCacheRepository songCacheRepository,
@@ -28,6 +29,92 @@ Future<void> startHouseKeeping({
     songCacheRepository: songCacheRepository,
     settingsRepository: settingsRepository,
   );
+  // Before expiry, or everything carried over from the old location is judged
+  // on a modification time that predates the move.
+  final migrated = await migrateLegacySongCache();
+  if (migrated > 0) {
+    printINFO(
+      "Moved $migrated cached song file(s) out of the temporary directory",
+      tag: LogTags.musicService,
+    );
+  }
+  await removeExpiredCachedAudio(songCacheRepository: songCacheRepository);
+}
+
+/// How long cached audio survives without being played.
+///
+/// Exposed so tests can drive it rather than waiting a month.
+const cachedAudioMaxAge = Duration(days: 30);
+
+/// Deletes cached audio that has not been played inside [maxAge].
+///
+/// The cache lives in application support now, so nothing external prunes it
+/// any more — the OS clearing %TEMP% used to be its de-facto eviction, at the
+/// cost of taking the user's Songs list with it.
+///
+/// Age means *last played*, not first cached: both cache-hit paths touch the
+/// file's modification time, so a song played regularly never ages out while
+/// LockCachingAudioSource only ever writes it once.
+///
+/// The Hive entry goes with the file. Removing one without the other is what
+/// produced the dangling entries this whole change exists to fix.
+Future<void> removeExpiredCachedAudio({
+  required SongCacheRepository songCacheRepository,
+  Duration maxAge = cachedAudioMaxAge,
+  DateTime? now,
+  Directory? cacheDirectory,
+}) async {
+  final directory = cacheDirectory ?? await songCacheDirectory();
+  if (!directory.existsSync()) return;
+  final cutoff = (now ?? DateTime.now()).subtract(maxAge);
+
+  // Grouped by song id: LockCachingAudioSource leaves .part and .mime sidecars
+  // beside the .mp3, and they have to expire together or a stray .part outlives
+  // the audio it belonged to.
+  final groups = <String, List<File>>{};
+  for (final entity in directory.listSync()) {
+    if (entity is! File) continue;
+    final name = entity.uri.pathSegments.last;
+    final dot = name.lastIndexOf('.');
+    final songId = dot <= 0 ? name : name.substring(0, dot);
+    groups.putIfAbsent(songId, () => <File>[]).add(entity);
+  }
+
+  var removed = 0;
+  for (final entry in groups.entries) {
+    DateTime? newest;
+    for (final file in entry.value) {
+      try {
+        final modified = file.statSync().modified;
+        if (newest == null || modified.isAfter(newest)) newest = modified;
+      } on FileSystemException {
+        // Unreadable stat is not a reason to delete someone's music.
+        newest = null;
+        break;
+      }
+    }
+    if (newest == null || !newest.isBefore(cutoff)) continue;
+
+    var deletedAny = false;
+    for (final file in entry.value) {
+      try {
+        file.deleteSync();
+        deletedAny = true;
+      } on FileSystemException {
+        // A file held open by the player stays; it will be caught next launch.
+      }
+    }
+    if (!deletedAny) continue;
+    await songCacheRepository.deleteCachedSong(entry.key);
+    removed++;
+  }
+
+  if (removed > 0) {
+    printINFO(
+      "Dropped $removed cached song(s) unplayed for ${maxAge.inDays} days",
+      tag: LogTags.musicService,
+    );
+  }
 }
 
 /// Drops cached songs that predate rich Resolver metadata, once.

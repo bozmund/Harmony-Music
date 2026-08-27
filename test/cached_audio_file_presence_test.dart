@@ -23,7 +23,8 @@ void main() {
   group('cached audio must be verified on disk', () {
     test('checkNGetUrl drops a cache entry whose file is gone', () {
       expect(
-        source.contains('File(cachedPath).exists()'),
+        source.contains('final cachedFile = File(cachedPath);') &&
+            source.contains('await cachedFile.exists()'),
         isTrue,
         reason: 'the cache branch must confirm the file exists on disk',
       );

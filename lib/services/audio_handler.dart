@@ -22,6 +22,7 @@ import '../domain/repositories/playlist_repository.dart';
 import '../domain/repositories/settings_repository.dart';
 import '../domain/repositories/song_cache_repository.dart';
 import '../utils/runtime_platform.dart';
+import '../utils/song_cache_storage.dart';
 import '/services/constant.dart';
 import '/services/crash_diagnostics_service.dart';
 import '/services/playback_queue_order.dart';
@@ -101,7 +102,12 @@ Future<AudioHandler> initAudioService({
 
 class MyAudioHandler extends BaseAudioHandler {
   // ignore: prefer_typing_uninitialized_variables
+  /// Scratch space that may legitimately be reclaimed: preload prefixes are
+  /// re-fetched on demand.
   late final _cacheDir;
+
+  /// Cached song audio, which may not. See [songCacheDirectory].
+  late final String _cachedSongsDir;
   late AudioPlayer _player;
   late MediaLibrary _mediaLibrary;
   PlaybackPreloadService? _preloadService;
@@ -375,11 +381,27 @@ class MyAudioHandler extends BaseAudioHandler {
     }
   }
 
+  /// Records that cached audio was used, so housekeeping ages it from last
+  /// play rather than from when it was first written.
+  ///
+  /// LockCachingAudioSource writes the file once, so its modification time
+  /// would otherwise expire a daily favourite thirty days after it was cached.
+  /// Last-access time cannot stand in for this: NTFS ships with
+  /// NtfsDisableLastAccessUpdate on.
+  Future<void> _markCachedAudioPlayed(File file) async {
+    try {
+      await file.setLastModified(DateTime.now());
+    } catch (_) {
+      // Advisory only. A cache hit must never fail over its own bookkeeping.
+    }
+  }
+
   Future<void> _createCacheDir() async {
     _cacheDir = (await getTemporaryDirectory()).path;
-    if (!Directory("$_cacheDir/cachedSongs/").existsSync()) {
-      Directory("$_cacheDir/cachedSongs/").createSync(recursive: true);
-    }
+    // Not under _cacheDir any more: songCacheDirectory picks a durable root,
+    // because the OS empties the temporary one out from under the Songs
+    // library. Preload prefixes above stay in temp, where they belong.
+    _cachedSongsDir = (await songCacheDirectory()).path;
   }
 
   Future<void> _addEmptyList() async {
@@ -1306,13 +1328,15 @@ class MyAudioHandler extends BaseAudioHandler {
     if (!await _songCacheRepository.containsCachedSong(songId)) return null;
     // Same trap as checkNGetUrl: a cache entry can outlive the file it points
     // at, and preloading a missing file stalls the player instead of failing.
-    if (!await File("$_cacheDir/cachedSongs/$songId.mp3").exists()) return null;
+    final cachedFile = File("$_cachedSongsDir/$songId.mp3");
+    if (!await cachedFile.exists()) return null;
+    await _markCachedAudioPlayed(cachedFile);
 
     final cachedSongJson = await _songCacheRepository.getCachedSongJson(songId);
     final streamInfo = cachedSongJson?["streamInfo"];
     Audio audio;
     if (streamInfo != null && streamInfo.isNotEmpty) {
-      streamInfo[1]['url'] = "file://$_cacheDir/cachedSongs/$songId.mp3";
+      streamInfo[1]['url'] = "file://$_cachedSongsDir/$songId.mp3";
       audio = Audio.fromJson(streamInfo[1]);
     } else {
       audio = Audio(
@@ -1321,7 +1345,7 @@ class MyAudioHandler extends BaseAudioHandler {
         loudnessDb: 0,
         duration: 0,
         size: 0,
-        url: "file://$_cacheDir/cachedSongs/$songId.mp3",
+        url: "file://$_cachedSongsDir/$songId.mp3",
         itag: 0,
       );
     }
@@ -1543,7 +1567,7 @@ class MyAudioHandler extends BaseAudioHandler {
       // ignore: experimental_member_use
       return LockCachingAudioSource(
         _playableUri(url),
-        cacheFile: File("$_cacheDir/cachedSongs/${mediaItem.id}.mp3"),
+        cacheFile: File("$_cachedSongsDir/${mediaItem.id}.mp3"),
         tag: mediaItem,
       );
     }
@@ -2066,7 +2090,7 @@ class MyAudioHandler extends BaseAudioHandler {
         if (isPlayingUsingLockCachingSource) {
           final song = extras!['mediaItem'] as MediaItem;
           if (!await _songCacheRepository.containsCachedSong(song.id) &&
-              await File("$_cacheDir/cachedSongs/${song.id}.mp3").exists()) {
+              await File("$_cachedSongsDir/${song.id}.mp3").exists()) {
             song.extras!['url'] = currentSongUrl;
             song.extras!['date'] = DateTime.now().millisecondsSinceEpoch;
             final dbStreamData = await _songCacheRepository.getStreamCacheEntry(
@@ -2569,8 +2593,9 @@ class MyAudioHandler extends BaseAudioHandler {
       // back, leaving entries pointing at files that no longer exist. Handing
       // just_audio a missing file does not raise — it sits in `loading`
       // forever, which looks exactly like a hung handoff.
-      final cachedPath = "$_cacheDir/cachedSongs/$songId.mp3";
-      if (!await File(cachedPath).exists()) {
+      final cachedPath = "$_cachedSongsDir/$songId.mp3";
+      final cachedFile = File(cachedPath);
+      if (!await cachedFile.exists()) {
         printWarning(
           "Cached audio for $songId is missing from disk; dropping the stale "
           "cache entry and resolving online",
@@ -2583,6 +2608,7 @@ class MyAudioHandler extends BaseAudioHandler {
           allowResolver: allowResolver,
         );
       }
+      await _markCachedAudioPlayed(cachedFile);
       printINFO("Got Song from cachedbox ($songId)", tag: LogTags.audioHandler);
       // if contains stream Info
       final cachedSongJson = await _songCacheRepository.getCachedSongJson(
@@ -2591,7 +2617,7 @@ class MyAudioHandler extends BaseAudioHandler {
       final streamInfo = cachedSongJson["streamInfo"];
       Audio? cacheAudioPlaceholder;
       if (streamInfo != null && streamInfo.isNotEmpty) {
-        streamInfo[1]['url'] = "file://$_cacheDir/cachedSongs/$songId.mp3";
+        streamInfo[1]['url'] = "file://$_cachedSongsDir/$songId.mp3";
         cacheAudioPlaceholder = Audio.fromJson(streamInfo[1]);
       } else {
         cacheAudioPlaceholder = Audio(
@@ -2600,7 +2626,7 @@ class MyAudioHandler extends BaseAudioHandler {
           loudnessDb: 0,
           duration: 0,
           size: 0,
-          url: "file://$_cacheDir/cachedSongs/$songId.mp3",
+          url: "file://$_cachedSongsDir/$songId.mp3",
           itag: 0,
         );
       }

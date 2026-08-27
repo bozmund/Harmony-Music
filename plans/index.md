@@ -20,3 +20,4 @@
 | 2026-08-19 | [Harmony Music clean-up and correctness pass](2026-08-19_0007_harmony_music_cleanup_and_correctness_pass.md) | In progress |
 | 2026-08-20 | [Phone joins playback already running on another device](2026-08-20_2302_join_in_progress_playback_as_remote.md) | In progress |
 | 2026-08-27 | [Devices sheet: decide transfer vs sync on actual playback](2026-08-27_transfer_vs_sync_on_actual_playback.md) | In progress |
+| 2026-08-27 | [Song cache: durable storage with age-based expiry](2026-08-27_song_cache_durable_storage_and_expiry.md) | In progress |
