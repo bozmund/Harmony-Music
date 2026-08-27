@@ -336,6 +336,27 @@ void main() {
       expect(restoredReadyBlock, isNot(contains('_isSourceStartPosition')));
     });
 
+    test('a resume position belongs only to the song it was set for', () {
+      final begin = _methodBlock(source, '_beginPendingSourceStart');
+      final resolving = _methodBlock(source, 'setCurrentSongResolving');
+
+      // A handoff records "resume at 5.9s". Nothing clears that except a start
+      // that completes, so a stale value survived onto the next unrelated tap
+      // - which starts at zero, leaving the controller waiting on a position
+      // that source would never reach and the spinner up for the whole track.
+      expect(
+        resolving,
+        contains('_expectedSourceStartSongId = pendingSong.id'),
+      );
+      expect(begin, contains('_expectedSourceStartSongId == songId'));
+
+      // Consumed, not merely read: it must not survive into a later song even
+      // when this start also fails to complete.
+      expect(begin, contains('_expectedSourceStartPosition = null;'));
+      expect(begin, contains('_expectedSourceStartSongId = null;'));
+      expect(begin, contains('expectedStart ?? Duration.zero'));
+    });
+
     test('an expected start the source never reaches is abandoned', () {
       final block = _methodBlock(source, '_abandonStaleExpectedStart');
       final positionBlock = _methodBlock(source, '_listenForChangesInPosition');

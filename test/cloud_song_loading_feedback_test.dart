@@ -12,11 +12,15 @@ void main() {
   late String fullPlayer;
 
   setUpAll(() {
-    player = File('lib/ui/player/player_controller.dart').readAsStringSync().withUnixNewlines;
+    player = File(
+      'lib/ui/player/player_controller.dart',
+    ).readAsStringSync().withUnixNewlines;
     receiver = File(
       'lib/services/cloud/cloud_playback_receiver.dart',
     ).readAsStringSync().withUnixNewlines;
-    audioHandler = File('lib/services/audio_handler.dart').readAsStringSync().withUnixNewlines;
+    audioHandler = File(
+      'lib/services/audio_handler.dart',
+    ).readAsStringSync().withUnixNewlines;
     playbackCommands = File(
       'lib/services/playback_command_service.dart',
     ).readAsStringSync().withUnixNewlines;
@@ -345,7 +349,9 @@ void main() {
     final metadata = File(
       'lib/services/metadata/song_metadata_service.dart',
     ).readAsStringSync().withUnixNewlines;
-    final music = File('lib/services/music_service.dart').readAsStringSync().withUnixNewlines;
+    final music = File(
+      'lib/services/music_service.dart',
+    ).readAsStringSync().withUnixNewlines;
 
     // Everything the user can see on the audio target clears in _startPlayback's
     // `finally`, so every await inside it has to be bounded or the device sits
@@ -384,7 +390,11 @@ void main() {
       playbackProgress,
       contains('position > _pendingPlaybackStartPosition'),
     );
-    expect(begin, contains('_expectedSourceStartPosition ?? Duration.zero'));
+    // Still measured from the handoff position, but only when the
+    // expectation belongs to this song - see the resume-position test in
+    // player_controller_queue_order_test.dart.
+    expect(begin, contains('_expectedSourceStartSongId == songId'));
+    expect(begin, contains('expectedStart ?? Duration.zero'));
     expect(clear, contains('_pendingPlaybackStartPosition = Duration.zero'));
     expect(clear, contains('_expectedSourceStartPosition = null'));
     expect(

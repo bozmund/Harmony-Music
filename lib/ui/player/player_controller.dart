@@ -659,6 +659,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         // The handed-off song will be seeked here before it plays, so this is
         // where "the source started" must be measured from.
         _expectedSourceStartPosition = pendingPosition;
+        _expectedSourceStartSongId = pendingSong.id;
         if (currentSong.value?.id != pendingSong.id) {
           _setCurrentSongAndRefreshFavorite(pendingSong);
           currentSongIndex.value = currentQueue.indexWhere(
@@ -1570,9 +1571,19 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     _sourceStartLastRejectedPosition = null;
     _sourceStartLastRejectionLoggedAt = null;
     _sourceStartFirstObservedPosition = null;
-    // Zero unless something told us this source resumes elsewhere.
-    _pendingPlaybackStartPosition =
-        _expectedSourceStartPosition ?? Duration.zero;
+    // Zero unless something told us *this* source resumes elsewhere.
+    //
+    // Consumed rather than merely read, and only for the song it was set for.
+    // The expectation describes one handoff of one song; left behind it
+    // poisons the next unrelated tap, which starts at zero while this waits
+    // for a position that source will never reach. Nothing else clears it -
+    // only a start that completes does, and that is exactly what it prevents.
+    final expectedStart = _expectedSourceStartSongId == songId
+        ? _expectedSourceStartPosition
+        : null;
+    _expectedSourceStartPosition = null;
+    _expectedSourceStartSongId = null;
+    _pendingPlaybackStartPosition = expectedStart ?? Duration.zero;
     _sourceStartGuardSongId = songId;
     _sourceStartGuardPosition = _pendingPlaybackStartPosition;
     _setButtonState(PlayButtonState.loading);
@@ -1660,6 +1671,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     if (!_isWaitingForCurrentSourceStart) return;
     _pendingPlaybackStartPosition = position;
     _expectedSourceStartPosition = position;
+    _expectedSourceStartSongId = _pendingPlaybackStartSongId;
     _sourceStartGuardPosition = position;
   }
 
@@ -1678,12 +1690,17 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     _pendingPlaybackStartPosition = Duration.zero;
     _pendingSourceOutgoingPosition = Duration.zero;
     _expectedSourceStartPosition = null;
+    _expectedSourceStartSongId = null;
   }
 
   /// Where the next source is expected to begin, when that is known before the
   /// audio handler reports the song. Only a resumed source sets this; a normal
   /// tap starts at zero and leaves it null.
   Duration? _expectedSourceStartPosition;
+
+  /// The song [_expectedSourceStartPosition] was recorded for. An expectation
+  /// is only ever valid for its own song.
+  String? _expectedSourceStartSongId;
   String? _sourceStartGuardSongId;
   Duration _sourceStartGuardPosition = Duration.zero;
 
