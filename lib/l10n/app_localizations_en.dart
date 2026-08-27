@@ -1388,4 +1388,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String nowControllingDevice(String deviceName) {
     return 'Now controlling $deviceName';
   }
+
+  @override
+  String get nothingHereToTransfer =>
+      'Nothing is playing on this device to transfer';
 }

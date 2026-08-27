@@ -446,4 +446,5 @@
   ,"playingHere": "Reproducira se ovdje"
   ,"nowControllingDevice": "Upravljate uređajem {deviceName}"
   ,"@nowControllingDevice": {"placeholders": {"deviceName": {"type": "String"}}}
+  ,"nothingHereToTransfer": "Na ovom se uređaju ništa ne reproducira za prijenos"
 }

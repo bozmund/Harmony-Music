@@ -1394,4 +1394,8 @@ class AppLocalizationsHr extends AppLocalizations {
   String nowControllingDevice(String deviceName) {
     return 'Upravljate uređajem $deviceName';
   }
+
+  @override
+  String get nothingHereToTransfer =>
+      'Na ovom se uređaju ništa ne reproducira za prijenos';
 }

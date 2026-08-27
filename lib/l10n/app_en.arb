@@ -446,4 +446,5 @@
   ,"playingHere": "Playing here"
   ,"nowControllingDevice": "Now controlling {deviceName}"
   ,"@nowControllingDevice": {"placeholders": {"deviceName": {"type": "String"}}}
+  ,"nothingHereToTransfer": "Nothing is playing on this device to transfer"
 }

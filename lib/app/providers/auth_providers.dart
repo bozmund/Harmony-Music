@@ -156,6 +156,13 @@ class AuthController extends ChangeNotifier {
   Future<List<CloudPlaybackDevice>> playbackDevices() =>
       _cloud.playbackDevices();
 
+  /// The account's open playback session, if any.
+  ///
+  /// The device list only says which device *owns* the session, which outlives
+  /// the playback that created it. This says whether that device is actually
+  /// playing right now.
+  Future<CloudPlaybackSession?> playbackSession() => _cloud.playbackSession();
+
   Future<void> removePlaybackDevice(String deviceId) =>
       _cloud.removePlaybackDevice(deviceId);
 

@@ -2695,6 +2695,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Now controlling {deviceName}'**
   String nowControllingDevice(String deviceName);
+
+  /// No description provided for @nothingHereToTransfer.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing is playing on this device to transfer'**
+  String get nothingHereToTransfer;
 }
 
 class _AppLocalizationsDelegate
