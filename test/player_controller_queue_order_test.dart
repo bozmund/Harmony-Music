@@ -336,6 +336,35 @@ void main() {
       expect(restoredReadyBlock, isNot(contains('_isSourceStartPosition')));
     });
 
+    test('an expected start the source never reaches is abandoned', () {
+      final block = _methodBlock(source, '_abandonStaleExpectedStart');
+      final positionBlock = _methodBlock(source, '_listenForChangesInPosition');
+
+      // A cancelled handoff leaves "resume at 26.7s" behind while the source
+      // restarts from zero. Both position conditions then fail forever, so the
+      // spinner stayed up until playback organically reached that mark - the
+      // audio was fine the whole time, only the UI was stuck.
+      expect(
+        positionBlock,
+        contains('_abandonStaleExpectedStart(playbackState, position)'),
+      );
+
+      // Only a source that is provably playing, and only below the expected
+      // start - above it the normal window logic already applies.
+      expect(block, contains('AudioProcessingState.ready'));
+      expect(block, contains('!playbackState.playing'));
+      expect(block, contains('position >= _pendingPlaybackStartPosition'));
+
+      // Sustained progress is the proof. A single tick could be stale, and a
+      // source still seeking towards a resumed position must survive.
+      expect(block, contains('_staleExpectedStartProof'));
+      expect(block, contains('_retargetPendingSourceStart(position)'));
+      expect(
+        source,
+        contains('_staleExpectedStartProof = Duration(seconds: 2)'),
+      );
+    });
+
     test('a ready-paused report at the outgoing position is not a start', () {
       final restoredReadyBlock = _methodBlock(
         source,

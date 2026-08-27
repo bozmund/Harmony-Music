@@ -846,6 +846,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   var _playerChangeNotificationScheduled = false;
   static const _sourceStartProgressWindow = Duration(seconds: 10);
   static const _outgoingSourcePositionTolerance = Duration(milliseconds: 500);
+
+  /// How much forward progress below the expected start proves no seek is
+  /// coming. Long enough that a source still on its way to a resumed position
+  /// is never mistaken for one that started somewhere else.
+  static const _staleExpectedStartProof = Duration(seconds: 2);
   Duration _pendingPlaybackStartPosition = Duration.zero;
   Duration _pendingSourceOutgoingPosition = Duration.zero;
   String? _pendingPlaybackStartSongId;
@@ -1312,6 +1317,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
           // without drowning the log at tick rate.
           _sourceStartTicksSeen++;
           _sourceStartLastRejectedPosition = position;
+          _abandonStaleExpectedStart(playbackState, position);
           final now = DateTime.now();
           final last = _sourceStartLastRejectionLoggedAt;
           if (last == null ||
@@ -1563,6 +1569,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     _sourceStartTicksSeen = 0;
     _sourceStartLastRejectedPosition = null;
     _sourceStartLastRejectionLoggedAt = null;
+    _sourceStartFirstObservedPosition = null;
     // Zero unless something told us this source resumes elsewhere.
     _pendingPlaybackStartPosition =
         _expectedSourceStartPosition ?? Duration.zero;
@@ -1610,6 +1617,45 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// dropped, not from zero — otherwise [_isSourceStartPosition] can never be
   /// satisfied, the pending start never clears, and the play button stays
   /// pinned on loading with the progress bar frozen for the rest of the track.
+  /// Gives up on an expected start the source is never going to reach.
+  ///
+  /// The expected start outlives whatever set it: a cancelled handoff leaves
+  /// "resume at 26.7s" behind while the source restarts from zero. Both
+  /// position conditions then fail forever - the position is below the expected
+  /// start, and too far from it to be inside the window - so the spinner stays
+  /// up until playback organically reaches that mark, or for the whole track if
+  /// it never does. The audio is fine throughout; only the UI is stuck.
+  ///
+  /// Sustained forward progress below the expected start is proof the seek is
+  /// not coming, so move the goalposts to where the source actually is. A
+  /// source still on its way to a resumed position has not played [
+  /// _staleExpectedStartProof] worth of audio short of it, so it is unaffected.
+  void _abandonStaleExpectedStart(
+    PlaybackState playbackState,
+    Duration position,
+  ) {
+    if (playbackState.processingState != AudioProcessingState.ready ||
+        !playbackState.playing ||
+        position >= _pendingPlaybackStartPosition) {
+      return;
+    }
+    final firstSeen = _sourceStartFirstObservedPosition;
+    // A position below the anchor is a different source, not progress.
+    if (firstSeen == null || position < firstSeen) {
+      _sourceStartFirstObservedPosition = position;
+      return;
+    }
+    if (position - firstSeen < _staleExpectedStartProof) return;
+    printINFO(
+      'sourceStart abandoning unreachable expected start '
+      'expected=${_pendingPlaybackStartPosition.inMilliseconds} '
+      'pos=${position.inMilliseconds} '
+      'ticks=$_sourceStartTicksSeen song=${currentSong.value?.id}',
+      tag: LogTags.cloudPlayback,
+    );
+    _retargetPendingSourceStart(position);
+  }
+
   void _retargetPendingSourceStart(Duration position) {
     if (!_isWaitingForCurrentSourceStart) return;
     _pendingPlaybackStartPosition = position;
@@ -1620,11 +1666,13 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   int _sourceStartTicksSeen = 0;
   Duration? _sourceStartLastRejectedPosition;
   DateTime? _sourceStartLastRejectionLoggedAt;
+  Duration? _sourceStartFirstObservedPosition;
 
   void _clearPendingSourceStart() {
     _sourceStartTicksSeen = 0;
     _sourceStartLastRejectedPosition = null;
     _sourceStartLastRejectionLoggedAt = null;
+    _sourceStartFirstObservedPosition = null;
     _pendingPlaybackStartSongId = null;
     _pendingSourceTransitionObserved = false;
     _pendingPlaybackStartPosition = Duration.zero;
