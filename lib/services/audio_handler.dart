@@ -2815,6 +2815,22 @@ class MyAudioHandler extends BaseAudioHandler {
     }
   }
 
+  /// Asks the Resolver to ingest a track it did not have.
+  ///
+  /// The prefetch that runs on every song change covers the *next* three
+  /// queue entries only, never the one being played. So a track the Resolver
+  /// has never ingested answers 404, the local fallback carries that one
+  /// playback, and nothing ever tells the Resolver the track exists - the next
+  /// attempt hits the same 404, and the one after that. Issue #81 is a track
+  /// the Resolver has no record of at all.
+  ///
+  /// Fire-and-forget, exactly as the downloader already does on the same miss.
+  /// It cannot help the attempt in flight; it is what makes the next one work.
+  void _requestResolverIngestion(String songId) {
+    if (!_effectiveResolverSourceMode().usesResolver) return;
+    unawaited(_resolverPlaybackClient.prefetch([songId]));
+  }
+
   Future<HMStreamingData> _resolveWithResolver(String songId) async {
     await _resetResolverSources();
     final cancellation = ResolverOpenCancellation();
@@ -2823,6 +2839,7 @@ class MyAudioHandler extends BaseAudioHandler {
     try {
       final source = await _openResolver(songId, cancellation);
       if (source == null) {
+        _requestResolverIngestion(songId);
         return HMStreamingData(
           playable: false,
           statusMSG: 'resolverPlaybackFailed',
@@ -2948,6 +2965,7 @@ class MyAudioHandler extends BaseAudioHandler {
       try {
         final source = await resolver;
         if (source == null) {
+          _requestResolverIngestion(songId);
           if (identical(_activeResolverCancellation, cancellation)) {
             _activeResolverCancellation = null;
           }
