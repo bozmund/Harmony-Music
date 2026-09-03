@@ -6,6 +6,8 @@ import '../domain/repositories/settings_repository.dart';
 import 'cloud/playback_modes.dart';
 import 'cloud/cloud_playback_gateway.dart';
 import 'local_playback_commands.dart';
+import '../utils/helper.dart';
+import 'constant.dart';
 import 'playback_queue_order.dart';
 import 'playback_video_id.dart';
 import 'previous_track_policy.dart';
@@ -252,7 +254,13 @@ class PlaybackCommandService {
     final target = _remoteTargetDeviceId;
     if (target != null) {
       if (index < 0 || index >= _remoteQueue.length) return;
-      await _sendRemoteHandoff(target, _remoteQueue, index, position ?? 0);
+      await _sendRemoteHandoff(
+        target,
+        _remoteQueue,
+        index,
+        position ?? 0,
+        origin: 'playByIndex',
+      );
       return;
     }
     final queue = _audioHandler.queue.value;
@@ -282,6 +290,7 @@ class PlaybackCommandService {
         queue,
         remoteIndex < 0 ? 0 : remoteIndex,
         0,
+        origin: 'setSourceAndPlay',
       );
     }
     _localSongSelections.add(mediaItem.id);
@@ -319,11 +328,21 @@ class PlaybackCommandService {
     String targetDeviceId,
     List<MediaItem> queue,
     int index,
-    int positionMs,
-  ) async {
+    int positionMs, {
+    required String origin,
+  }) async {
     final cloud = _cloudSync;
     if (cloud == null) return;
     final state = sessionState(queue: queue, index: index);
+    // One tap must produce one handoff. A duplicate restarts the track on the
+    // target, and the two call sites are indistinguishable from the target's
+    // side - both arrive as a plain 'handoff' command - so name the origin
+    // here, where it is still known.
+    printINFO(
+      'remote handoff origin=$origin song=${state['currentSongId']} '
+      'index=$index positionMs=$positionMs queue=${queue.length}',
+      tag: LogTags.cloudPlayback,
+    );
     // Ids only: the target resolves the song itself, usually straight from its
     // own cache. Sending the whole queue keeps next/previous working there.
     await cloud.sendSessionCommand(

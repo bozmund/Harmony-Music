@@ -24,6 +24,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   Completer<void>? _sourceReadyCompleter;
   Duration? _pendingSeek;
 
+  /// Bumped by every [_openSources]. A load that loses the race must not act
+  /// on its own completion.
+  int _loadGeneration = 0;
+
   MediaKitPlayer(super.id) {
     _player = Player(
       configuration: PlayerConfiguration(
@@ -186,7 +190,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
     _currentIndex = _currentIndex.clamp(0, _sources.length - 1);
     await _openSources(index: _currentIndex, play: false);
+    final generation = _loadGeneration;
     await _waitForDecodedAudio();
+    // A newer load owns the player now. Recording this one's initial position
+    // would hand the newer source the older one's start point.
+    if (generation != _loadGeneration) return LoadResponse(duration: null);
     if (request.initialPosition != null) {
       _position = request.initialPosition!;
       if (_position > Duration.zero) _pendingSeek = _position;
@@ -216,6 +224,14 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   Future<void> _openSources({required int index, required bool play}) async {
     final media = _sources.map(_convertAudioSource).toList(growable: false);
+    // Release whoever is waiting on the load being replaced. Dropping the
+    // completer instead left that waiter parked until its 15s timeout, and it
+    // then resumed as though it were current - seeking a track that had been
+    // playing for twelve seconds back to zero. Three handoffs of the same song
+    // arriving within 2.5s is enough to produce exactly that.
+    final superseded = _sourceReadyCompleter;
+    if (superseded != null && !superseded.isCompleted) superseded.complete();
+    _loadGeneration++;
     _audioReady = false;
     _sourceLoading = true;
     _sourceReadyCompleter = Completer<void>();

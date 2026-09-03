@@ -229,9 +229,54 @@ class CrashDiagnosticsService {
     await logFile.writeAsString('${retained.join('\n')}\n', flush: true);
   }
 
+  /// The recent log, redacted and bounded, for attaching to a bug report.
+  ///
+  /// Reports become issues on a public repository, so this is not the raw
+  /// buffer. Newest lines are kept: a failure is at the end of the log, and the
+  /// breadcrumbs that explain it are just above it.
+  String recentLog({int maxLines = 120, int maxChars = 12000}) {
+    final lines = _buffer.toList();
+    final kept = <String>[];
+    var budget = maxChars;
+    for (final line in lines.reversed) {
+      if (kept.length >= maxLines) break;
+      final redacted = redactDiagnosticLine(line);
+      if (redacted.length + 1 > budget) break;
+      budget -= redacted.length + 1;
+      kept.add(redacted);
+    }
+    return kept.reversed.join('\n');
+  }
+
   String _truncate(Object? value) {
     final text = value?.toString() ?? '';
     if (text.length <= _maxLineLength) return text;
     return '${text.substring(0, _maxLineLength)}...<truncated ${text.length - _maxLineLength} chars>';
   }
 }
+
+/// Strips the parts of a log line that must not reach a public issue.
+///
+/// Song titles and device ids are deliberately left alone: the state dump
+/// already publishes both, and without them a log cannot be matched to what the
+/// reporter was doing. What goes is anything that is a credential or identifies
+/// the machine.
+String redactDiagnosticLine(String line) => line
+    // Signed media URLs carry the whole authorisation in the query string.
+    .replaceAllMapped(
+      RegExp(r'((?:https?|resolver)://[^\s?]*)\?[^\s]*'),
+      (match) => '${match[1]}?<redacted>',
+    )
+    .replaceAllMapped(
+      RegExp(r'(Bearer\s+)[A-Za-z0-9._\-]+'),
+      (match) => '${match[1]}<redacted>',
+    )
+    // Local paths carry the account name of whoever is reporting.
+    .replaceAllMapped(
+      RegExp(r'([A-Za-z]:\\Users\\)[^\\\s]+', caseSensitive: false),
+      (match) => '${match[1]}<user>',
+    )
+    .replaceAllMapped(
+      RegExp(r'(/(?:home|Users)/)[^/\s]+'),
+      (match) => '${match[1]}<user>',
+    );

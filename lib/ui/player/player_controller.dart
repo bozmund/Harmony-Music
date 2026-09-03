@@ -23,6 +23,8 @@ import '../../services/listen_together/session_message.dart';
 import '../../services/listen_together/session_payload.dart';
 import '../../services/cloud/playback_socket_client.dart';
 import '../../services/cloud/playback_modes.dart';
+import '../../services/heos/heos_cast_controller.dart';
+import '../../services/heos/heos_models.dart';
 import '../../services/playback_command_service.dart';
 import '../../services/previous_track_policy.dart';
 import '../../utils/runtime_platform.dart';
@@ -55,6 +57,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     required PlaybackSessionRepository playbackSessionRepository,
     required MusicServiceContract musicService,
     required PlaybackCommandService playbackCommands,
+    required HeosCastController heosCastController,
   }) : _audioHandler = audioHandler,
        _settingsController = settingsController,
        _homeScreenController = homeScreenController,
@@ -64,7 +67,8 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
        _lyricsRepository = lyricsRepository,
        _playbackSessionRepository = playbackSessionRepository,
        _musicServices = musicService,
-       _playbackCommands = playbackCommands;
+       _playbackCommands = playbackCommands,
+       heosCastController = heosCastController;
 
   final SettingsRepository _settingsRepository;
   final LibraryRepository _libraryRepository;
@@ -82,6 +86,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// instead of being executed locally. Null when no session is active.
   ListenTogetherGate? listenTogetherGate;
 
+  final HeosCastController heosCastController;
   final currentQueue = ObservableList<MediaItem>();
 
   final playerPaneOpacity = ObservableValue(1.0);
@@ -654,6 +659,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         // The handed-off song will be seeked here before it plays, so this is
         // where "the source started" must be measured from.
         _expectedSourceStartPosition = pendingPosition;
+        _expectedSourceStartSongId = pendingSong.id;
         if (currentSong.value?.id != pendingSong.id) {
           _setCurrentSongAndRefreshFavorite(pendingSong);
           currentSongIndex.value = currentQueue.indexWhere(
@@ -840,10 +846,18 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   var _disposed = false;
   var _playerChangeNotificationScheduled = false;
   static const _sourceStartProgressWindow = Duration(seconds: 10);
+  static const _outgoingSourcePositionTolerance = Duration(milliseconds: 500);
+
+  /// How much forward progress below the expected start proves no seek is
+  /// coming. Long enough that a source still on its way to a resumed position
+  /// is never mistaken for one that started somewhere else.
+  static const _staleExpectedStartProof = Duration(seconds: 2);
   Duration _pendingPlaybackStartPosition = Duration.zero;
+  Duration _pendingSourceOutgoingPosition = Duration.zero;
   String? _pendingPlaybackStartSongId;
   bool _pendingSourceTransitionObserved = false;
   final List<StreamSubscription<dynamic>> _observableSubscriptions = [];
+  VoidCallback? _heosListener;
 
   List<MediaItem> get displayQueue =>
       displayQueueFor(currentQueue, currentSongIndex.value);
@@ -984,6 +998,8 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     watchMap(lyrics);
     watchValue(buttonState);
     watchValue(isCurrentSongBuffered);
+    _heosListener = _handleHeosStateChanged;
+    heosCastController.addListener(_heosListener!);
   }
 
   void _notifyPlayerChanged() {
@@ -1127,6 +1143,14 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         }
       }
 
+      if (heosCastController.isConnected) {
+        _setButtonState(
+          heosCastController.isPlaying
+              ? PlayButtonState.playing
+              : PlayButtonState.paused,
+        );
+      }
+
       // Keep the screen awake whenever playback is active and the setting is enabled.
       final shouldEnable =
           _settingsController.keepScreenAwake.value && isPlaying;
@@ -1217,9 +1241,18 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// when something actually changes.
   void _logSurface(String reason) {
     final song = currentSong.value;
+    // The handler's own view, not the controller's. Reading a spinner that
+    // vanishes early means asking which position tick cleared the pending
+    // start and what the player claimed at that moment — none of which was
+    // recorded, so a report of "loading is wrong" could not be answered
+    // without a second reproduction.
+    final playback = _audioHandler.playbackState.value;
     final line =
         'surface[$reason] loading=$isCurrentSongLoading '
         'button=${buttonState.value.name} '
+        'procState=${playback.processingState.name} '
+        'playerPlaying=${playback.playing} '
+        'updatePos=${playback.updatePosition.inMilliseconds} '
         'song=${song?.id} title="${song?.title}" artist="${song?.artist}" '
         'resolvingItem=${song == null ? null : MediaItemBuilder.isResolving(song)} '
         'resolvingFlag=$_currentSongResolving '
@@ -1278,8 +1311,50 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         if (!_isReadySourceStart(playbackState) ||
             !_isSourceStartPosition(position) ||
             !_hasSourcePlaybackProgress(position)) {
+          // A tick arrived and was refused. Counting them separates a spinner
+          // stuck because no position ever ticked from one stuck because every
+          // tick failed a condition - identical from the outside, opposite
+          // causes. Logged once per second so a pinned spinner is explained
+          // without drowning the log at tick rate.
+          _sourceStartTicksSeen++;
+          _sourceStartLastRejectedPosition = position;
+          _abandonStaleExpectedStart(playbackState, position);
+          final now = DateTime.now();
+          final last = _sourceStartLastRejectionLoggedAt;
+          if (last == null ||
+              now.difference(last) >= const Duration(seconds: 1)) {
+            _sourceStartLastRejectionLoggedAt = now;
+            printINFO(
+              'sourceStart tick rejected pos=${position.inMilliseconds} '
+              'expected=${_pendingPlaybackStartPosition.inMilliseconds} '
+              'ready=${_isReadySourceStart(playbackState)} '
+              'inWindow=${_isSourceStartPosition(position)} '
+              'advanced=${_hasSourcePlaybackProgress(position)} '
+              'procState=${playbackState.processingState.name} '
+              'playerPlaying=${playbackState.playing} '
+              'updatePos=${playbackState.updatePosition.inMilliseconds} '
+              'ticks=$_sourceStartTicksSeen song=${currentSong.value?.id}',
+              tag: LogTags.cloudPlayback,
+            );
+          }
           return;
         }
+        // This is where the spinner ends. Its three conditions are loose for a
+        // fresh tap — the expected start is zero, so any tick under ten seconds
+        // satisfies the position checks, and `transitionSeen` is set by *any*
+        // non-ready state including the `idle` left by tearing down the
+        // previous source. A tick belonging to the old source can therefore end
+        // the spinner while the new song is still resolving. Recording the tick
+        // that did it is what tells the two cases apart.
+        printINFO(
+          'sourceStart cleared by tick pos=${position.inMilliseconds} '
+          'expected=${_pendingPlaybackStartPosition.inMilliseconds} '
+          'procState=${playbackState.processingState.name} '
+          'playerPlaying=${playbackState.playing} '
+          'updatePos=${playbackState.updatePosition.inMilliseconds} '
+          'song=${currentSong.value?.id}',
+          tag: LogTags.cloudPlayback,
+        );
         _clearPendingSourceStart();
         _setButtonState(PlayButtonState.playing);
       }
@@ -1364,6 +1439,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
       final previousSongId = currentSong.value?.id;
       final isSameSong = previousSongId == mediaItem.id;
+      // Where the source being replaced stopped. Captured before the new
+      // item lands, because the old source keeps reporting this position
+      // until the new one is actually installed.
+      final outgoingPosition = progressBarStatus.value.current;
       printINFO(mediaItem.title, tag: LogTags.player);
       _newSongFlag = true;
       isCurrentSongBuffered.value = false;
@@ -1376,7 +1455,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         (element) => element.id == currentSong.value!.id,
       );
       if (!isSameSong) {
-        _beginPendingSourceStart(mediaItem.id);
+        _beginPendingSourceStart(
+          mediaItem.id,
+          outgoingPosition: outgoingPosition,
+        );
       }
       final nextTotal = mediaItem.duration ?? Duration.zero;
       progressBarStatus.update((val) {
@@ -1457,15 +1539,51 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   bool _isReadyPausedPendingSource(PlaybackState playbackState) {
     return _pendingSourceTransitionObserved &&
         playbackState.processingState == AudioProcessingState.ready &&
-        !playbackState.playing;
+        !playbackState.playing &&
+        !_isOutgoingSourcePosition(playbackState.updatePosition);
   }
 
-  void _beginPendingSourceStart(String songId) {
+  /// Whether a ready-paused report still belongs to the source being
+  /// replaced rather than to the pending one.
+  ///
+  /// Tapping a song while another is paused leaves the old source loaded and
+  /// still reporting ready-paused at its own position, seconds before the new
+  /// source is installed. Treating that as the pending source having landed
+  /// clears the pending start and drops the button to paused for the whole
+  /// resolve - the "player stopped" seen while a song is plainly loading.
+  ///
+  /// Zero is exempt: a restore that legitimately prepares at zero would
+  /// otherwise never clear and would pin the button on loading instead.
+  bool _isOutgoingSourcePosition(Duration position) {
+    if (_pendingSourceOutgoingPosition <= Duration.zero) return false;
+    return (position - _pendingSourceOutgoingPosition).abs() <=
+        _outgoingSourcePositionTolerance;
+  }
+
+  void _beginPendingSourceStart(
+    String songId, {
+    Duration outgoingPosition = Duration.zero,
+  }) {
     _pendingPlaybackStartSongId = songId;
     _pendingSourceTransitionObserved = false;
-    // Zero unless something told us this source resumes elsewhere.
-    _pendingPlaybackStartPosition =
-        _expectedSourceStartPosition ?? Duration.zero;
+    _pendingSourceOutgoingPosition = outgoingPosition;
+    _sourceStartTicksSeen = 0;
+    _sourceStartLastRejectedPosition = null;
+    _sourceStartLastRejectionLoggedAt = null;
+    _sourceStartFirstObservedPosition = null;
+    // Zero unless something told us *this* source resumes elsewhere.
+    //
+    // Consumed rather than merely read, and only for the song it was set for.
+    // The expectation describes one handoff of one song; left behind it
+    // poisons the next unrelated tap, which starts at zero while this waits
+    // for a position that source will never reach. Nothing else clears it -
+    // only a start that completes does, and that is exactly what it prevents.
+    final expectedStart = _expectedSourceStartSongId == songId
+        ? _expectedSourceStartPosition
+        : null;
+    _expectedSourceStartPosition = null;
+    _expectedSourceStartSongId = null;
+    _pendingPlaybackStartPosition = expectedStart ?? Duration.zero;
     _sourceStartGuardSongId = songId;
     _sourceStartGuardPosition = _pendingPlaybackStartPosition;
     _setButtonState(PlayButtonState.loading);
@@ -1510,24 +1628,79 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// dropped, not from zero — otherwise [_isSourceStartPosition] can never be
   /// satisfied, the pending start never clears, and the play button stays
   /// pinned on loading with the progress bar frozen for the rest of the track.
+  /// Gives up on an expected start the source is never going to reach.
+  ///
+  /// The expected start outlives whatever set it: a cancelled handoff leaves
+  /// "resume at 26.7s" behind while the source restarts from zero. Both
+  /// position conditions then fail forever - the position is below the expected
+  /// start, and too far from it to be inside the window - so the spinner stays
+  /// up until playback organically reaches that mark, or for the whole track if
+  /// it never does. The audio is fine throughout; only the UI is stuck.
+  ///
+  /// Sustained forward progress below the expected start is proof the seek is
+  /// not coming, so move the goalposts to where the source actually is. A
+  /// source still on its way to a resumed position has not played [
+  /// _staleExpectedStartProof] worth of audio short of it, so it is unaffected.
+  void _abandonStaleExpectedStart(
+    PlaybackState playbackState,
+    Duration position,
+  ) {
+    if (playbackState.processingState != AudioProcessingState.ready ||
+        !playbackState.playing ||
+        position >= _pendingPlaybackStartPosition) {
+      return;
+    }
+    final firstSeen = _sourceStartFirstObservedPosition;
+    // A position below the anchor is a different source, not progress.
+    if (firstSeen == null || position < firstSeen) {
+      _sourceStartFirstObservedPosition = position;
+      return;
+    }
+    if (position - firstSeen < _staleExpectedStartProof) return;
+    printINFO(
+      'sourceStart abandoning unreachable expected start '
+      'expected=${_pendingPlaybackStartPosition.inMilliseconds} '
+      'pos=${position.inMilliseconds} '
+      'ticks=$_sourceStartTicksSeen song=${currentSong.value?.id}',
+      tag: LogTags.cloudPlayback,
+    );
+    _retargetPendingSourceStart(position);
+  }
+
   void _retargetPendingSourceStart(Duration position) {
     if (!_isWaitingForCurrentSourceStart) return;
     _pendingPlaybackStartPosition = position;
     _expectedSourceStartPosition = position;
+    _expectedSourceStartSongId = _pendingPlaybackStartSongId;
     _sourceStartGuardPosition = position;
   }
 
+  int _sourceStartTicksSeen = 0;
+  Duration? _sourceStartLastRejectedPosition;
+  DateTime? _sourceStartLastRejectionLoggedAt;
+  Duration? _sourceStartFirstObservedPosition;
+
   void _clearPendingSourceStart() {
+    _sourceStartTicksSeen = 0;
+    _sourceStartLastRejectedPosition = null;
+    _sourceStartLastRejectionLoggedAt = null;
+    _sourceStartFirstObservedPosition = null;
     _pendingPlaybackStartSongId = null;
     _pendingSourceTransitionObserved = false;
     _pendingPlaybackStartPosition = Duration.zero;
+    _pendingSourceOutgoingPosition = Duration.zero;
     _expectedSourceStartPosition = null;
+    _expectedSourceStartSongId = null;
   }
 
   /// Where the next source is expected to begin, when that is known before the
   /// audio handler reports the song. Only a resumed source sets this; a normal
   /// tap starts at zero and leaves it null.
   Duration? _expectedSourceStartPosition;
+
+  /// The song [_expectedSourceStartPosition] was recorded for. An expectation
+  /// is only ever valid for its own song.
+  String? _expectedSourceStartSongId;
   String? _sourceStartGuardSongId;
   Duration _sourceStartGuardPosition = Duration.zero;
 
@@ -1762,7 +1935,12 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     );
     try {
       unawaited(_playerPanelCheck());
-      await _playbackCommands.setSourceAndPlay(mediaItem);
+      if (heosCastController.isConnected) {
+        await _playbackCommands.updateQueue([mediaItem]);
+        await _playQueueIndex(0);
+      } else {
+        await _playbackCommands.setSourceAndPlay(mediaItem);
+      }
     } catch (_) {
       failRemoteSongTransition(remoteTransition);
       rethrow;
@@ -1823,14 +2001,78 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       await _playbackCommands.updateQueue(mediaItems);
       if (isShuffleModeEnabled.value) {
         await _playbackCommands.shuffleFromIndex(index);
-        await _playbackCommands.playByIndex(0);
+        await _playQueueIndex(0);
         return;
       }
-      await _playbackCommands.playByIndex(index);
+      await _playQueueIndex(index);
     } catch (_) {
       failRemoteSongTransition(remoteTransition);
       rethrow;
     }
+  }
+
+  Future<void> _playQueueIndex(int index) async {
+    if (!heosCastController.isConnected) {
+      await _playbackCommands.playByIndex(index);
+      return;
+    }
+    await _castQueueIndex(index);
+  }
+
+  Future<void> _castQueueIndex(int index) async {
+    if (currentQueue.isEmpty || index < 0 || index >= currentQueue.length) {
+      return;
+    }
+    final song = currentQueue[index];
+    currentSong.value = song;
+    currentSongIndex.value = index;
+    await _audioHandler.customAction("updateMediaItemInAudioService", {
+      "index": index,
+    });
+    await heosCastController.cast(song);
+    _markHeosPlaybackStarted(song);
+  }
+
+  void _markHeosPlaybackStarted(MediaItem song) {
+    _clearPendingSourceStart();
+    currentSong.value = song;
+    currentSongIndex.value = currentQueue.indexWhere(
+      (element) => element.id == song.id,
+    );
+    progressBarStatus.update((value) {
+      value.current = Duration.zero;
+      value.buffered = Duration.zero;
+      value.total = song.duration ?? value.total;
+    });
+    _setButtonState(PlayButtonState.playing);
+    unawaited(_updateCurrentSongSideEffects(song));
+  }
+
+  void _handleHeosStateChanged() {
+    if (heosCastController.isConnected) {
+      _setButtonState(
+        heosCastController.isPlaying
+            ? PlayButtonState.playing
+            : PlayButtonState.paused,
+      );
+    }
+    _notifyPlayerChanged();
+  }
+
+  int _nextQueueIndexForHeos() {
+    if (currentQueue.isEmpty) return currentSongIndex.value;
+    final currentIndex = currentSongIndex.value;
+    if (currentIndex < currentQueue.length - 1) return currentIndex + 1;
+    return isQueueLoopModeEnabled.value ? 0 : currentIndex;
+  }
+
+  int _previousQueueIndexForHeos() {
+    if (currentQueue.isEmpty) return currentSongIndex.value;
+    final currentIndex = currentSongIndex.value;
+    if (currentIndex > 0) return currentIndex - 1;
+    return isQueueLoopModeEnabled.value
+        ? currentQueue.length - 1
+        : currentIndex;
   }
 
   Future<void> startRadio(MediaItem? mediaItem, {String? playlistId}) async {
@@ -1847,7 +2089,9 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// complete. Everything else means the document arrived and the parser choked
   /// on it, which no amount of retrying changes.
   static bool _isTransientLookupFailure(Object error) =>
-      error is DioException || error is SocketException || error is TimeoutException;
+      error is DioException ||
+      error is SocketException ||
+      error is TimeoutException;
 
   /// Fetches the watch playlist that turns a single tap into a real queue,
   /// retrying with backoff instead of surrendering on the first failure.
@@ -2143,6 +2387,20 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> play() async {
     if (_routeToHost(SessionCommand.play())) return;
+    if (heosCastController.isConnected) {
+      if (heosCastController.isPlaying) return;
+      final song = currentSong.value;
+      if (song == null) return;
+      if (heosCastController.status == HeosCastStatus.connected ||
+          heosCastController.status == HeosCastStatus.error) {
+        await heosCastController.cast(song);
+        _markHeosPlaybackStarted(song);
+        return;
+      }
+      await heosCastController.play();
+      _setButtonState(PlayButtonState.playing);
+      return;
+    }
     await _playbackCommands.play();
   }
 
@@ -2152,6 +2410,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> pause() async {
     if (_routeToHost(SessionCommand.pause())) return;
+    if (heosCastController.isConnected) {
+      await heosCastController.pause();
+      _setButtonState(PlayButtonState.paused);
+      return;
+    }
     _clearPendingSourceStart();
     await _playbackCommands.pause();
   }
@@ -2181,6 +2444,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> prev() async {
     if (_routeToHost(SessionCommand.prev())) return;
+    if (heosCastController.isConnected) {
+      await _castQueueIndex(_previousQueueIndexForHeos());
+      return;
+    }
     int? remoteTransition;
     PreviousTrackIntent? remoteIntent;
     String? desiredVideoId;
@@ -2242,6 +2509,10 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> next() async {
     if (_routeToHost(SessionCommand.next())) return;
+    if (heosCastController.isConnected) {
+      await _castQueueIndex(_nextQueueIndexForHeos());
+      return;
+    }
     int? remoteTransition;
     String? desiredVideoId;
     if (_cloudRemoteStateActive && currentQueue.isNotEmpty) {
@@ -2286,7 +2557,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       return;
     }
     if (_routeToHost(SessionCommand.playByIndex(index))) return;
-    await _playbackCommands.playByIndex(index);
+    await _playQueueIndex(index);
   }
 
   void requestSeekByIndex(int index) {
@@ -2362,6 +2633,12 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
 
   Future<void> setVolume(int value) async {
     final normalizedValue = value.clamp(0, 100);
+    if (heosCastController.isConnected) {
+      await heosCastController.setVolume(normalizedValue);
+      volume.value = normalizedValue;
+      await _settingsRepository.setVolume(normalizedValue);
+      return;
+    }
     // Keep the slider and percentage responsive while the platform call and
     // persisted preference complete in the background.
     volume.value = normalizedValue;
@@ -2380,7 +2657,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         await _settingsRepository.setVolume(vol);
       }
     }
-    await _playbackCommands.setVolume(vol);
+    if (heosCastController.isConnected) {
+      await heosCastController.setVolume(vol);
+    } else {
+      await _playbackCommands.setVolume(vol);
+    }
     volume.value = vol;
   }
 
@@ -2698,6 +2979,18 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         'isWaitingForCurrentSourceStart': _isWaitingForCurrentSourceStart,
         'sourceStartProgressWindowMs':
             _sourceStartProgressWindow.inMilliseconds,
+        // What the start conditions are measured against. Without these a
+        // stuck spinner is indistinguishable from a position stream that
+        // never ticked.
+        'pendingPlaybackStartPositionMs':
+            _pendingPlaybackStartPosition.inMilliseconds,
+        'expectedSourceStartPositionMs':
+            _expectedSourceStartPosition?.inMilliseconds,
+        'pendingSourceOutgoingPositionMs':
+            _pendingSourceOutgoingPosition.inMilliseconds,
+        'sourceStartTicksSeen': _sourceStartTicksSeen,
+        'sourceStartLastRejectedPositionMs':
+            _sourceStartLastRejectedPosition?.inMilliseconds,
         'playerPanelMinHeight': playerPanelMinHeight.value,
         'playerPanelTopVisible': playerPanelTopVisible.value,
         'isPanelGTHOpened': playerPanelOpen.value,
@@ -2810,6 +3103,11 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
     if (RuntimePlatform.isWindows) {
       _windowsAudioService?.dispose();
       _windowsAudioService = null;
+    }
+    final heosListener = _heosListener;
+    if (heosListener != null) {
+      heosCastController.removeListener(heosListener);
+      _heosListener = null;
     }
     // ensure wakelock disabled when player controller disposed
     try {

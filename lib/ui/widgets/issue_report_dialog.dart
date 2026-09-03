@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:harmonymusic/services/app_platform_service.dart';
+import 'package:harmonymusic/services/crash_diagnostics_service.dart';
 
 import 'common_dialog_widget.dart';
 
@@ -39,6 +40,10 @@ Future<Map<String, dynamic>> _buildIssueReportPayload({
 
   return {
     'title': title.trim(),
+    // The state dump says what the app ended up in; this says how it got
+    // there. Issue #81 arrived with a 404 and no way to tell whether the
+    // fallback had even run.
+    'recentLog': CrashDiagnosticsService.instance.recentLog(),
     'description': description.trim(),
     'stepsToReproduce': stepsToReproduce.trim(),
     'expectedResult': expectedResult.trim(),
@@ -188,6 +193,11 @@ ${payload['debugDetails']}
 **Diagnostics**
 ```json
 ${const JsonEncoder.withIndent('  ').convert(diagnostics)}
+```
+
+**Recent log**
+```
+${payload['recentLog']}
 ```
 ''';
   }

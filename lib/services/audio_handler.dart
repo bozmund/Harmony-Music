@@ -22,6 +22,7 @@ import '../domain/repositories/playlist_repository.dart';
 import '../domain/repositories/settings_repository.dart';
 import '../domain/repositories/song_cache_repository.dart';
 import '../utils/runtime_platform.dart';
+import '../utils/song_cache_storage.dart';
 import '/services/constant.dart';
 import '/services/crash_diagnostics_service.dart';
 import '/services/playback_queue_order.dart';
@@ -41,7 +42,6 @@ import '../utils/helper.dart';
 import '/models/media_Item_builder.dart';
 import '/services/utils.dart';
 import '../ui/screens/Library/library_controller.dart';
-
 
 const _androidNotificationArtSize = 256;
 const _fallbackCompletionGrace = Duration(milliseconds: 1250);
@@ -102,7 +102,12 @@ Future<AudioHandler> initAudioService({
 
 class MyAudioHandler extends BaseAudioHandler {
   // ignore: prefer_typing_uninitialized_variables
+  /// Scratch space that may legitimately be reclaimed: preload prefixes are
+  /// re-fetched on demand.
   late final _cacheDir;
+
+  /// Cached song audio, which may not. See [songCacheDirectory].
+  late final String _cachedSongsDir;
   late AudioPlayer _player;
   late MediaLibrary _mediaLibrary;
   PlaybackPreloadService? _preloadService;
@@ -376,11 +381,27 @@ class MyAudioHandler extends BaseAudioHandler {
     }
   }
 
+  /// Records that cached audio was used, so housekeeping ages it from last
+  /// play rather than from when it was first written.
+  ///
+  /// LockCachingAudioSource writes the file once, so its modification time
+  /// would otherwise expire a daily favourite thirty days after it was cached.
+  /// Last-access time cannot stand in for this: NTFS ships with
+  /// NtfsDisableLastAccessUpdate on.
+  Future<void> _markCachedAudioPlayed(File file) async {
+    try {
+      await file.setLastModified(DateTime.now());
+    } catch (_) {
+      // Advisory only. A cache hit must never fail over its own bookkeeping.
+    }
+  }
+
   Future<void> _createCacheDir() async {
     _cacheDir = (await getTemporaryDirectory()).path;
-    if (!Directory("$_cacheDir/cachedSongs/").existsSync()) {
-      Directory("$_cacheDir/cachedSongs/").createSync(recursive: true);
-    }
+    // Not under _cacheDir any more: songCacheDirectory picks a durable root,
+    // because the OS empties the temporary one out from under the Songs
+    // library. Preload prefixes above stay in temp, where they belong.
+    _cachedSongsDir = (await songCacheDirectory()).path;
   }
 
   Future<void> _addEmptyList() async {
@@ -716,7 +737,7 @@ class MyAudioHandler extends BaseAudioHandler {
     _remoteNotificationMirrorActive = false;
     _mediaItemBeforeRemoteNotification = null;
     _playbackStateBeforeRemoteNotification = null;
-    mediaItem.add(localItem);
+    if (localItem != null) mediaItem.add(localItem);
     if (localState != null) playbackState.add(localState);
   }
 
@@ -1307,13 +1328,15 @@ class MyAudioHandler extends BaseAudioHandler {
     if (!await _songCacheRepository.containsCachedSong(songId)) return null;
     // Same trap as checkNGetUrl: a cache entry can outlive the file it points
     // at, and preloading a missing file stalls the player instead of failing.
-    if (!await File("$_cacheDir/cachedSongs/$songId.mp3").exists()) return null;
+    final cachedFile = File("$_cachedSongsDir/$songId.mp3");
+    if (!await cachedFile.exists()) return null;
+    await _markCachedAudioPlayed(cachedFile);
 
     final cachedSongJson = await _songCacheRepository.getCachedSongJson(songId);
     final streamInfo = cachedSongJson?["streamInfo"];
     Audio audio;
     if (streamInfo != null && streamInfo.isNotEmpty) {
-      streamInfo[1]['url'] = "file://$_cacheDir/cachedSongs/$songId.mp3";
+      streamInfo[1]['url'] = "file://$_cachedSongsDir/$songId.mp3";
       audio = Audio.fromJson(streamInfo[1]);
     } else {
       audio = Audio(
@@ -1322,7 +1345,7 @@ class MyAudioHandler extends BaseAudioHandler {
         loudnessDb: 0,
         duration: 0,
         size: 0,
-        url: "file://$_cacheDir/cachedSongs/$songId.mp3",
+        url: "file://$_cachedSongsDir/$songId.mp3",
         itag: 0,
       );
     }
@@ -1544,7 +1567,7 @@ class MyAudioHandler extends BaseAudioHandler {
       // ignore: experimental_member_use
       return LockCachingAudioSource(
         _playableUri(url),
-        cacheFile: File("$_cacheDir/cachedSongs/${mediaItem.id}.mp3"),
+        cacheFile: File("$_cachedSongsDir/${mediaItem.id}.mp3"),
         tag: mediaItem,
       );
     }
@@ -1836,6 +1859,23 @@ class MyAudioHandler extends BaseAudioHandler {
       case 'clearRemoteNotificationMirror':
         _clearRemoteNotificationMirror();
         break;
+      case 'resolveHeosStreamUrl':
+        final song = extras!['mediaItem'] as MediaItem;
+        final generateNewUrl = extras['newUrl'] == true;
+        final streamInfo = await checkNGetUrl(
+          song.id,
+          generateNewUrl: generateNewUrl,
+        );
+        if (!streamInfo.playable) {
+          return {'playable': false, 'statusMSG': streamInfo.statusMSG};
+        }
+        final audio = _heosCompatibleAudio(streamInfo);
+        return {
+          'playable': audio != null,
+          'statusMSG': audio == null ? 'No HEOS-compatible stream' : 'OK',
+          'url': audio?.url,
+          'audioCodec': audio?.audioCodec.name,
+        };
 
       case 'dispose':
         _activeResolverCancellation?.cancel();
@@ -1901,7 +1941,9 @@ class MyAudioHandler extends BaseAudioHandler {
             await _clearCurrentSourceForReplacement();
           }
 
-          var streamInfo = await futureStreamInfo.timeout(_sourceResolveTimeout);
+          var streamInfo = await futureStreamInfo.timeout(
+            _sourceResolveTimeout,
+          );
           if (requestGeneration != _playbackGeneration ||
               songIndex != currentIndex) {
             isSongLoading = false;
@@ -2048,7 +2090,7 @@ class MyAudioHandler extends BaseAudioHandler {
         if (isPlayingUsingLockCachingSource) {
           final song = extras!['mediaItem'] as MediaItem;
           if (!await _songCacheRepository.containsCachedSong(song.id) &&
-              await File("$_cacheDir/cachedSongs/${song.id}.mp3").exists()) {
+              await File("$_cachedSongsDir/${song.id}.mp3").exists()) {
             song.extras!['url'] = currentSongUrl;
             song.extras!['date'] = DateTime.now().millisecondsSinceEpoch;
             final dbStreamData = await _songCacheRepository.getStreamCacheEntry(
@@ -2101,7 +2143,9 @@ class MyAudioHandler extends BaseAudioHandler {
           );
           final futureStreamInfo = _sourceInfoForPlayback(currMed);
           await _clearCurrentSourceForReplacement();
-          var streamInfo = await futureStreamInfo.timeout(_sourceResolveTimeout);
+          var streamInfo = await futureStreamInfo.timeout(
+            _sourceResolveTimeout,
+          );
           if (requestGeneration != _playbackGeneration) {
             isSongLoading = false;
             _endSourceSwitch();
@@ -2342,6 +2386,18 @@ class MyAudioHandler extends BaseAudioHandler {
     }
   }
 
+  Audio? _heosCompatibleAudio(HMStreamingData streamInfo) {
+    final candidates = [
+      streamInfo.highQualityAudio,
+      streamInfo.lowQualityAudio,
+      streamInfo.audio,
+    ];
+    for (final audio in candidates) {
+      if (audio?.audioCodec == Codec.mp4a) return audio;
+    }
+    return streamInfo.audio;
+  }
+
   void _shuffleVisibleQueueFromIndex(int index) {
     final currentQueue = List<MediaItem>.from(queue.value);
     if (currentQueue.isEmpty || index < 0 || index >= currentQueue.length) {
@@ -2537,8 +2593,9 @@ class MyAudioHandler extends BaseAudioHandler {
       // back, leaving entries pointing at files that no longer exist. Handing
       // just_audio a missing file does not raise — it sits in `loading`
       // forever, which looks exactly like a hung handoff.
-      final cachedPath = "$_cacheDir/cachedSongs/$songId.mp3";
-      if (!await File(cachedPath).exists()) {
+      final cachedPath = "$_cachedSongsDir/$songId.mp3";
+      final cachedFile = File(cachedPath);
+      if (!await cachedFile.exists()) {
         printWarning(
           "Cached audio for $songId is missing from disk; dropping the stale "
           "cache entry and resolving online",
@@ -2551,6 +2608,7 @@ class MyAudioHandler extends BaseAudioHandler {
           allowResolver: allowResolver,
         );
       }
+      await _markCachedAudioPlayed(cachedFile);
       printINFO("Got Song from cachedbox ($songId)", tag: LogTags.audioHandler);
       // if contains stream Info
       final cachedSongJson = await _songCacheRepository.getCachedSongJson(
@@ -2559,7 +2617,7 @@ class MyAudioHandler extends BaseAudioHandler {
       final streamInfo = cachedSongJson["streamInfo"];
       Audio? cacheAudioPlaceholder;
       if (streamInfo != null && streamInfo.isNotEmpty) {
-        streamInfo[1]['url'] = "file://$_cacheDir/cachedSongs/$songId.mp3";
+        streamInfo[1]['url'] = "file://$_cachedSongsDir/$songId.mp3";
         cacheAudioPlaceholder = Audio.fromJson(streamInfo[1]);
       } else {
         cacheAudioPlaceholder = Audio(
@@ -2568,7 +2626,7 @@ class MyAudioHandler extends BaseAudioHandler {
           loudnessDb: 0,
           duration: 0,
           size: 0,
-          url: "file://$_cacheDir/cachedSongs/$songId.mp3",
+          url: "file://$_cachedSongsDir/$songId.mp3",
           itag: 0,
         );
       }
@@ -2727,6 +2785,52 @@ class MyAudioHandler extends BaseAudioHandler {
     _resolverSources.clear();
   }
 
+  /// Records *why* a resolution attempt failed.
+  ///
+  /// Both branches of the race report failure through the same opaque
+  /// `resolverPlaybackFailed` status, so by the time anything is user-visible
+  /// a rate limit, an unplayable video, a dropped connection and a 403 are
+  /// indistinguishable. Working out that YouTube was merely rate limiting the
+  /// device took a round trip of state dumps that this line would have
+  /// answered on its own.
+  ///
+  /// Deliberately goes through `recordLog` rather than only `printERROR`:
+  /// `printERROR` returns immediately in release builds, which is exactly
+  /// where these failures are reported from.
+  void _recordResolutionFailure(
+    String songId,
+    String branch,
+    Object? cause,
+    StackTrace? stackTrace,
+  ) {
+    final message = '$branch resolution failed for $songId: $cause';
+    CrashDiagnosticsService.instance.recordLog(
+      'error',
+      LogTags.audioHandler,
+      message,
+    );
+    printERROR(message, tag: LogTags.audioHandler);
+    if (stackTrace != null) {
+      printWarning(stackTrace.toString(), tag: LogTags.audioHandler);
+    }
+  }
+
+  /// Asks the Resolver to ingest a track it did not have.
+  ///
+  /// The prefetch that runs on every song change covers the *next* three
+  /// queue entries only, never the one being played. So a track the Resolver
+  /// has never ingested answers 404, the local fallback carries that one
+  /// playback, and nothing ever tells the Resolver the track exists - the next
+  /// attempt hits the same 404, and the one after that. Issue #81 is a track
+  /// the Resolver has no record of at all.
+  ///
+  /// Fire-and-forget, exactly as the downloader already does on the same miss.
+  /// It cannot help the attempt in flight; it is what makes the next one work.
+  void _requestResolverIngestion(String songId) {
+    if (!_effectiveResolverSourceMode().usesResolver) return;
+    unawaited(_resolverPlaybackClient.prefetch([songId]));
+  }
+
   Future<HMStreamingData> _resolveWithResolver(String songId) async {
     await _resetResolverSources();
     final cancellation = ResolverOpenCancellation();
@@ -2735,13 +2839,20 @@ class MyAudioHandler extends BaseAudioHandler {
     try {
       final source = await _openResolver(songId, cancellation);
       if (source == null) {
+        _requestResolverIngestion(songId);
         return HMStreamingData(
           playable: false,
           statusMSG: 'resolverPlaybackFailed',
         );
       }
       return _resolverStreamInfo(songId, source);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      // Every distinct cause — rate limiting, an unplayable video, a network
+      // drop, a 403 — collapses into one opaque status by the time it reaches
+      // the UI. Without this line a failure is indistinguishable from any
+      // other, which has already cost a round trip of state dumps to work out
+      // that YouTube was simply rate limiting the device.
+      _recordResolutionFailure(songId, 'resolver', error, stackTrace);
       return HMStreamingData(
         playable: false,
         statusMSG: 'resolverPlaybackFailed',
@@ -2807,12 +2918,29 @@ class MyAudioHandler extends BaseAudioHandler {
       }
     }
 
-    final local = _resolveLocalOnline(songId);
     final resolver = _openResolver(songId, cancellation);
 
-    unawaited(() async {
+    // Local extraction is the fallback, not a co-equal racer.
+    //
+    // Starting it unconditionally meant every online song cost a watch-page
+    // fetch and a player-API call against YouTube from this device — even for
+    // tracks the Resolver already held and could serve from its own storage
+    // without touching YouTube at all. Roughly double the request volume for
+    // no benefit, and request volume is what gets an IP rate limited, which is
+    // exactly what took playback down.
+    //
+    // So the Resolver gets a head start. A track it already holds comes back
+    // well inside it and local extraction never runs. Only a Resolver that is
+    // slow (a cold ingestion) or failing pays for the fallback — precisely
+    // when the fallback is worth having.
+    var localStarted = false;
+    Future<void> runLocalExtraction() async {
+      // Guarded rather than scheduled once: the head start and the resolver's
+      // failure paths can both reach for this, and it must run at most once.
+      if (localStarted || completer.isCompleted) return;
+      localStarted = true;
       try {
-        final result = await local;
+        final result = await _resolveLocalOnline(songId);
         if (result.playable && !completer.isCompleted) {
           cancellation.cancel();
           if (identical(_activeResolverCancellation, cancellation)) {
@@ -2820,19 +2948,31 @@ class MyAudioHandler extends BaseAudioHandler {
           }
           completer.complete(result);
         } else if (!result.playable) {
+          _recordResolutionFailure(songId, 'local', result.statusMSG, null);
           failed();
         }
-      } catch (_) {
+      } catch (error, stackTrace) {
+        _recordResolutionFailure(songId, 'local', error, stackTrace);
         failed();
       }
+    }
+
+    unawaited(() async {
+      await Future<void>.delayed(_resolverHeadStart);
+      await runLocalExtraction();
     }());
     unawaited(() async {
       try {
         final source = await resolver;
         if (source == null) {
+          _requestResolverIngestion(songId);
           if (identical(_activeResolverCancellation, cancellation)) {
             _activeResolverCancellation = null;
           }
+          // Do not sit out the rest of the head start. It exists to spare a
+          // *working* Resolver the duplicate request, and `failed()` cannot
+          // reach two until local extraction has had its turn.
+          unawaited(runLocalExtraction());
           failed();
           return;
         }
@@ -2844,10 +2984,12 @@ class MyAudioHandler extends BaseAudioHandler {
           _activeResolverCancellation = null;
         }
         completer.complete(_resolverStreamInfo(songId, source));
-      } catch (_) {
+      } catch (error, stackTrace) {
+        _recordResolutionFailure(songId, 'resolver', error, stackTrace);
         if (identical(_activeResolverCancellation, cancellation)) {
           _activeResolverCancellation = null;
         }
+        unawaited(runLocalExtraction());
         failed();
       }
     }());
@@ -2870,13 +3012,25 @@ class MyAudioHandler extends BaseAudioHandler {
         '${_onlineResolveTimeout.inSeconds}s with no branch reporting back',
         tag: LogTags.audioHandler,
       );
-      return HMStreamingData(playable: false, statusMSG: 'resolverPlaybackFailed');
+      return HMStreamingData(
+        playable: false,
+        statusMSG: 'resolverPlaybackFailed',
+      );
     }
   }
 
   /// The point at which a race in which neither branch reported back is given
   /// up on. Above the resolver's own 30s ingestion poll, so a cold track it is
   /// still fetching is never cut off by this.
+  /// How long the Resolver gets before local extraction joins in.
+  ///
+  /// Long enough that a track the Resolver already holds is served without
+  /// this device touching YouTube at all, short enough that a cold ingestion
+  /// still falls back quickly. A cached Resolver hit returns well under a
+  /// second; local extraction alone measured 2.5-3s, so waiting this long
+  /// costs a stalled Resolver very little.
+  static const _resolverHeadStart = Duration(seconds: 2);
+
   static const _onlineResolveTimeout = Duration(seconds: 45);
 
   /// How long the app's own extraction may take before it forfeits the race.

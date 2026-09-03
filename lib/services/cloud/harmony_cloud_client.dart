@@ -222,6 +222,35 @@ class HarmonyCloudClient {
     );
   }
 
+  /// Declares this device the audio target for what it is already playing, so
+  /// another device can subscribe to it as a remote.
+  ///
+  /// Unlike [startPlaybackSession] nothing is handed anywhere and no command is
+  /// emitted — the caller keeps playing exactly as it was. Returns null when
+  /// the server refuses, which includes a 409 for a session another device
+  /// already owns and a 404 on servers predating the endpoint.
+  Future<String?> claimPlaybackSession({
+    required String deviceId,
+    required Map<String, Object?> state,
+  }) async {
+    try {
+      final response = await _dio.postUri<Map<String, dynamic>>(
+        Uri.parse(baseUrl).resolve('v1/playback/session/claim'),
+        data: {'deviceId': deviceId, 'state': state},
+        options: await _options(),
+      );
+      return response.data?['sessionId']?.toString();
+    } on DioException catch (error) {
+      // Refusing is a normal outcome, not a failure to report: 409 means
+      // another device legitimately owns the session, and 404 means the server
+      // has not been updated yet. Either way this device simply keeps playing
+      // without advertising.
+      final status = error.response?.statusCode;
+      if (status == 409 || status == 404) return null;
+      rethrow;
+    }
+  }
+
   Future<String> startPlaybackSession({
     required String sourceDeviceId,
     required String targetDeviceId,

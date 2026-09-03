@@ -126,7 +126,10 @@ void main() {
       final shuffleIndex = block.indexOf(
         'await _playbackCommands.shuffleFromIndex',
       );
-      final playByIndexIndex = block.indexOf('_playbackCommands.playByIndex');
+      // Playback starts through _playQueueIndex so a connected HEOS speaker
+      // gets the track instead of the local handler. The ordering guarantee is
+      // unchanged: the queue must be in place before playback starts.
+      final playByIndexIndex = block.indexOf('_playQueueIndex(');
 
       expect(panelIndex, isNot(-1));
       expect(updateQueueIndex, isNot(-1));
@@ -135,6 +138,14 @@ void main() {
       expect(panelIndex, lessThan(updateQueueIndex));
       expect(updateQueueIndex, lessThan(playByIndexIndex));
       expect(shuffleIndex, lessThan(playByIndexIndex));
+
+      // ...and with no speaker connected it is still the local handler.
+      final queueIndexBlock = _methodBlock(source, '_playQueueIndex');
+      expect(queueIndexBlock, contains('if (!heosCastController.isConnected)'));
+      expect(
+        queueIndexBlock,
+        contains('await _playbackCommands.playByIndex(index);'),
+      );
     });
 
     test('enqueue into an empty queue starts playback', () {
@@ -293,7 +304,8 @@ void main() {
         playerStateBlock,
         contains('_setButtonState(PlayButtonState.loading)'),
       );
-      expect(durationBlock, contains('_beginPendingSourceStart(mediaItem.id)'));
+      expect(durationBlock, contains('_beginPendingSourceStart('));
+      expect(durationBlock, contains('outgoingPosition: outgoingPosition'));
       expect(
         positionBlock,
         contains('_setButtonState(PlayButtonState.playing)'),
@@ -324,6 +336,101 @@ void main() {
       expect(restoredReadyBlock, isNot(contains('_isSourceStartPosition')));
     });
 
+    test('a resume position belongs only to the song it was set for', () {
+      final begin = _methodBlock(source, '_beginPendingSourceStart');
+      final resolving = _methodBlock(source, 'setCurrentSongResolving');
+
+      // A handoff records "resume at 5.9s". Nothing clears that except a start
+      // that completes, so a stale value survived onto the next unrelated tap
+      // - which starts at zero, leaving the controller waiting on a position
+      // that source would never reach and the spinner up for the whole track.
+      expect(
+        resolving,
+        contains('_expectedSourceStartSongId = pendingSong.id'),
+      );
+      expect(begin, contains('_expectedSourceStartSongId == songId'));
+
+      // Consumed, not merely read: it must not survive into a later song even
+      // when this start also fails to complete.
+      expect(begin, contains('_expectedSourceStartPosition = null;'));
+      expect(begin, contains('_expectedSourceStartSongId = null;'));
+      expect(begin, contains('expectedStart ?? Duration.zero'));
+    });
+
+    test('an expected start the source never reaches is abandoned', () {
+      final block = _methodBlock(source, '_abandonStaleExpectedStart');
+      final positionBlock = _methodBlock(source, '_listenForChangesInPosition');
+
+      // A cancelled handoff leaves "resume at 26.7s" behind while the source
+      // restarts from zero. Both position conditions then fail forever, so the
+      // spinner stayed up until playback organically reached that mark - the
+      // audio was fine the whole time, only the UI was stuck.
+      expect(
+        positionBlock,
+        contains('_abandonStaleExpectedStart(playbackState, position)'),
+      );
+
+      // Only a source that is provably playing, and only below the expected
+      // start - above it the normal window logic already applies.
+      expect(block, contains('AudioProcessingState.ready'));
+      expect(block, contains('!playbackState.playing'));
+      expect(block, contains('position >= _pendingPlaybackStartPosition'));
+
+      // Sustained progress is the proof. A single tick could be stale, and a
+      // source still seeking towards a resumed position must survive.
+      expect(block, contains('_staleExpectedStartProof'));
+      expect(block, contains('_retargetPendingSourceStart(position)'));
+      expect(
+        source,
+        contains('_staleExpectedStartProof = Duration(seconds: 2)'),
+      );
+    });
+
+    test('a ready-paused report at the outgoing position is not a start', () {
+      final restoredReadyBlock = _methodBlock(
+        source,
+        '_isReadyPausedPendingSource',
+      );
+      final outgoingBlock = _methodBlock(source, '_isOutgoingSourcePosition');
+      final beginBlock = _methodBlock(source, '_beginPendingSourceStart');
+      final durationBlock = _methodBlock(source, '_listenForChangesInDuration');
+      final clearBlock = _methodBlock(source, '_clearPendingSourceStart');
+
+      // Tapping a song while another is paused leaves the old source loaded
+      // and still reporting ready-paused at its own position, seconds before
+      // the new one is installed. Clearing on that drops the button to paused
+      // for the whole resolve.
+      expect(
+        restoredReadyBlock,
+        contains('!_isOutgoingSourcePosition(playbackState.updatePosition)'),
+      );
+
+      // Zero stays exempt, or a restore that prepares at zero would never
+      // clear and would pin the button on loading instead.
+      expect(
+        outgoingBlock,
+        contains(
+          'if (_pendingSourceOutgoingPosition <= Duration.zero) return false;',
+        ),
+      );
+      expect(outgoingBlock, contains('_outgoingSourcePositionTolerance'));
+
+      // The outgoing position must be read before the new media item
+      // overwrites it.
+      expect(
+        durationBlock,
+        contains('final outgoingPosition = progressBarStatus.value.current;'),
+      );
+      expect(
+        beginBlock,
+        contains('_pendingSourceOutgoingPosition = outgoingPosition;'),
+      );
+      expect(
+        clearBlock,
+        contains('_pendingSourceOutgoingPosition = Duration.zero;'),
+      );
+    });
+
     test('media item listener only clears lyrics when song changes', () {
       final block = _methodBlock(source, '_listenForChangesInDuration');
 
@@ -342,7 +449,7 @@ void main() {
         final block = _methodBlock(source, '_listenForChangesInDuration');
 
         expect(source, contains('String? _pendingPlaybackStartSongId;'));
-        expect(block, contains('_beginPendingSourceStart(mediaItem.id);'));
+        expect(block, contains('_beginPendingSourceStart('));
         expect(block, contains('val.current = isSameSong'));
         expect(block, contains(': Duration.zero;'));
         expect(
@@ -625,9 +732,10 @@ String _methodBlock(String source, String methodName) {
     // Any other return type, including generics like
     // `Future<Map<String, dynamic>?>`. Anchored on the declaration's leading
     // indentation so a call site cannot match instead.
-    methodStart = RegExp(
-      r'\n  [\w<>,?\s]+ ' + RegExp.escape(methodName) + r'\(',
-    ).firstMatch(source)?.start ??
+    methodStart =
+        RegExp(
+          r'\n  [\w<>,?\s]+ ' + RegExp.escape(methodName) + r'\(',
+        ).firstMatch(source)?.start ??
         -1;
   }
   expect(methodStart, isNot(-1), reason: 'Missing $methodName');

@@ -40,6 +40,7 @@ final ChangeNotifierProvider<PlayerController> playerControllerProvider =
         playbackSessionRepository: ref.read(playbackSessionRepositoryProvider),
         musicService: ref.read(musicServiceContractProvider),
         playbackCommands: ref.read(playbackCommandServiceProvider),
+        heosCastController: ref.read(heosCastControllerProvider),
       );
       PlayerControllerRegistry.register(controller);
       unawaited(controller.init());
@@ -187,5 +188,7 @@ final desktopSystemTrayProvider = Provider<DesktopSystemTray>(
     // read, NOT watch: see searchScreenControllerProvider above.
     playerController: ref.read(playerControllerProvider),
     settingsScreenController: ref.read(settingsScreenControllerProvider),
+    // Closing the app must end a cloud session the same way "Leave sync" does.
+    playbackReceiver: ref.read(cloudPlaybackReceiverProvider),
   ),
 );

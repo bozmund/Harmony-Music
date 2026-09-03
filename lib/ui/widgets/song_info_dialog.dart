@@ -69,15 +69,13 @@ class SongInfoDialog extends StatelessWidget {
                         title: context.l10n.loudnessDb,
                         value: "${streamInfo["loudnessDb"] ?? "NA"}",
                       ),
-                      if (includePlaybackDebug) ...[
+                      if (playbackDebug != null) ...[
                         const Divider(),
                         InfoItem(
                           title: "Playback and handler state",
-                          value: playbackDebug == null
-                              ? "Loading..."
-                              : const JsonEncoder.withIndent(
-                                  '  ',
-                                ).convert(playbackDebug),
+                          value: const JsonEncoder.withIndent(
+                            '  ',
+                          ).convert(playbackDebug),
                         ),
                       ],
                     ],
@@ -145,11 +143,13 @@ class SongInfoDialog extends StatelessWidget {
 
   Future<_SongInfoDetails> _getDetails(BuildContext context, String id) async {
     final streamInfo = await _getStreamInfo(context, id);
-    if (!includePlaybackDebug) {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final settingsRepository = container.read(settingsRepositoryProvider);
+    if (!includePlaybackDebug ||
+        !settingsRepository.getDeveloperSettingsEnabled()) {
       return _SongInfoDetails(streamInfo: streamInfo);
     }
 
-    final container = ProviderScope.containerOf(context, listen: false);
     final playerController = container.read(playerControllerProvider);
     final playbackDebug = await playerController
         .detailedPlaybackDebugSnapshot();

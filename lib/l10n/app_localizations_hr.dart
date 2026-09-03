@@ -1373,4 +1373,29 @@ class AppLocalizationsHr extends AppLocalizations {
 
   @override
   String get findingSimilarSongs => 'Tražim slične pjesme…';
+
+  @override
+  String get shareNowPlaying => 'Dijeli što sluhšam';
+
+  @override
+  String get shareNowPlayingDescription =>
+      'Dopusti drugim uređajima da vide reprodukciju na ovom uređaju i upravljaju njome.';
+
+  @override
+  String get controlThisDevice => 'Upravljaj ovim uređajem';
+
+  @override
+  String get nothingPlayingThere => 'Ondje se ništa ne reproducira';
+
+  @override
+  String get playingHere => 'Reproducira se ovdje';
+
+  @override
+  String nowControllingDevice(String deviceName) {
+    return 'Upravljate uređajem $deviceName';
+  }
+
+  @override
+  String get nothingHereToTransfer =>
+      'Na ovom se uređaju ništa ne reproducira za prijenos';
 }

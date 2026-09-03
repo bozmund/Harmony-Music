@@ -8,6 +8,8 @@ import 'package:harmonymusic/l10n/l10n.dart';
 import 'package:harmonymusic/l10n/app_localizations_en.dart';
 import 'package:harmonymusic/ui/widgets/snackbar.dart';
 import 'package:path_provider/path_provider.dart';
+
+import '/utils/song_cache_storage.dart';
 import 'package:file_selector/file_selector.dart';
 import '../../../domain/repositories/library_repository.dart';
 import '../../../app/navigation/app_navigator.dart';
@@ -75,30 +77,19 @@ class LibrarySongsController extends ChangeNotifier {
     // Make sure that song cached in system or not cleared by system
     // if cleared then it will remove from database as well
     List<String> songsList = [];
-    final cacheDir = (await getTemporaryDirectory()).path;
-    if (Directory("$cacheDir/cachedSongs/").existsSync()) {
-      final downloadedFiles = Directory("$cacheDir/cachedSongs")
-          .listSync()
-          .where(
-            (f) => ![
-              'mime',
-              'part',
-            ].contains(f.path.replaceAll(RegExp(r'^.*\.'), '')),
-          );
+    final cachedSongsDir = await songCacheDirectory();
+    if (cachedSongsDir.existsSync()) {
+      // By file name rather than by matching a path: listSync joins with the
+      // platform separator, so the old ".cachedSongs/(...).mp3" pattern could
+      // never match on Windows, where that is a backslash.
       songsList.addAll(
-        downloadedFiles
-            .map((e) {
-              RegExpMatch? match = RegExp(
-                ".cachedSongs/([^#]*)?.mp3",
-              ).firstMatch(e.path);
-              if (match != null) {
-                return match[1]!;
-              }
-            })
-            .whereType<String>()
-            .toList(),
+        cachedSongsDir
+            .listSync()
+            .map((entity) => entity.uri.pathSegments.last)
+            .where((name) => name.endsWith('.mp3'))
+            .map((name) => name.substring(0, name.length - '.mp3'.length))
+            .where((songId) => songId.isNotEmpty),
       );
-      //printINFO("all files: $downloadedFiles \n $songsList");
     }
 
     final cachedSongs = await _library.getCachedSongs();
@@ -311,8 +302,7 @@ class LibrarySongsController extends ChangeNotifier {
       // this install); there is nothing on disk to delete for them.
       filePath = item.extras!['url'] ?? url ?? "";
     } else {
-      final cacheDir = (await getTemporaryDirectory()).path;
-      filePath = "$cacheDir/cachedSongs/${item.id}.mp3";
+      filePath = "${(await songCacheDirectory()).path}/${item.id}.mp3";
     }
 
     if (filePath.isNotEmpty && await File(filePath).exists()) {

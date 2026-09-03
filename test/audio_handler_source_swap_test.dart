@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _resolverGetsAHeadStart();
+  _resolutionFailuresAreDiagnosable();
   group('audio handler source swaps', () {
     late String source;
 
@@ -876,4 +878,78 @@ bool _loadsThenClearsLoadingThenEmitsStarted(String block) {
   );
 
   return emitStartedIndex != -1;
+}
+
+/// Resolution failures must name themselves.
+void _resolutionFailuresAreDiagnosable() {
+  final handler = File('lib/services/audio_handler.dart').readAsStringSync();
+
+  test('every resolution failure records its cause', () {
+    // Both race arms and the resolver path report the same opaque
+    // `resolverPlaybackFailed` status, so without this a rate limit, an
+    // unplayable video and a dropped connection are indistinguishable in the
+    // field — which cost a round trip of state dumps to diagnose once.
+    expect(handler, contains('void _recordResolutionFailure('));
+    expect(
+      RegExp(r'_recordResolutionFailure\(').allMatches(handler).length,
+      greaterThanOrEqualTo(4),
+      reason: 'the resolver path and both race arms must all report',
+    );
+    expect(
+      handler,
+      isNot(contains('} catch (_) {\r\n        failed();')),
+      reason: 'a race arm must not swallow its cause',
+    );
+  });
+
+  test('the recorder survives release builds', () {
+    // printERROR returns immediately when kReleaseMode, and release is exactly
+    // where these failures get reported from.
+    final at = handler.indexOf('void _recordResolutionFailure(');
+    final body = handler.substring(at, at + 700);
+    expect(
+      body,
+      contains('CrashDiagnosticsService.instance.recordLog'),
+      reason: 'printERROR alone is a no-op in release',
+    );
+  });
+}
+
+/// The Resolver is asked first; local extraction is the fallback.
+void _resolverGetsAHeadStart() {
+  final handler = File('lib/services/audio_handler.dart').readAsStringSync();
+  final race = handler.substring(
+    handler.indexOf('Future<HMStreamingData> _raceOnlineResolvers('),
+    handler.indexOf('Future<HMStreamingData> _resolveLocalOnline('),
+  );
+
+  test('local extraction does not start until the head start elapses', () {
+    // Racing both unconditionally cost a watch-page fetch and a player-API
+    // call against YouTube for every online song, including tracks the
+    // Resolver already held and could serve without touching YouTube — double
+    // the request volume, and volume is what gets an IP rate limited.
+    expect(handler, contains('_resolverHeadStart = Duration('));
+    expect(race, contains('await Future<void>.delayed(_resolverHeadStart)'));
+    expect(
+      race,
+      isNot(contains('final local = _resolveLocalOnline(songId);')),
+      reason: 'starting it eagerly is the thing being fixed',
+    );
+  });
+
+  test('a resolver failure starts local extraction immediately', () {
+    // The head start spares a *working* Resolver a duplicate request. When it
+    // fails there is nothing to spare, and `failed()` cannot reach two until
+    // local extraction has had its turn — so waiting it out would stall.
+    expect(
+      RegExp(r'unawaited\(runLocalExtraction\(\)\);').allMatches(race).length,
+      2,
+      reason: 'both resolver failure paths must hand over',
+    );
+  });
+
+  test('local extraction runs at most once', () {
+    // Two failure paths and the head start can all reach for it.
+    expect(race, contains('if (localStarted || completer.isCompleted) return;'));
+  });
 }

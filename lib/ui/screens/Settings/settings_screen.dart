@@ -13,6 +13,8 @@ import '../../../app/providers/controller_providers.dart';
 import '../../../app/providers/auth_providers.dart';
 import '../../../app/providers/repository_providers.dart';
 import '../../../app/providers/service_providers.dart';
+import '../../../services/heos/heos_cast_controller.dart';
+import '../../../services/heos/heos_models.dart';
 import '../../../utils/runtime_platform.dart';
 import '../../widgets/awaitable_button.dart';
 import '../../widgets/common_dialog_widget.dart';
@@ -54,6 +56,7 @@ class SettingsScreen extends ConsumerWidget {
       });
     }
     final playerController = ref.read(playerControllerProvider);
+    final heosCastController = ref.watch(heosCastControllerProvider);
     // One-shot: set when something (the release channel prompt, or
     // disabling the update popup) sends the user here to see the update
     // controls; opens the App Info section.
@@ -68,6 +71,7 @@ class SettingsScreen extends ConsumerWidget {
     return AnimatedBuilder(
       animation: Listenable.merge([
         settingsController,
+        heosCastController,
         playerController.playerPanelMinHeight,
         downloader,
       ]),
@@ -213,6 +217,22 @@ class SettingsScreen extends ConsumerWidget {
                           leading: const Icon(Icons.devices_outlined),
                           title: Text(context.l10n.deviceControl),
                           subtitle: Text(context.l10n.deviceControlDescription),
+                        ),
+                      if (authController.isAuthenticated)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          leading: const Icon(Icons.podcasts_outlined),
+                          title: Text(context.l10n.shareNowPlaying),
+                          subtitle: Text(
+                            context.l10n.shareNowPlayingDescription,
+                          ),
+                          trailing: CustomSwitch(
+                            value: authController.shareNowPlaying,
+                            onChanged: authController.setShareNowPlaying,
+                          ),
                         ),
                     ],
                   ),
@@ -1129,6 +1149,8 @@ class SettingsScreen extends ConsumerWidget {
                         },
                       ),
                       if (RuntimePlatform.isAndroid)
+                        _HeosSettingsTile(controller: heosCastController),
+                      if (RuntimePlatform.isAndroid)
                         ListTile(
                           contentPadding: const EdgeInsets.only(
                             left: 5,
@@ -1607,6 +1629,165 @@ Future<void> _editResolverAddress(
   );
   textController.dispose();
   if (value != null) await controller.setResolverOverride(value);
+}
+
+class _HeosSettingsTile extends StatelessWidget {
+  const _HeosSettingsTile({required this.controller});
+
+  final HeosCastController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = controller.isConnected;
+    return ListTile(
+      contentPadding: const EdgeInsets.only(left: 5, right: 10),
+      leading: Icon(
+        connected ? Icons.speaker_group : Icons.speaker_group_outlined,
+      ),
+      title: const Text("HEOS speakers"),
+      subtitle: Text(
+        _heosStatusText(controller),
+        style: Theme.of(context).textTheme.bodyMedium,
+      ),
+      trailing: controller.status == HeosCastStatus.discovering
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(connected ? Icons.cast_connected : Icons.cast),
+      onTap: () {
+        unawaited(
+          showDialog<void>(
+            context: context,
+            builder: (context) => const _HeosSpeakerDialog(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HeosSpeakerDialog extends ConsumerStatefulWidget {
+  const _HeosSpeakerDialog();
+
+  @override
+  ConsumerState<_HeosSpeakerDialog> createState() => _HeosSpeakerDialogState();
+}
+
+class _HeosSpeakerDialogState extends ConsumerState<_HeosSpeakerDialog> {
+  final _ipController = TextEditingController();
+
+  @override
+  void dispose() {
+    _ipController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final heosController = ref.watch(heosCastControllerProvider);
+    return AlertDialog(
+      title: const Text("HEOS speakers"),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                _heosStatusText(heosController),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _ipController,
+                      decoration: const InputDecoration(
+                        labelText: "Speaker IP address",
+                        hintText: "192.168.1.25",
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      final ipAddress = _ipController.text.trim();
+                      if (ipAddress.isEmpty) return;
+                      unawaited(heosController.connectToAddress(ipAddress));
+                    },
+                    child: const Text("Connect"),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => unawaited(heosController.discover()),
+                icon: const Icon(Icons.search),
+                label: const Text("Discover speakers"),
+              ),
+              if (heosController.devices.isNotEmpty) const Divider(),
+              ...heosController.devices.map(
+                (device) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.router),
+                  title: Text(device.name),
+                  subtitle: Text(device.ipAddress),
+                  trailing: TextButton(
+                    onPressed: () =>
+                        unawaited(heosController.connectToDevice(device)),
+                    child: const Text("Use"),
+                  ),
+                ),
+              ),
+              if (heosController.players.isNotEmpty) const Divider(),
+              ...heosController.players.map(
+                (player) => RadioListTile<HeosPlayer>(
+                  contentPadding: EdgeInsets.zero,
+                  value: player,
+                  groupValue: heosController.selectedPlayer,
+                  onChanged: (value) {
+                    if (value != null) {
+                      unawaited(heosController.selectPlayer(value));
+                    }
+                  },
+                  title: Text(player.name),
+                  subtitle: Text(player.model ?? "HEOS player"),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        if (heosController.isConnected)
+          TextButton(
+            onPressed: () => unawaited(heosController.disconnect()),
+            child: const Text("Disconnect"),
+          ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.l10n.close),
+        ),
+      ],
+    );
+  }
+}
+
+String _heosStatusText(HeosCastController controller) {
+  if (controller.statusMessage != null) return controller.statusMessage!;
+  return switch (controller.status) {
+    HeosCastStatus.discovering => "Searching for HEOS speakers...",
+    HeosCastStatus.connected =>
+      "Connected to ${controller.selectedSpeakerName}",
+    HeosCastStatus.casting => "Playing on ${controller.selectedSpeakerName}",
+    HeosCastStatus.error => "HEOS speaker is unavailable",
+    HeosCastStatus.disconnected => "Connect to a HEOS speaker on this Wi-Fi",
+  };
 }
 
 class ThemeSelectorDialog extends ConsumerWidget {

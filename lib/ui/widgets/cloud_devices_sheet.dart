@@ -8,6 +8,7 @@ import '../../app/providers/controller_providers.dart';
 import '../../l10n/l10n.dart';
 import '../../app/providers/service_providers.dart';
 import '../../services/cloud/harmony_cloud_client.dart';
+import 'snackbar.dart';
 import '../player/player_controller.dart';
 import 'awaitable_button.dart';
 
@@ -25,8 +26,19 @@ class _CloudDevicesSheet extends ConsumerStatefulWidget {
   ConsumerState<_CloudDevicesSheet> createState() => _CloudDevicesSheetState();
 }
 
+/// The device list plus the account's open session, fetched together.
+///
+/// The list alone cannot answer "is that device playing?" - see
+/// [_CloudDevicesSheetState._isPlayingTarget].
+class _DevicesSnapshot {
+  const _DevicesSnapshot(this.devices, this.session);
+
+  final List<CloudPlaybackDevice> devices;
+  final CloudPlaybackSession? session;
+}
+
 class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
-  late Future<List<CloudPlaybackDevice>> _devices;
+  late Future<_DevicesSnapshot> _devices;
 
   /// The device a handoff is currently in flight to, if any.
   String? _handingOffTo;
@@ -39,7 +51,19 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
   }
 
   void _loadDevices() {
-    _devices = ref.read(authControllerProvider).playbackDevices();
+    final auth = ref.read(authControllerProvider);
+    _devices =
+        Future.wait([
+          auth.playbackDevices(),
+          // A missing or failed session is not fatal: without it every row simply
+          // reads as a transfer destination, which is the safe default.
+          auth.playbackSession().catchError((_) => null),
+        ]).then(
+          (results) => _DevicesSnapshot(
+            results[0] as List<CloudPlaybackDevice>,
+            results[1] as CloudPlaybackSession?,
+          ),
+        );
   }
 
   void _retry() => setState(_loadDevices);
@@ -48,7 +72,7 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
   Widget build(BuildContext context) => SafeArea(
     child: Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 24),
-      child: FutureBuilder<List<CloudPlaybackDevice>>(
+      child: FutureBuilder<_DevicesSnapshot>(
         future: _devices,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -85,11 +109,12 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
               ),
             );
           }
-          final loadedDevices = snapshot.data;
-          if (loadedDevices == null) {
+          final loaded = snapshot.data;
+          if (loaded == null) {
             return const SizedBox.shrink();
           }
-          final devices = loadedDevices;
+          final devices = loaded.devices;
+          final session = loaded.session;
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -110,7 +135,7 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                     device.platform == 'windows'
                         ? Icons.computer
                         : Icons.phone_android,
-                    color: device.isAudioTarget
+                    color: _isPlayingTarget(device, session)
                         ? Colors.blueAccent
                         : device.presence == 'unavailable'
                         ? Theme.of(context).disabledColor
@@ -120,7 +145,7 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                     device.isCurrentDevice
                         ? '${device.name} (This device)'
                         : device.name,
-                    style: device.isAudioTarget
+                    style: _isPlayingTarget(device, session)
                         ? const TextStyle(color: Colors.blueAccent)
                         : null,
                   ),
@@ -129,8 +154,11 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                             ref.read(cloudPlaybackReceiverProvider).isEngaged
                         // The exit affordance: your own row, while synced.
                         ? context.l10n.tapToLeaveSync
-                        : device.isAudioTarget
-                        ? 'Playing here'
+                        : _isPlayingTarget(device, session)
+                        // Tapping this row syncs with it instead of handing
+                        // over, so the row has to say which of the two it is.
+                        ? '${context.l10n.playingHere} - '
+                              '${context.l10n.controlThisDevice}'
                         : _presenceLabel(context, device.presence),
                   ),
                   // A handoff is not instant: the target has to resolve the
@@ -162,6 +190,13 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
                       ? null
                       : device.isCurrentDevice
                       ? () => _leaveSync(context)
+                      // One gesture, two meanings, decided by the other end: a
+                      // device already playing is joined, a device that is not
+                      // is handed to. Both park playback here and leave this
+                      // device driving the target as a remote; the only
+                      // difference is whether a queue travels.
+                      : _isPlayingTarget(device, session)
+                      ? () => _join(context, device)
                       : () => _handoff(context, device),
                 ),
             ],
@@ -170,6 +205,64 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
       ),
     ),
   );
+
+  /// Whether this row is a device we can subscribe to *right now*.
+  ///
+  /// [CloudPlaybackDevice.isAudioTarget] only says the device owns the session,
+  /// and a session outlives the playback that created it - claiming happens
+  /// when a song starts, but stopping or pausing never releases it. Reading it
+  /// as "is playing" left a device that had finished still advertising itself
+  /// as a sync target, with no way to transfer a queue to it short of ending
+  /// the session from that device.
+  ///
+  /// Joining a device that stopped is not a thing. Transferring to it is.
+  bool _isPlayingTarget(
+    CloudPlaybackDevice device,
+    CloudPlaybackSession? session,
+  ) =>
+      device.isAudioTarget &&
+      // A killed app leaves `playing` true on the session with no socket behind
+      // it. Presence is what proves someone is still there to control.
+      device.presence == 'online' &&
+      session != null &&
+      session.targetDeviceId == device.deviceId &&
+      session.playing;
+
+  /// Sync with what another device is already playing, and drive it from here.
+  ///
+  /// The same gesture and the same outcome as [_handoff] - playback parks here
+  /// and this device becomes the remote - minus the transfer. Nothing is sent
+  /// and the other device carries on untouched.
+  ///
+  /// Engaging is all it takes: the snapshot and progress frames are already
+  /// arriving and were being discarded only because this device had neither
+  /// accepted nor initiated a handoff.
+  Future<void> _join(BuildContext context, CloudPlaybackDevice device) async {
+    final player = ref.read(playerControllerProvider);
+    final commands = ref.read(playbackCommandServiceProvider);
+    final receiver = ref.read(cloudPlaybackReceiverProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    final joined = context.l10n.nowControllingDevice(device.name);
+    setState(() => _handingOffTo = device.deviceId);
+    // Whatever is loaded here is about to be driven from the wire, so stop it
+    // first. Without this the two devices play over each other.
+    await player.pause();
+    commands.startRemoteControl(device.deviceId);
+    // Pull the current session rather than waiting for the target's next
+    // change: a device that has been playing steadily may not emit a snapshot
+    // for a while, and the player would sit empty until it did.
+    await receiver.refreshSession();
+    if (mounted) setState(() => _handingOffTo = null);
+    if (!context.mounted) return;
+    // Only dismiss while this sheet is still the top route - same reasoning as
+    // the handoff path, where popping blind blacked out the app.
+    if (ModalRoute.of(context)?.isCurrent ?? false) {
+      Navigator.of(context).pop();
+    }
+    messenger.showSnackBar(
+      snackbar(context, joined, size: SanckBarSize.MEDIUM),
+    );
+  }
 
   /// Tapping your own device row ends the shared session for every participant.
   /// Playback is paused on both devices before their roles are cleared.
@@ -248,7 +341,14 @@ class _CloudDevicesSheetState extends ConsumerState<_CloudDevicesSheet> {
   ) async {
     final player = ref.read(playerControllerProvider);
     final current = player.currentSong.value;
-    if (current == null) return;
+    if (current == null) {
+      // Reachable now that tapping an idle target routes here instead of
+      // syncing with it. Returning silently made the row look broken.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.l10n.nothingHereToTransfer)),
+      );
+      return;
+    }
     var accepted = false;
     setState(() => _handingOffTo = device.deviceId);
     try {
