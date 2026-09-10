@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart' as file_picker;
 import 'package:file_selector/file_selector.dart' as file_selector;
 
+import '../utils/runtime_platform.dart';
 import 'app_contracts.dart';
 
 class DefaultFilePickerService implements FilePickerContract {
@@ -39,6 +40,14 @@ class DefaultFilePickerService implements FilePickerContract {
     String? initialDirectory,
     String? confirmButtonText,
   }) {
+    if (RuntimePlatform.isAndroid) {
+      // file_selector's Android implementation only resolves folders on the
+      // primary (internal) volume and throws for an SD card or USB drive
+      // (#78). file_picker maps those to /storage/<volume-id>/<path>.
+      return file_picker.FilePicker.getDirectoryPath(
+        initialDirectory: initialDirectory,
+      );
+    }
     return file_selector.getDirectoryPath(
       initialDirectory: initialDirectory,
       confirmButtonText: confirmButtonText,
