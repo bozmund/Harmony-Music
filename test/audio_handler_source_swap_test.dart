@@ -614,9 +614,58 @@ void main() {
     test('completion delegates queue advancement to skipToNext', () {
       final block = _methodBlock(source, '_handlePlaybackCompleted');
 
-      expect(block, contains('await skipToNext();'));
+      expect(block, contains('await skipToNext().timeout('));
       expect(block, isNot(contains('await _player.seek(Duration.zero);')));
       expect(block, isNot(contains('await _player.play();')));
+    });
+
+    test('a stuck advance cannot hold the completion latch forever', () {
+      final block = _methodBlock(source, '_handlePlaybackCompleted');
+
+      // Every recovery path checks _completionInProgress and stands down, so
+      // an unbounded advance inside it disabled all of them at once. Issue #82:
+      // a song played to its last millisecond, then sat in `completed` with
+      // the next track never starting.
+      expect(block, contains('_completionAdvanceTimeout'));
+      expect(block, contains('releasing it so the'));
+
+      // Released in the finally, so it goes whether the advance finished,
+      // threw, or timed out.
+      final finallyIndex = block.indexOf('} finally {');
+      expect(finallyIndex, greaterThan(-1));
+      final finallyBlock = block.substring(finallyIndex);
+      expect(finallyBlock, contains('_completionInProgress = false;'));
+      expect(finallyBlock, contains('_completionStartedAt = null;'));
+    });
+
+    test('the advance bound sits above the stream resolve bound', () {
+      // Only the stream lookup is bounded inside playByIndex. The advance also
+      // loads, seeks and plays, so its bound has to leave room for that or a
+      // slow but healthy transition gets cut off.
+      final resolve = RegExp(
+        r'_sourceResolveTimeout = Duration\(seconds: (\d+)\)',
+      ).firstMatch(source);
+      final advance = RegExp(
+        r'_completionAdvanceTimeout = Duration\(seconds: (\d+)\)',
+      ).firstMatch(source);
+
+      expect(resolve, isNotNull);
+      expect(advance, isNotNull);
+      expect(
+        int.parse(advance!.group(1)!),
+        greaterThan(int.parse(resolve!.group(1)!)),
+      );
+    });
+
+    test('diagnostics say how long completion has been in progress', () {
+      // A latch that is up for a second is normal; up for minutes is the
+      // wedge. Without the start time a dump cannot tell the two apart.
+      expect(
+        source,
+        contains(
+          "'completionStartedAt': _completionStartedAt?.toIso8601String()",
+        ),
+      );
     });
 
     test('queue end without loop pauses at the start instead of replaying', () {
@@ -669,8 +718,14 @@ void main() {
       test('the backstop sits above every inner bound', () {
         // It must never cut off a resolve that is legitimately still working —
         // notably the resolver's 30s ingestion poll for a cold track.
-        expect(source, contains('_sourceResolveTimeout = Duration(seconds: 60)'));
-        expect(source, contains('_onlineResolveTimeout = Duration(seconds: 45)'));
+        expect(
+          source,
+          contains('_sourceResolveTimeout = Duration(seconds: 60)'),
+        );
+        expect(
+          source,
+          contains('_onlineResolveTimeout = Duration(seconds: 45)'),
+        );
         expect(
           source,
           contains('_localExtractionTimeout = Duration(seconds: 20)'),
@@ -708,10 +763,9 @@ void main() {
         // Only failures reach the snackbar; 'OK' rides along with a playable
         // result and is never shown.
         final known = {'networkError', 'resolverPlaybackFailed', 'OK'};
-        final statuses = RegExp("statusMSG: '([A-Za-z]+)'")
-            .allMatches(source)
-            .map((match) => match.group(1)!)
-            .toSet();
+        final statuses = RegExp(
+          "statusMSG: '([A-Za-z]+)'",
+        ).allMatches(source).map((match) => match.group(1)!).toSet();
 
         expect(statuses, contains('resolverPlaybackFailed'));
         expect(
@@ -950,6 +1004,9 @@ void _resolverGetsAHeadStart() {
 
   test('local extraction runs at most once', () {
     // Two failure paths and the head start can all reach for it.
-    expect(race, contains('if (localStarted || completer.isCompleted) return;'));
+    expect(
+      race,
+      contains('if (localStarted || completer.isCompleted) return;'),
+    );
   });
 }
