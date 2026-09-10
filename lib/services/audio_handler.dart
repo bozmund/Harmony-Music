@@ -134,9 +134,32 @@ class MyAudioHandler extends BaseAudioHandler {
   bool loudnessNormalizationEnabled = false;
 
   // var networkErrorPause = false;
-  bool isSongLoading = true;
+  bool _isSongLoading = true;
+
+  /// Whether a source is being resolved and loaded right now.
+  ///
+  /// A setter so that every assignment - there are about fifteen, across the
+  /// success and every error path - also tells the player controller, rather
+  /// than relying on each site remembering to. The controller cannot learn this
+  /// from playbackState: a playing source switch deliberately reports ready +
+  /// playing so Android keeps the lock-screen card instead of showing a
+  /// connecting state on every track change. The controller read that as the
+  /// new source having started, and the spinner cleared 87ms after a tap on a
+  /// song that took five more seconds to become audible.
+  bool get isSongLoading => _isSongLoading;
+  set isSongLoading(bool value) {
+    if (_isSongLoading == value) return;
+    _isSongLoading = value;
+    customEvent.add({'eventType': 'sourceLoading', 'loading': value});
+  }
+
   bool _lastPreloadPlaying = false;
   bool _completionInProgress = false;
+
+  /// When [_completionInProgress] was last set. A latch that is up is normal
+  /// for a second; one that has been up for minutes is the wedge, and the two
+  /// look identical in a diagnostics dump without this.
+  DateTime? _completionStartedAt;
   bool _completionHandlingScheduled = false;
   bool _completionHandlingAllowEndPosition = false;
   bool _completionRetryScheduled = false;
@@ -180,6 +203,23 @@ class MyAudioHandler extends BaseAudioHandler {
   /// Sits above every inner bound — including the resolver's 30s ingestion
   /// poll — so it only ever fires on a genuine stall, never on a slow song.
   static const _sourceResolveTimeout = Duration(seconds: 60);
+
+  /// Backstop on the whole advance to the next song after one finishes.
+  ///
+  /// [_sourceResolveTimeout] bounds only the stream lookup inside playByIndex,
+  /// not the source load, seek and play that follow it, so the advance as a
+  /// whole had no bound. It runs inside the [_completionInProgress] latch, and
+  /// every recovery path - the completion watchdog, the end-position fallback,
+  /// the stall watchdog, completion scheduling itself - checks that latch and
+  /// stands down. One advance that never settled therefore disabled all of
+  /// them for good: issue #82 is a song that played to its last millisecond
+  /// and then sat in `completed` with the next track never starting.
+  ///
+  /// Releasing the latch does not cancel the stuck advance. It lets the
+  /// watchdog try again, and playByIndex's generation check makes the stale
+  /// attempt stand down if it ever does wake up. Above the resolve bound plus
+  /// a source load, so a slow but healthy transition is never cut off.
+  static const _completionAdvanceTimeout = Duration(seconds: 75);
 
   List<MediaItem>? _queueBeforeShuffle;
 
@@ -772,6 +812,7 @@ class MyAudioHandler extends BaseAudioHandler {
       'shuffleModeEnabled': shuffleModeEnabled,
       'isSongLoading': isSongLoading,
       'completionInProgress': _completionInProgress,
+      'completionStartedAt': _completionStartedAt?.toIso8601String(),
       'completionHandlingScheduled': _completionHandlingScheduled,
       'completionRetryScheduled': _completionRetryScheduled,
       'completionWatchdogActive': _completionWatchdogTimer != null,
@@ -971,6 +1012,7 @@ class MyAudioHandler extends BaseAudioHandler {
 
     _completionRetryScheduled = false;
     _completionInProgress = true;
+    _completionStartedAt = DateTime.now();
     CrashDiagnosticsService.instance.record(
       'audio',
       'completion song=${mediaItem.value?.id} index=$currentIndex queue=${queue.value.length}',
@@ -984,9 +1026,22 @@ class MyAudioHandler extends BaseAudioHandler {
         return;
       }
 
-      await skipToNext();
+      final fromIndex = currentIndex;
+      await skipToNext().timeout(
+        _completionAdvanceTimeout,
+        onTimeout: () => CrashDiagnosticsService.instance.record(
+          'audio',
+          'completion advance from index $fromIndex '
+              'song=${mediaItem.value?.id} did not settle within '
+              '${_completionAdvanceTimeout.inSeconds}s; releasing it so the '
+              'watchdog can retry',
+          includeMemory: true,
+          flush: true,
+        ),
+      );
     } finally {
       _completionInProgress = false;
+      _completionStartedAt = null;
     }
   }
 

@@ -86,3 +86,9 @@ tmp/pdfs
 
 # Cloudflare worker dependencies — restored with `npm install`, never committed.
 workers/**/node_modules/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
