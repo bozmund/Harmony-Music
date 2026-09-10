@@ -854,6 +854,15 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   static const _staleExpectedStartProof = Duration(seconds: 2);
   Duration _pendingPlaybackStartPosition = Duration.zero;
   Duration _pendingSourceOutgoingPosition = Duration.zero;
+
+  /// The handler's own "a source is being resolved and loaded" flag, mirrored
+  /// from its sourceLoading event.
+  ///
+  /// playbackState cannot carry this. During a playing source switch the
+  /// handler deliberately reports ready + playing so Android keeps the
+  /// lock-screen card rather than showing a connecting state on every track
+  /// change - and that reads exactly like the new source having started.
+  bool _handlerLoadingSource = false;
   String? _pendingPlaybackStartSongId;
   bool _pendingSourceTransitionObserved = false;
   final List<StreamSubscription<dynamic>> _observableSubscriptions = [];
@@ -1256,6 +1265,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         'song=${song?.id} title="${song?.title}" artist="${song?.artist}" '
         'resolvingItem=${song == null ? null : MediaItemBuilder.isResolving(song)} '
         'resolvingFlag=$_currentSongResolving '
+        'handlerLoading=$_handlerLoadingSource '
         'pendingStart=$_pendingPlaybackStartSongId '
         'waitingStart=$_isWaitingForCurrentSourceStart '
         'transitionSeen=$_pendingSourceTransitionObserved '
@@ -1308,7 +1318,12 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
       if (_currentSongResolving) return;
       if (_isWaitingForCurrentSourceStart) {
         final playbackState = _audioHandler.playbackState.value;
-        if (!_isReadySourceStart(playbackState) ||
+        // The handler still loading is decisive on its own: the ready +
+        // playing it reports during a playing switch belongs to the media
+        // session it is keeping alive, not to the new song, and a tick
+        // extrapolated from it passes every other check.
+        if (_handlerLoadingSource ||
+            !_isReadySourceStart(playbackState) ||
             !_isSourceStartPosition(position) ||
             !_hasSourcePlaybackProgress(position)) {
           // A tick arrived and was refused. Counting them separates a spinner
@@ -1327,6 +1342,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
             printINFO(
               'sourceStart tick rejected pos=${position.inMilliseconds} '
               'expected=${_pendingPlaybackStartPosition.inMilliseconds} '
+              'handlerLoading=$_handlerLoadingSource '
               'ready=${_isReadySourceStart(playbackState)} '
               'inWindow=${_isSourceStartPosition(position)} '
               'advanced=${_hasSourcePlaybackProgress(position)} '
@@ -1538,6 +1554,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
   /// loading state, even though it is paused and no longer near zero.
   bool _isReadyPausedPendingSource(PlaybackState playbackState) {
     return _pendingSourceTransitionObserved &&
+        !_handlerLoadingSource &&
         playbackState.processingState == AudioProcessingState.ready &&
         !playbackState.playing &&
         !_isOutgoingSourcePosition(playbackState.updatePosition);
@@ -1775,6 +1792,9 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         await _playViaAndroidAuto(event['songId'], event['libraryId']);
       } else if (event['eventType'] == 'playError') {
         notifyPlayError(event['message'] as String? ?? 'networkError');
+      } else if (event['eventType'] == 'sourceLoading') {
+        _handlerLoadingSource = event['loading'] == true;
+        _logSurface('handlerLoading');
       } else if (event['eventType'] == 'remoteNotificationCommand' &&
           _cloudRemoteStateActive) {
         switch (event['action']) {
@@ -2977,6 +2997,7 @@ class PlayerController extends ChangeNotifier implements TickerProvider {
         'pendingPlaybackStartSongId': _pendingPlaybackStartSongId,
         'pendingSourceTransitionObserved': _pendingSourceTransitionObserved,
         'isWaitingForCurrentSourceStart': _isWaitingForCurrentSourceStart,
+        'handlerLoadingSource': _handlerLoadingSource,
         'sourceStartProgressWindowMs':
             _sourceStartProgressWindow.inMilliseconds,
         // What the start conditions are measured against. Without these a

@@ -134,7 +134,25 @@ class MyAudioHandler extends BaseAudioHandler {
   bool loudnessNormalizationEnabled = false;
 
   // var networkErrorPause = false;
-  bool isSongLoading = true;
+  bool _isSongLoading = true;
+
+  /// Whether a source is being resolved and loaded right now.
+  ///
+  /// A setter so that every assignment - there are about fifteen, across the
+  /// success and every error path - also tells the player controller, rather
+  /// than relying on each site remembering to. The controller cannot learn this
+  /// from playbackState: a playing source switch deliberately reports ready +
+  /// playing so Android keeps the lock-screen card instead of showing a
+  /// connecting state on every track change. The controller read that as the
+  /// new source having started, and the spinner cleared 87ms after a tap on a
+  /// song that took five more seconds to become audible.
+  bool get isSongLoading => _isSongLoading;
+  set isSongLoading(bool value) {
+    if (_isSongLoading == value) return;
+    _isSongLoading = value;
+    customEvent.add({'eventType': 'sourceLoading', 'loading': value});
+  }
+
   bool _lastPreloadPlaying = false;
   bool _completionInProgress = false;
 
