@@ -1,28 +1,31 @@
-# Next song never starts after one ends (#82)
+# Spinner vanishes on network songs; next song sometimes never starts (#82)
 
 **Devices:** Android
 
 ## Context
 
-Issue #82: a song played to its last millisecond, then the player sat in `completed` and the next of
-fifty queued tracks never started. `_handlePlaybackCompleted` holds `_completionInProgress` while it
-awaits the whole advance to the next song, and that advance had no bound. Every recovery path - the
-completion watchdog, the end-position fallback, the stall watchdog - stands down while the latch is
-up, so one advance that never settled stopped auto-advance permanently.
+Two playback fixes on this branch.
 
-The advance is now bounded at 75s. After that the latch is released and the completion watchdog
-retries; playByIndex's generation check makes the stale attempt stand down if it ever wakes.
-Diagnostics gain `completionStartedAt`.
+**Spinner.** Tapping a song that had to be fetched from the network showed the spinner for 87ms,
+then the button said "playing" through five seconds of silence. During a playing source switch the
+handler reports ready + playing on purpose, so Android keeps the lock-screen card instead of
+flashing a connecting state on every track change; the player controller read that as the new song
+having started. The media session is left exactly as it was. `isSongLoading` in the handler is now
+a setter that broadcasts a `sourceLoading` event, and the controller refuses to end the spinner
+while the handler says it is still loading.
 
-The stuck state cannot be triggered on demand. Tests 1-3 confirm normal song changes still work,
-since this touches the code that runs every time a song ends. Test 4 is what to do if the bug does
-show up.
+**Stuck advance (#82).** A song played to its last millisecond, then the player sat in `completed`
+and the next of fifty queued tracks never started. `_handlePlaybackCompleted` holds
+`_completionInProgress` while it awaits the whole advance, which had no bound, and every recovery
+path stands down while that latch is up. The advance is now bounded at 75s, after which the
+completion watchdog retries. The stuck state cannot be triggered on demand, so Test 4 covers what to
+do if it shows up.
 
 ## Manual verification
 
-- What this fixes: sometimes a song ends and the next one never starts - the player sits silent at the end forever (#82). Now it recovers on its own within about 75 seconds.
-- Setup: queue 4-5 online songs you have NOT downloaded, queue loop on, repeat-one off. To save time, drag each song to its last ~10 seconds instead of waiting it out.
-- Test 1, normal change: let a song end by itself. PASS: within a few seconds the next song plays and title and artwork change. FAIL: silence, or the play button stays on a spinner.
-- Test 2, end of queue: drag the LAST song near its end and let it finish. PASS: playback wraps to the first song in the queue. FAIL: it stops, or replays the same song.
-- Test 3, repeat-one: turn repeat-one on and let a song end. PASS: the same song restarts from 0:00 once, first second not doubled. Turn repeat-one off after.
-- Test 4, if it ever gets stuck: a song ends and nothing plays. Wait 90 seconds without touching anything. PASS: the next song starts by itself. Either way, send a bug report.
+- What this build fixes: tapping a song that has to be downloaded showed the spinner for a split second, then pause over silence. Also, a song could end and the next one never start (#82).
+- Setup: queue 4-5 online songs you have NOT downloaded, so each one has to be fetched. Queue loop on, repeat-one off.
+- Test 1, spinner: while a song plays, tap a different not-downloaded song. PASS: the spinner stays until you actually hear the new song. FAIL: it vanishes at once and the button shows pause over silence.
+- Test 2, quick skips: press next 4-5 times fast, then lock the phone. PASS: the lock-screen controls stay and the last song plays. FAIL: the controls disappear or flicker to a connecting state.
+- Test 3, song end: drag a song to its last ~10 seconds and let it finish. PASS: the next song starts within a few seconds; after the last one it wraps to the first. FAIL: silence at the end.
+- Test 4, if a song ends and nothing plays: wait 90 seconds without touching anything. PASS: the next song starts by itself. Either way, send a bug report - it now carries the log.
