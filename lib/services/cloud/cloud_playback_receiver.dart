@@ -973,6 +973,9 @@ class CloudPlaybackReceiver {
       // current song rather than tracking a separate counter keeps this
       // correct across shuffle, which reorders the queue underneath.
       final current = _local.currentSong;
+      // Verify queue is still not empty before using it - it could have been
+      // cleared between the isEmpty check and now.
+      if (queue.isEmpty) return;
       final index = current == null
           ? 0
           : queue.indexWhere((item) => item.id == current.id).clamp(0, queue.length - 1);
