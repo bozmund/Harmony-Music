@@ -92,3 +92,8 @@ workers/**/node_modules/
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Branch tester crash bundles: a full logcat tail and the app's diagnostics log,
+# written into the working tree for the AI fix loop. This repository is public;
+# they must never be committed.
+.branch-tester/
