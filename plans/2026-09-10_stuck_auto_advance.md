@@ -1,4 +1,4 @@
-# Stop a stuck song-to-song advance from killing auto-advance for good
+# Next song never starts after one ends (#82)
 
 **Devices:** Android
 
@@ -14,13 +14,15 @@ The advance is now bounded at 75s. After that the latch is released and the comp
 retries; playByIndex's generation check makes the stale attempt stand down if it ever wakes.
 Diagnostics gain `completionStartedAt`.
 
-The stuck state cannot be triggered on demand. What this changes is that, if it happens, playback
-resumes within about 75 seconds instead of never. The checks below confirm nothing around it broke.
+The stuck state cannot be triggered on demand. Tests 1-3 confirm normal song changes still work,
+since this touches the code that runs every time a song ends. Test 4 is what to do if the bug does
+show up.
 
 ## Manual verification
 
-- Let a song finish on its own: the next one in the queue starts, with no stuck spinner and no silence.
-- At the end of the queue with queue loop on, the last song finishing wraps round to the first.
-- With repeat-one on, a finishing song restarts once, cleanly, without replaying its first second.
-- Skip next and previous by hand a few times: each moves one track and starts playing.
-- Open the diagnostics dump while a song plays: `completionStartedAt` is present and `null`.
+- What this fixes: sometimes a song ends and the next one never starts - the player sits silent at the end forever (#82). Now it recovers on its own within about 75 seconds.
+- Setup: queue 4-5 online songs you have NOT downloaded, queue loop on, repeat-one off. To save time, drag each song to its last ~10 seconds instead of waiting it out.
+- Test 1, normal change: let a song end by itself. PASS: within a few seconds the next song plays and title and artwork change. FAIL: silence, or the play button stays on a spinner.
+- Test 2, end of queue: drag the LAST song near its end and let it finish. PASS: playback wraps to the first song in the queue. FAIL: it stops, or replays the same song.
+- Test 3, repeat-one: turn repeat-one on and let a song end. PASS: the same song restarts from 0:00 once, first second not doubled. Turn repeat-one off after.
+- Test 4, if it ever gets stuck: a song ends and nothing plays. Wait 90 seconds without touching anything. PASS: the next song starts by itself. Either way, send a bug report.
