@@ -28,12 +28,12 @@ class BottomNavBar extends ConsumerWidget {
             label: modifyNGetLabel(context.l10n.home),
           ),
           NavigationDestination(
-            icon: const Icon(Icons.search),
-            label: modifyNGetLabel(context.l10n.search),
-          ),
-          NavigationDestination(
             icon: const Icon(Icons.library_music),
             label: modifyNGetLabel(context.l10n.library),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.search),
+            label: modifyNGetLabel(context.l10n.search),
           ),
           NavigationDestination(
             selectedIcon: const UpdateBadgedSettingsIcon(icon: Icons.settings),
