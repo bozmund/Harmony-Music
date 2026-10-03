@@ -187,6 +187,21 @@ class HiveSettingsRepository implements SettingsRepository {
       _box.put(PrefKeys.isBottomNavBarEnabled, value);
 
   @override
+  List<String>? getMobileNavOrder() {
+    final value = _box.get(PrefKeys.mobileNavOrder);
+
+    if (value is! List) {
+      return null;
+    }
+
+    return value.whereType<String>().toList(growable: false);
+  }
+
+  @override
+  Future<void> setMobileNavOrder(List<String> value) =>
+      _box.put(PrefKeys.mobileNavOrder, List<String>.from(value));
+
+  @override
   int getNoOfHomeScreenContent() =>
       _box.get(PrefKeys.noOfHomeScreenContent) ?? 3;
 

@@ -61,6 +61,8 @@ abstract class SettingsRepository {
   Future<void> setUnlikedDownloadNoticeDismissed(bool value);
   bool getBottomNavBarEnabled();
   Future<void> setBottomNavBarEnabled(bool value);
+  List<String>? getMobileNavOrder();
+  Future<void> setMobileNavOrder(List<String> value);
   int getNoOfHomeScreenContent();
   Future<void> setNoOfHomeScreenContent(int value);
   bool getTransitionAnimationDisabled();

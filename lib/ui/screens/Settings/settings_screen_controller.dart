@@ -38,6 +38,7 @@ import '/services/app_contracts.dart';
 import '/ui/player/player_controller.dart';
 import '../Home/home_screen_controller.dart';
 import '/ui/utils/theme_controller.dart';
+import '../../../models/mobile_nav_item.dart';
 
 import '/services/constant.dart';
 import '../../navigator.dart';
@@ -120,6 +121,7 @@ class SettingsScreenController extends ChangeNotifier
   final autoDownloadFavoriteSongEnabled = ObservableValue(false);
   final isTransitionAnimationDisabled = ObservableValue(false);
   final isBottomNavBarEnabled = ObservableValue(true);
+  final mobileNavOrder = ObservableList<MobileNavItem>();
   final backgroundPlayEnabled = ObservableValue(true);
   final keepScreenAwake = ObservableValue(false);
   final restorePlaybackSession = ObservableValue(false);
@@ -371,6 +373,9 @@ class SettingsScreenController extends ChangeNotifier
     isBottomNavBarEnabled.value = isDesktop
         ? false
         : _settingsRepository.getBottomNavBarEnabled();
+
+    _loadMobileNavOrder();
+
     noOfHomeScreenContent.value = _settingsRepository
         .getNoOfHomeScreenContent();
     isTransitionAnimationDisabled.value = _settingsRepository
@@ -795,6 +800,85 @@ class SettingsScreenController extends ChangeNotifier
 
     playerUi.value = val;
     notifyListeners();
+  }
+
+  void _loadMobileNavOrder() {
+    final storedOrder = _settingsRepository.getMobileNavOrder();
+
+    if (storedOrder == null || storedOrder.isEmpty) {
+      mobileNavOrder.assignAll(defaultMobileNavOrder);
+      return;
+    }
+
+    final parsedOrder = <MobileNavItem>[];
+
+    for (final key in storedOrder) {
+      final item = mobileNavItemFromStorageKey(key);
+
+      if (item != null && !parsedOrder.contains(item)) {
+        parsedOrder.add(item);
+      }
+    }
+
+    // Ako se u budućnosti doda nova stavka navigacije,
+    // automatski je dodaj bez rušenja starog spremljenog poretka.
+    for (final item in defaultMobileNavOrder) {
+      if (!parsedOrder.contains(item)) {
+        parsedOrder.add(item);
+      }
+    }
+
+    mobileNavOrder.assignAll(parsedOrder);
+  }
+
+  Future<void> setMobileNavOrder(List<MobileNavItem> order) async {
+    final normalizedOrder = <MobileNavItem>[];
+
+    for (final item in order) {
+      if (!normalizedOrder.contains(item)) {
+        normalizedOrder.add(item);
+      }
+    }
+
+    for (final item in defaultMobileNavOrder) {
+      if (!normalizedOrder.contains(item)) {
+        normalizedOrder.add(item);
+      }
+    }
+
+    mobileNavOrder.assignAll(normalizedOrder);
+
+    await _settingsRepository.setMobileNavOrder(
+      normalizedOrder.map((item) => item.storageKey).toList(),
+    );
+
+    notifyListeners();
+  }
+
+  Future<void> reorderMobileNavItem(int oldIndex, int newIndex) async {
+    final updatedOrder = mobileNavOrder.toList();
+
+    if (oldIndex < 0 ||
+        oldIndex >= updatedOrder.length ||
+        newIndex < 0 ||
+        newIndex > updatedOrder.length) {
+      return;
+    }
+
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+
+    final item = updatedOrder.removeAt(oldIndex);
+    updatedOrder.insert(newIndex, item);
+
+    await setMobileNavOrder(updatedOrder);
+  }
+
+  Future<void> resetMobileNavOrder() async {
+    await setMobileNavOrder(
+      List<MobileNavItem>.from(defaultMobileNavOrder),
+    );
   }
 
   Future<void> enableBottomNavBar(bool val) async {
