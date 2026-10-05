@@ -38,6 +38,7 @@ import '/services/app_contracts.dart';
 import '/ui/player/player_controller.dart';
 import '../Home/home_screen_controller.dart';
 import '/ui/utils/theme_controller.dart';
+import '../../../models/mobile_nav_item.dart';
 
 import '/services/constant.dart';
 import '../../navigator.dart';
@@ -89,7 +90,9 @@ class SettingsScreenController extends ChangeNotifier
   final AppLocaleController _appLocaleController;
   final ResolverClient _resolverClient;
   final ResolverDiscoveryService _resolverDiscovery;
+
   SettingsRepository get settingsRepository => _settingsRepository;
+
   StorageAdminRepository get storageAdminRepository => _storageAdminRepository;
   late String _supportDir;
   final cacheSongs = ObservableValue(false);
@@ -120,6 +123,7 @@ class SettingsScreenController extends ChangeNotifier
   final autoDownloadFavoriteSongEnabled = ObservableValue(false);
   final isTransitionAnimationDisabled = ObservableValue(false);
   final isBottomNavBarEnabled = ObservableValue(true);
+  final mobileNavFirstPage = ObservableValue(0);
   final backgroundPlayEnabled = ObservableValue(true);
   final keepScreenAwake = ObservableValue(false);
   final restorePlaybackSession = ObservableValue(false);
@@ -371,6 +375,17 @@ class SettingsScreenController extends ChangeNotifier
     isBottomNavBarEnabled.value = isDesktop
         ? false
         : _settingsRepository.getBottomNavBarEnabled();
+
+    final normalizedMobileNavFirstPage =
+        SettingsScreenController.normalizeMobileNavFirstPage(
+          _settingsRepository.getMobileNavFirstPage(),
+        );
+
+    mobileNavFirstPage.value = normalizedMobileNavFirstPage;
+    await _settingsRepository.setMobileNavFirstPage(
+      normalizedMobileNavFirstPage,
+    );
+
     noOfHomeScreenContent.value = _settingsRepository
         .getNoOfHomeScreenContent();
     isTransitionAnimationDisabled.value = _settingsRepository
@@ -1167,6 +1182,23 @@ class SettingsScreenController extends ChangeNotifier
     await _settingsRepository.setAutoOpenPlayer(val);
     autoOpenPlayer.value = val;
     notifyListeners();
+  }
+
+  Future<void> setMobileNavFirstPage(int index) async {
+    final normalizedIndex =
+        SettingsScreenController.normalizeMobileNavFirstPage(index);
+
+    await _settingsRepository.setMobileNavFirstPage(normalizedIndex);
+    mobileNavFirstPage.value = normalizedIndex;
+    notifyListeners();
+  }
+
+  static int normalizeMobileNavFirstPage(dynamic value) {
+    if (value is! int || value < 0 || value >= MobileNavItem.values.length) {
+      return 0;
+    }
+
+    return value;
   }
 
   Future<void> setFirstLibraryTab(int index) async {

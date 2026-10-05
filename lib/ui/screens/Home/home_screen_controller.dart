@@ -23,6 +23,7 @@ import '../Settings/settings_screen_controller.dart';
 import '/ui/widgets/bottom_nav_bar_dimensions.dart';
 import '/ui/widgets/new_version_dialog.dart';
 import '/ui/widgets/release_prompt_dialog.dart';
+import '../../../utils/runtime_platform.dart';
 
 class HomeScreenController extends ChangeNotifier {
   HomeScreenController({
@@ -53,6 +54,7 @@ class HomeScreenController extends ChangeNotifier {
   List middleContent = [];
   List fixedContent = [];
   bool showVersionDialog = true;
+
   //isHomeScreenOnTop var only useful if bottom nav enabled
   bool isHomeScreenOnTop = true;
   final List<ScrollController> contentScrollControllers = [];
@@ -62,6 +64,13 @@ class HomeScreenController extends ChangeNotifier {
   bool _closed = false;
 
   Future<void> init() async {
+    if (!RuntimePlatform.isDesktop &&
+        _settingsRepository.getBottomNavBarEnabled()) {
+      tabIndex = SettingsScreenController.normalizeMobileNavFirstPage(
+        _settingsRepository.getMobileNavFirstPage(),
+      );
+    }
+
     _listenForAudioEvents();
     await _settingsScreenController().clearCachedUpdateInstallers();
     await loadContent();
