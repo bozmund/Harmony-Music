@@ -13,47 +13,32 @@ class BottomNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final homeScreenController = ref.watch(homeScreenControllerProvider);
-    final settingsScreenController = ref.watch(settingsScreenControllerProvider);
 
     return AnimatedBuilder(
-      animation: Listenable.merge([
-        homeScreenController,
-        settingsScreenController,
-      ]),
+      animation: homeScreenController,
       builder: (context, _) {
-        final order = settingsScreenController.mobileNavOrder.isEmpty
-            ? defaultMobileNavOrder
-            : settingsScreenController.mobileNavOrder.toList();
-
-        final selectedVisualIndex = order.indexWhere(
-              (item) => item.tabIndex == homeScreenController.tabIndex,
+        final selectedVisualIndex = defaultMobileNavOrder.indexWhere(
+          (item) => item.tabIndex == homeScreenController.tabIndex,
         );
 
         return NavigationBar(
           height: compactBottomNavBarHeight,
           onDestinationSelected: (visualIndex) {
-            if (visualIndex < 0 || visualIndex >= order.length) {
+            if (visualIndex < 0 ||
+                visualIndex >= defaultMobileNavOrder.length) {
               return;
             }
 
-            final item = order[visualIndex];
+            final item = defaultMobileNavOrder[visualIndex];
 
-            homeScreenController.onBottonBarTabSelected(
-              item.tabIndex,
-            );
+            homeScreenController.onBottonBarTabSelected(item.tabIndex);
           },
-          selectedIndex:
-          selectedVisualIndex >= 0 ? selectedVisualIndex : 0,
+          selectedIndex: selectedVisualIndex >= 0 ? selectedVisualIndex : 0,
           backgroundColor: Theme.of(context).primaryColor,
           indicatorColor: Theme.of(context).colorScheme.secondary,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          destinations: order
-              .map(
-                (item) => _buildDestination(
-              context,
-              item,
-            ),
-          )
+          destinations: defaultMobileNavOrder
+              .map((item) => _buildDestination(context, item))
               .toList(),
         );
       },
@@ -61,9 +46,9 @@ class BottomNavBar extends ConsumerWidget {
   }
 
   NavigationDestination _buildDestination(
-      BuildContext context,
-      MobileNavItem item,
-      ) {
+    BuildContext context,
+    MobileNavItem item,
+  ) {
     return switch (item) {
       MobileNavItem.home => NavigationDestination(
         selectedIcon: const Icon(Icons.home),
@@ -79,12 +64,8 @@ class BottomNavBar extends ConsumerWidget {
         label: modifyNGetLabel(context.l10n.search),
       ),
       MobileNavItem.settings => NavigationDestination(
-        selectedIcon: const UpdateBadgedSettingsIcon(
-          icon: Icons.settings,
-        ),
-        icon: const UpdateBadgedSettingsIcon(
-          icon: Icons.settings_outlined,
-        ),
+        selectedIcon: const UpdateBadgedSettingsIcon(icon: Icons.settings),
+        icon: const UpdateBadgedSettingsIcon(icon: Icons.settings_outlined),
         label: modifyNGetLabel(context.l10n.settings),
       ),
     };

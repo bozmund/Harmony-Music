@@ -542,21 +542,39 @@ class SettingsScreen extends ConsumerWidget {
                             left: 5,
                             right: 10,
                           ),
-                          leading: const Icon(Icons.swap_vert),
-                          title: const Text("Navigation order"),
+                          title: Text(context.l10n.firstBottomNavPage),
                           subtitle: Text(
-                            _mobileNavOrderLabel(
-                              context,
-                              settingsController.mobileNavOrder.isEmpty
-                                  ? defaultMobileNavOrder
-                                  : settingsController.mobileNavOrder.toList(),
-                            ),
+                            context.l10n.firstBottomNavPageDes,
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => _showMobileNavOrderDialog(
-                            context,
-                            settingsController,
+                          trailing: DropdownButton<int>(
+                            dropdownColor: Theme.of(context).cardColor,
+                            underline: const SizedBox.shrink(),
+                            value: settingsController.mobileNavFirstPage.value,
+                            items: [
+                              DropdownMenuItem<int>(
+                                value: MobileNavItem.home.tabIndex,
+                                child: Text(context.l10n.home),
+                              ),
+                              DropdownMenuItem<int>(
+                                value: MobileNavItem.library.tabIndex,
+                                child: Text(context.l10n.library),
+                              ),
+                              DropdownMenuItem<int>(
+                                value: MobileNavItem.search.tabIndex,
+                                child: Text(context.l10n.search),
+                              ),
+                              DropdownMenuItem<int>(
+                                value: MobileNavItem.settings.tabIndex,
+                                child: Text(context.l10n.settings),
+                              ),
+                            ],
+                            onChanged: (val) async {
+                              if (val == null) return;
+                              await settingsController.setMobileNavFirstPage(
+                                val,
+                              );
+                            },
                           ),
                         ),
                       ListTile(
@@ -1492,111 +1510,6 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
-}
-
-String _mobileNavItemLabel(
-    BuildContext context,
-    MobileNavItem item,
-    ) {
-  return switch (item) {
-    MobileNavItem.home => context.l10n.home,
-    MobileNavItem.library => context.l10n.library,
-    MobileNavItem.search => context.l10n.search,
-    MobileNavItem.settings => context.l10n.settings,
-  };
-}
-
-String _mobileNavOrderLabel(
-    BuildContext context,
-    List<MobileNavItem> order,
-    ) {
-  return order
-      .map((item) => _mobileNavItemLabel(context, item))
-      .join(' • ');
-}
-
-Future<void> _showMobileNavOrderDialog(
-    BuildContext context,
-    SettingsScreenController controller,
-    ) async {
-  final order = controller.mobileNavOrder.isEmpty
-      ? List<MobileNavItem>.from(defaultMobileNavOrder)
-      : controller.mobileNavOrder.toList();
-
-  await showDialog<void>(
-    context: context,
-    builder: (dialogContext) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text("Navigation order"),
-            content: SizedBox(
-              width: 400,
-              height: 300,
-              child: ReorderableListView.builder(
-                itemCount: order.length,
-                onReorder: (oldIndex, newIndex) {
-                  setState(() {
-                    if (newIndex > oldIndex) {
-                      newIndex -= 1;
-                    }
-
-                    final item = order.removeAt(oldIndex);
-                    order.insert(newIndex, item);
-                  });
-
-                  unawaited(
-                    controller.setMobileNavOrder(
-                      List<MobileNavItem>.from(order),
-                    ),
-                  );
-                },
-                itemBuilder: (context, index) {
-                  final item = order[index];
-
-                  return ListTile(
-                    key: ValueKey(item),
-                    leading: Icon(
-                      switch (item) {
-                        MobileNavItem.home => Icons.home_outlined,
-                        MobileNavItem.library => Icons.library_music,
-                        MobileNavItem.search => Icons.search,
-                        MobileNavItem.settings => Icons.settings_outlined,
-                      },
-                    ),
-                    title: Text(
-                      _mobileNavItemLabel(context, item),
-                    ),
-                    trailing: const Icon(Icons.drag_handle),
-                  );
-                },
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  setState(() {
-                    order
-                      ..clear()
-                      ..addAll(defaultMobileNavOrder);
-                  });
-
-                  unawaited(
-                    controller.resetMobileNavOrder(),
-                  );
-                },
-                child: Text(context.l10n.reset),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text(context.l10n.close),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
 }
 
 class _DeveloperSettingsInspector extends ConsumerWidget {

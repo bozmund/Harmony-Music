@@ -334,6 +334,13 @@ class AppLocalizationsHr extends AppLocalizations {
       'Odaberi koja će se kartica prva prikazati u biblioteci';
 
   @override
+  String get firstBottomNavPage => 'Prva stranica';
+
+  @override
+  String get firstBottomNavPageDes =>
+      'Odaberite koja će se stranica prikazati prva pri pokretanju aplikacije';
+
+  @override
   String get for1 => 'for';
 
   @override

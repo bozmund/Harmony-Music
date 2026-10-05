@@ -1,9 +1,4 @@
-enum MobileNavItem {
-  home,
-  library,
-  search,
-  settings,
-}
+enum MobileNavItem { home, library, search, settings }
 
 /// Visual order of bottom nav bar
 
@@ -23,18 +18,4 @@ extension MobileNavItemExtension on MobileNavItem {
       MobileNavItem.settings => 3,
     };
   }
-
-  String get storageKey => name;
 }
-
-MobileNavItem? mobileNavItemFromStorageKey(String value){
-  for (final item in MobileNavItem.values){
-    if (item.name == value){
-      return item;
-    }
-  }
-
-  return null;
-}
-
-

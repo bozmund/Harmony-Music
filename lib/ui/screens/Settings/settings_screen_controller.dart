@@ -90,7 +90,9 @@ class SettingsScreenController extends ChangeNotifier
   final AppLocaleController _appLocaleController;
   final ResolverClient _resolverClient;
   final ResolverDiscoveryService _resolverDiscovery;
+
   SettingsRepository get settingsRepository => _settingsRepository;
+
   StorageAdminRepository get storageAdminRepository => _storageAdminRepository;
   late String _supportDir;
   final cacheSongs = ObservableValue(false);
@@ -121,7 +123,7 @@ class SettingsScreenController extends ChangeNotifier
   final autoDownloadFavoriteSongEnabled = ObservableValue(false);
   final isTransitionAnimationDisabled = ObservableValue(false);
   final isBottomNavBarEnabled = ObservableValue(true);
-  final mobileNavOrder = ObservableList<MobileNavItem>();
+  final mobileNavFirstPage = ObservableValue(0);
   final backgroundPlayEnabled = ObservableValue(true);
   final keepScreenAwake = ObservableValue(false);
   final restorePlaybackSession = ObservableValue(false);
@@ -374,7 +376,15 @@ class SettingsScreenController extends ChangeNotifier
         ? false
         : _settingsRepository.getBottomNavBarEnabled();
 
-    _loadMobileNavOrder();
+    final normalizedMobileNavFirstPage =
+        SettingsScreenController.normalizeMobileNavFirstPage(
+          _settingsRepository.getMobileNavFirstPage(),
+        );
+
+    mobileNavFirstPage.value = normalizedMobileNavFirstPage;
+    await _settingsRepository.setMobileNavFirstPage(
+      normalizedMobileNavFirstPage,
+    );
 
     noOfHomeScreenContent.value = _settingsRepository
         .getNoOfHomeScreenContent();
@@ -802,85 +812,6 @@ class SettingsScreenController extends ChangeNotifier
     notifyListeners();
   }
 
-  void _loadMobileNavOrder() {
-    final storedOrder = _settingsRepository.getMobileNavOrder();
-
-    if (storedOrder == null || storedOrder.isEmpty) {
-      mobileNavOrder.assignAll(defaultMobileNavOrder);
-      return;
-    }
-
-    final parsedOrder = <MobileNavItem>[];
-
-    for (final key in storedOrder) {
-      final item = mobileNavItemFromStorageKey(key);
-
-      if (item != null && !parsedOrder.contains(item)) {
-        parsedOrder.add(item);
-      }
-    }
-
-    // Ako se u budućnosti doda nova stavka navigacije,
-    // automatski je dodaj bez rušenja starog spremljenog poretka.
-    for (final item in defaultMobileNavOrder) {
-      if (!parsedOrder.contains(item)) {
-        parsedOrder.add(item);
-      }
-    }
-
-    mobileNavOrder.assignAll(parsedOrder);
-  }
-
-  Future<void> setMobileNavOrder(List<MobileNavItem> order) async {
-    final normalizedOrder = <MobileNavItem>[];
-
-    for (final item in order) {
-      if (!normalizedOrder.contains(item)) {
-        normalizedOrder.add(item);
-      }
-    }
-
-    for (final item in defaultMobileNavOrder) {
-      if (!normalizedOrder.contains(item)) {
-        normalizedOrder.add(item);
-      }
-    }
-
-    mobileNavOrder.assignAll(normalizedOrder);
-
-    await _settingsRepository.setMobileNavOrder(
-      normalizedOrder.map((item) => item.storageKey).toList(),
-    );
-
-    notifyListeners();
-  }
-
-  Future<void> reorderMobileNavItem(int oldIndex, int newIndex) async {
-    final updatedOrder = mobileNavOrder.toList();
-
-    if (oldIndex < 0 ||
-        oldIndex >= updatedOrder.length ||
-        newIndex < 0 ||
-        newIndex > updatedOrder.length) {
-      return;
-    }
-
-    if (newIndex > oldIndex) {
-      newIndex -= 1;
-    }
-
-    final item = updatedOrder.removeAt(oldIndex);
-    updatedOrder.insert(newIndex, item);
-
-    await setMobileNavOrder(updatedOrder);
-  }
-
-  Future<void> resetMobileNavOrder() async {
-    await setMobileNavOrder(
-      List<MobileNavItem>.from(defaultMobileNavOrder),
-    );
-  }
-
   Future<void> enableBottomNavBar(bool val) async {
     final homeScrCon = _homeScreenController();
     final playerCon = _playerController();
@@ -1251,6 +1182,23 @@ class SettingsScreenController extends ChangeNotifier
     await _settingsRepository.setAutoOpenPlayer(val);
     autoOpenPlayer.value = val;
     notifyListeners();
+  }
+
+  Future<void> setMobileNavFirstPage(int index) async {
+    final normalizedIndex =
+        SettingsScreenController.normalizeMobileNavFirstPage(index);
+
+    await _settingsRepository.setMobileNavFirstPage(normalizedIndex);
+    mobileNavFirstPage.value = normalizedIndex;
+    notifyListeners();
+  }
+
+  static int normalizeMobileNavFirstPage(dynamic value) {
+    if (value is! int || value < 0 || value >= MobileNavItem.values.length) {
+      return 0;
+    }
+
+    return value;
   }
 
   Future<void> setFirstLibraryTab(int index) async {
