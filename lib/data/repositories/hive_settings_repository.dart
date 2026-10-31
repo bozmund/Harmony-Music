@@ -187,6 +187,15 @@ class HiveSettingsRepository implements SettingsRepository {
       _box.put(PrefKeys.isBottomNavBarEnabled, value);
 
   @override
+  int getMobileNavFirstPage() => _box.get(PrefKeys.mobileNavFirstPage) is int
+      ? _box.get(PrefKeys.mobileNavFirstPage)
+      : 0;
+
+  @override
+  Future<void> setMobileNavFirstPage(int value) =>
+      _box.put(PrefKeys.mobileNavFirstPage, value);
+
+  @override
   int getNoOfHomeScreenContent() =>
       _box.get(PrefKeys.noOfHomeScreenContent) ?? 3;
 
@@ -448,6 +457,7 @@ class HiveSettingsRepository implements SettingsRepository {
   @override
   Future<void> setHasSeenWelcomeScreen(bool value) =>
       _box.put(PrefKeys.hasSeenWelcomeScreen, value);
+
   String? getHeosBridgeIp() => _box.get(PrefKeys.heosBridgeIp);
 
   @override

@@ -103,6 +103,8 @@
   "fileNotFound": "File not found",
   "firstLibraryTab": "First library tab",
   "firstLibraryTabDes": "Select which tab to show first in Library",
+  "firstBottomNavPage": "First page",
+  "firstBottomNavPageDes": "Select which page to show first when the app opens",
   "for1": "for",
   "gesture": "Gesture",
   "github": "GitHub",

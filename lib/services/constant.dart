@@ -52,6 +52,7 @@ class PrefKeys {
   static const String discoverContentType = 'discoverContentType';
   static const String autoOpenPlayer = 'autoOpenPlayer';
   static const String isBottomNavBarEnabled = 'isBottomNavBarEnabled';
+  static const String mobileNavFirstPage = 'mobileNavFirstPage';
   static const String noOfHomeScreenContent = 'noOfHomeScreenContent';
   static const String isTransitionAnimationDisabled =
       'isTransitionAnimationDisabled';

@@ -103,6 +103,8 @@
   "fileNotFound": "File not found",
   "firstLibraryTab": "Prva kartica biblioteke",
   "firstLibraryTabDes": "Odaberi koja će se kartica prva prikazati u biblioteci",
+  "firstBottomNavPage": "Prva stranica",
+  "firstBottomNavPageDes": "Odaberite koja će se stranica prikazati prva pri pokretanju aplikacije",
   "for1": "for",
   "gesture": "Gesture",
   "github": "GitHub",

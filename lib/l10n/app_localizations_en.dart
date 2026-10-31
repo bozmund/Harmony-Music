@@ -333,6 +333,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get firstLibraryTabDes => 'Select which tab to show first in Library';
 
   @override
+  String get firstBottomNavPage => 'First page';
+
+  @override
+  String get firstBottomNavPageDes =>
+      'Select which page to show first when the app opens';
+
+  @override
   String get for1 => 'for';
 
   @override

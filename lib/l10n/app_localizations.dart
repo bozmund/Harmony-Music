@@ -716,6 +716,18 @@ abstract class AppLocalizations {
   /// **'Select which tab to show first in Library'**
   String get firstLibraryTabDes;
 
+  /// No description provided for @firstBottomNavPage.
+  ///
+  /// In en, this message translates to:
+  /// **'First page'**
+  String get firstBottomNavPage;
+
+  /// No description provided for @firstBottomNavPageDes.
+  ///
+  /// In en, this message translates to:
+  /// **'Select which page to show first when the app opens'**
+  String get firstBottomNavPageDes;
+
   /// No description provided for @for1.
   ///
   /// In en, this message translates to:

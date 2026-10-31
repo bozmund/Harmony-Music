@@ -33,6 +33,7 @@ import '/services/music_service.dart';
 import '/ui/utils/theme_controller.dart';
 import 'components/custom_expansion_tile.dart';
 import 'package:harmonymusic/ui/screens/Settings/settings_screen_controller.dart';
+import '../../../models/mobile_nav_item.dart';
 
 bool _cloudOptInDialogOpen = false;
 const _latestAndroidApkUrl =
@@ -533,6 +534,47 @@ class SettingsScreen extends ConsumerWidget {
                             value:
                                 settingsController.isBottomNavBarEnabled.value,
                             onChanged: settingsController.enableBottomNavBar,
+                          ),
+                        ),
+                      if (!isDesktop)
+                        ListTile(
+                          contentPadding: const EdgeInsets.only(
+                            left: 5,
+                            right: 10,
+                          ),
+                          title: Text(context.l10n.firstBottomNavPage),
+                          subtitle: Text(
+                            context.l10n.firstBottomNavPageDes,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          trailing: DropdownButton<int>(
+                            dropdownColor: Theme.of(context).cardColor,
+                            underline: const SizedBox.shrink(),
+                            value: settingsController.mobileNavFirstPage.value,
+                            items: [
+                              DropdownMenuItem<int>(
+                                value: MobileNavItem.home.tabIndex,
+                                child: Text(context.l10n.home),
+                              ),
+                              DropdownMenuItem<int>(
+                                value: MobileNavItem.library.tabIndex,
+                                child: Text(context.l10n.library),
+                              ),
+                              DropdownMenuItem<int>(
+                                value: MobileNavItem.search.tabIndex,
+                                child: Text(context.l10n.search),
+                              ),
+                              DropdownMenuItem<int>(
+                                value: MobileNavItem.settings.tabIndex,
+                                child: Text(context.l10n.settings),
+                              ),
+                            ],
+                            onChanged: (val) async {
+                              if (val == null) return;
+                              await settingsController.setMobileNavFirstPage(
+                                val,
+                              );
+                            },
                           ),
                         ),
                       ListTile(

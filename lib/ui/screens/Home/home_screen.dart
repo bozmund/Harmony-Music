@@ -229,12 +229,12 @@ class Body extends ConsumerWidget {
           ),
           1 =>
             settingsScreenController.isBottomNavBarEnabled.value
-                ? const SearchScreen()
-                : const SongsLibraryWidget(),
+              ? const CombinedLibrary()
+              : const PlaylistNAlbumLibraryWidget(isAlbumContent: false),
           2 =>
             settingsScreenController.isBottomNavBarEnabled.value
-                ? const CombinedLibrary()
-                : const PlaylistNAlbumLibraryWidget(isAlbumContent: false),
+              ? const SearchScreen()
+              : const SongsLibraryWidget(),
           3 =>
             settingsScreenController.isBottomNavBarEnabled.value
                 ? const SettingsScreen(isBottomNavActive: true)
